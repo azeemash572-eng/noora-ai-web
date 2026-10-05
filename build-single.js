@@ -10,7 +10,8 @@ html = html.replace(/<link[^>]*rel="manifest"[^>]*>\s*/, '')
   .replace(/href="(icons\/[^"]+\.png|apple-touch-icon\.png)"/g, (m, f) => `href="${b64(f)}"`)
   .replace(/src="(icons\/[^"]+\.png)"/g, (m, f) => `src="${b64(f)}"`)
   .replace(/<script src="core.js"><\/script>/, () => `<script>\n${js('core.js')}\n</script>`)
+  .replace(/<script src="tools.js"><\/script>/, () => `<script>\n${js('tools.js')}\n</script>`)
   .replace(/<script src="app.js"><\/script>/, () => `<script>\n${js('app.js')}\n</script>`);
-if (/src="(core|app)\.js"|href="app\.css"|rel="manifest"/.test(html)) throw new Error('inline failed');
+if (/src="(core|tools|app)\.js"|href="app\.css"|rel="manifest"/.test(html)) throw new Error('inline failed');
 fs.writeFileSync(out, html);
 console.log('wrote', out, (html.length / 1024).toFixed(0) + ' KB');

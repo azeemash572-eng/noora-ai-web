@@ -1,4 +1,4 @@
-/* NOORA AI 2.1.0 command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
+/* NOORA AI 2.2.0 command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
 (function () {
   'use strict';
   const C = window.NooraCore, L = C.Lang;
@@ -27,7 +27,8 @@
     provider: C.PROVIDER_FREE, baseUrl: '', apiKey: '', chatModel: '', visionModel: '',
     modelPreset: 'Fast', webSearchOn: true, memoryOn: true,
     pinOn: false, pinHash: '', continuousVoice: false, activeAssistantId: null,
-    serverUrl: '', videoProvider: '', videoApiKey: '', videoBaseUrl: ''
+    serverUrl: '', videoProvider: '', videoApiKey: '', videoBaseUrl: '',
+    mapsProvider: '', defaultCountryCode: '', handsFree: false
   }, C.DEFAULT_VOICE_SETTINGS);
   let S = Object.assign({}, DEF);
   try {
@@ -129,6 +130,12 @@
         if (!S.memoryOn) return null;
         const cat = (C.MEMORY_CATEGORIES || []).includes(category) ? category : (category || 'facts');
         const m = { fact, ts: Date.now(), category: cat };
+        if (!db) { m.id = mem.seq++; mem.memories.push(m); lsSave(); return m.id; }
+        return tx('memories', 'readwrite', (s) => s.add(m));
+      },
+      async addMemoryRecord(rec) {
+        if (!S.memoryOn) return null;
+        const m = Object.assign({}, rec, { ts: Date.now() });
         if (!db) { m.id = mem.seq++; mem.memories.push(m); lsSave(); return m.id; }
         return tx('memories', 'readwrite', (s) => s.add(m));
       },
@@ -278,6 +285,7 @@
       const onDelta = opts.onDelta;
       const body = { model, messages, temperature: S.modelPreset === 'Creative' ? 0.95 : S.modelPreset === 'Advanced reasoning' ? 0.4 : 0.7 };
       if (stream) body.stream = true;
+      if (opts.tools && opts.tools.length) { body.tools = opts.tools; body.tool_choice = 'auto'; }
       if (!key) body.referrer = 'noora-ai-web';
       const headers = { 'Content-Type': 'application/json' };
       if (key) headers.Authorization = 'Bearer ' + key;
@@ -285,32 +293,42 @@
       if (!r.ok) {
         let detail = '';
         if (r.res) { try { const j = await r.res.json(); const m = (j.error && (j.error.message || j.error)) || j.message; if (m && typeof m === 'string') detail = ' (' + m.slice(0, 90) + ')'; } catch (e) {} }
-        return { failure: reasonOf(r) + detail };
+        return { failure: reasonOf(r) + detail, status: r.status };
       }
       if (stream && r.res && r.res.body && typeof r.res.body.getReader === 'function') {
         try {
           const reader = r.res.body.getReader();
           const dec = new TextDecoder();
           let buf = '', full = '';
+          const acc = [];
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
             const parsed = C.parseStreamBuffer(buf, dec.decode(value, { stream: true }));
             buf = parsed.buffer;
+            if (parsed.toolCalls && parsed.toolCalls.length) T.accumulateToolCalls(acc, parsed.toolCalls);
             if (parsed.delta) { full += parsed.delta; if (onDelta) onDelta(parsed.delta, full); }
             if (parsed.done) break;
           }
           if (buf.trim()) {
             const last = C.parseSSEChunk(buf);
+            if (last.toolCalls && last.toolCalls.length) T.accumulateToolCalls(acc, last.toolCalls);
             if (last.delta) { full += last.delta; if (onDelta) onDelta(last.delta, full); }
           }
-          if (full.trim()) return { text: full, streamed: true };
+          const toolCalls = acc.length ? T.parseToolCalls({ tool_calls: acc.filter(Boolean) }) : [];
+          if (full.trim() || toolCalls.length) return { text: full, streamed: true, toolCalls };
           return { failure: 'empty stream' };
         } catch (e) {
           return { failure: 'stream failed: ' + (e.message || e) };
         }
       }
-      try { const t = C.parseChatCompletion(await r.res.json()); return t ? { text: t } : { failure: 'empty reply' }; } catch (e) { return { failure: 'bad JSON' }; }
+      try {
+        const j = await r.res.json();
+        const t = C.parseChatCompletion(j);
+        const msg = j && j.choices && j.choices[0] && j.choices[0].message;
+        const toolCalls = msg ? T.parseToolCalls(msg) : [];
+        return t || toolCalls.length ? { text: t || '', toolCalls } : { failure: 'empty reply' };
+      } catch (e) { return { failure: 'bad JSON' }; }
     },
     async plain(messages) {
       if (messages.some((m) => typeof m.content !== 'string')) return { failure: 'no image support' };
@@ -324,37 +342,48 @@
       const reasons = [];
       const onDelta = opts.onDelta;
       const tryStream = opts.stream !== false;
+      const withTools = !!opts.tools && !vision;
+      const apiTools = withTools ? T.toolsForApi(PLATFORM) : null;
+      const sysAppend = (msgsIn, extra) => msgsIn.map((m, i) => (i === 0 && m.role === 'system' && typeof m.content === 'string') ? Object.assign({}, m, { content: m.content + '\n\n' + extra }) : m);
+      const fallbackMsgs = withTools ? sysAppend(messages, T.toolPromptFallback(PLATFORM)) : messages;
+      const done = (r, via, extra) => Object.assign({ text: C.cleanAi(r.text || ''), via, streamed: r.streamed, toolCalls: r.toolCalls || [] }, extra || {});
       const server = (S.serverUrl || '').trim().replace(/\/+$/, '');
       if (server) {
         const model = vision && S.visionModel ? S.visionModel : (S.chatModel || 'gemini-2.5-flash');
-        const r = await this.openAi(server + '/ai/chat', model, messages, null, { stream: tryStream, onDelta });
-        if (r.text) return { text: C.cleanAi(r.text), via: 'Server proxy · ' + model, streamed: r.streamed };
+        const r = await this.openAi(server + '/ai/chat', model, fallbackMsgs, null, { stream: tryStream, onDelta });
+        if (r.text || (r.toolCalls && r.toolCalls.length)) return done(r, 'Server proxy · ' + model);
         reasons.push('server: ' + r.failure);
       }
       if (hasOwnKey()) {
         const model = vision && S.visionModel ? S.visionModel : S.chatModel;
-        const r = await this.openAi(S.baseUrl.replace(/\/+$/, '') + '/chat/completions', model, messages, S.apiKey, { stream: tryStream, onDelta });
-        if (r.text) return { text: C.cleanAi(r.text), via: `${S.provider} · ${model}`, streamed: r.streamed };
-        // stream failed → non-stream fallback
+        const url = S.baseUrl.replace(/\/+$/, '') + '/chat/completions';
+        const nativeMsgs = withTools ? sysAppend(messages, T.toolPromptNative(PLATFORM)) : messages;
+        let r = await this.openAi(url, model, nativeMsgs, S.apiKey, { stream: tryStream, onDelta, tools: apiTools });
+        if (r.text || (r.toolCalls && r.toolCalls.length)) return done(r, `${S.provider} · ${model}`);
+        // provider rejected `tools` (HTTP 400/422) → retry without native tools, JSON-block fallback prompt
+        if (withTools && (r.status === 400 || r.status === 422)) {
+          r = await this.openAi(url, model, fallbackMsgs, S.apiKey, { stream: tryStream, onDelta });
+          if (r.text) return done(r, `${S.provider} · ${model} · json-tools`);
+        }
         if (tryStream) {
-          const r2 = await this.openAi(S.baseUrl.replace(/\/+$/, '') + '/chat/completions', model, messages, S.apiKey, { stream: false });
-          if (r2.text) return { text: C.cleanAi(r2.text), via: `${S.provider} · ${model}` };
+          const r2 = await this.openAi(url, model, withTools && r.status !== 400 ? nativeMsgs : (withTools ? fallbackMsgs : messages), S.apiKey, { stream: false, tools: withTools && r.status !== 400 && r.status !== 422 ? apiTools : null });
+          if (r2.text || (r2.toolCalls && r2.toolCalls.length)) return done(r2, `${S.provider} · ${model}`);
           reasons.push(`${S.provider}: ${r.failure || r2.failure}`);
         } else reasons.push(`${S.provider}: ${r.failure}`);
       }
       const warning = reasons.length ? `⚠️ Your ${S.provider || 'provider'} key/model failed (${reasons[0].split(': ').slice(1).join(': ').slice(0, 100)}). Answered with the free server instead — check Settings.` : null;
       for (let attempt = 0; attempt < 2; attempt++) {
-        if (attempt === 1) await new Promise((r) => setTimeout(r, 6000));
+        if (attempt === 1) await new Promise((r) => setTimeout(r, opts.fastFail ? 500 : 6000));
         const freeModel = 'openai';
-        const a = await this.openAi('https://text.pollinations.ai/openai', freeModel, messages, null, { stream: tryStream, onDelta });
-        if (a.text) return { text: C.cleanAi(a.text), via: 'Pollinations (free)', warning, streamed: a.streamed };
-        const b = await this.plain(messages);
-        if (b.text) return { text: C.cleanAi(b.text), via: 'Pollinations (free)', warning };
-        const c = await this.openAi('https://gen.pollinations.ai/v1/chat/completions', freeModel, messages, null, { stream: tryStream && attempt === 0, onDelta });
-        if (c.text) return { text: C.cleanAi(c.text), via: 'Pollinations (free)', warning, streamed: c.streamed };
+        const a = await this.openAi('https://text.pollinations.ai/openai', freeModel, fallbackMsgs, null, { stream: tryStream, onDelta });
+        if (a.text) return done(a, 'Pollinations (free)', { warning });
+        const b = await this.plain(fallbackMsgs);
+        if (b.text) return done(b, 'Pollinations (free)', { warning });
+        const c = await this.openAi('https://gen.pollinations.ai/v1/chat/completions', freeModel, fallbackMsgs, null, { stream: tryStream && attempt === 0, onDelta });
+        if (c.text) return done(c, 'Pollinations (free)', { warning });
         if (attempt === 1 || vision) { reasons.push(`free AI: ${a.failure} / ${b.failure} / ${c.failure}`); break; }
       }
-      return { text: null, failure: reasons.join('; ') };
+      return { text: null, failure: reasons.join('; '), network: reasons.some((x) => /network|no internet|timeout/i.test(x)) };
     }
   };
 
@@ -395,6 +424,789 @@
   let fileFilter = 'all';
   let editingAssistId = null;
   const list = $('list'), input = $('input');
+
+  // ======== 2.2.0: tool engine · orchestrator · voice states · attachments ========
+  const T = window.NooraTools;
+  let plan = null;          // { steps:[{tool,args}], i, lang }
+  let pending = null;       // { type:'confirm'|'choose'|'number'|'email'|'place'|'perm'|'retry', cardId?, ... }
+  let cardSeq = 0;
+  let lastAttachment = null; // { name, mime, file, dataUrl }
+  let pickToChat = false;
+  let voiceState = 'IDLE';
+  const toolCtx = () => ({ platform: PLATFORM, settings: S, lastAttachment, now: Date.now() });
+  const bridge = () => (IS_ANDROID_WV && window.NooraNative) ? window.NooraNative : null;
+  const NATIVE_STT = !!(IS_ANDROID_WV && window.NooraNative && typeof window.NooraNative.sttStart === 'function');
+
+  function friendlyError(e) {
+    const m = String((e && e.message) || e || '');
+    if (/network|fetch|load|timeout|offline|cors/i.test(m)) return 'connection problem — check the internet and try again';
+    if (/decode|format|corrupt|invalid pdf|zip/i.test(m)) return 'the file looks damaged or in a format I can\'t read';
+    return 'something went wrong — please try again';
+  }
+  function nativeRun(payload) {
+    const b = bridge();
+    if (!b) return { ok: false, code: 'no_bridge', message: 'Android bridge not available' };
+    try {
+      if (typeof b.run === 'function') return JSON.parse(b.run(JSON.stringify(payload)) || '{}');
+      const legacy = b.action(JSON.stringify(payload));
+      return { ok: !/could not|unknown|error/i.test(legacy || ''), message: legacy || '' };
+    } catch (e) { return { ok: false, code: 'bridge_error', message: 'Android bridge error' }; }
+  }
+  /** The ONLY place the web app leaves for another app/site. Tests can intercept via window.__nooraOpenHook. */
+  function openExternal(url) {
+    window.__nooraLastOpen = url;
+    if (typeof window.__nooraOpenHook === 'function') { window.__nooraOpenHook(url); return { ok: true, leftApp: true }; }
+    if (IS_ANDROID_WV) { const r = nativeRun({ type: 'view', url }); return { ok: r.ok !== false, leftApp: r.ok !== false, code: r.code, message: r.message }; }
+    if (/^https?:/i.test(url)) {
+      let w = null;
+      try { w = window.open(url, '_blank'); if (w) w.opener = null; } catch (e) { w = null; }
+      if (!w) location.href = url;
+      return { ok: true, leftApp: true };
+    }
+    location.href = url;
+    return { ok: true, leftApp: true };
+  }
+
+  // ---- voice state machine (IDLE / LISTENING / THINKING / EXECUTING / SPEAKING / ERROR) ----
+  const VS_LABEL = { IDLE: 'Ready', LISTENING: 'Listening…', THINKING: 'Thinking…', EXECUTING: 'Working on it…', SPEAKING: 'Speaking…', ERROR: 'Oops' };
+  function setVoiceState(st, detail) {
+    voiceState = st;
+    document.body.dataset.voiceState = st.toLowerCase();
+    const orb = $('homeVoiceBtn');
+    if (orb) { orb.dataset.state = st.toLowerCase(); orb.setAttribute('aria-label', 'Voice: ' + VS_LABEL[st]); }
+    const vo = $('vsOrb'); if (vo) { vo.dataset.state = st.toLowerCase(); vo.setAttribute('aria-label', 'Voice: ' + VS_LABEL[st]); }
+    if ($('vsLabel')) $('vsLabel').textContent = VS_LABEL[st] + (detail ? ' · ' + detail : '');
+    const panel = $('voiceState'); if (panel) panel.hidden = st === 'IDLE' && !continuous && !detail && !pending;
+    if (st === 'ERROR' && detail) { clearTimeout(setVoiceState._t); setVoiceState._t = setTimeout(() => { if (voiceState === 'ERROR') setVoiceState('IDLE'); }, 7000); }
+  }
+  function setTranscript(t, final) { const el = $('vsTranscript'); if (el) el.textContent = t ? (final ? '“' + t + '”' : t + ' …') : ''; }
+  function setActionInfo(t) { const el = $('vsAction'); if (el) el.textContent = t || ''; }
+  function friendlySpeechError(code, lang) {
+    if (code === 'not-allowed' || code === 'service-not-allowed' || code === 'permission') return T.say('mic_denied', {}, lang || prefLang() || L.ROMAN_URDU);
+    if (code === 'network') return T.say('net_error', {}, lang || prefLang() || L.ROMAN_URDU);
+    return C.speechErrorMessage(code === 'no-match' ? 'no-speech' : code) || '';
+  }
+
+  // ---- action cards ----
+  const CONFIRM_LABEL = { call_phone: '📞 Call', send_sms: '✉️ Open Messages', send_whatsapp: '🟢 Open WhatsApp', send_email: '📧 Open Mail', run_shortcut: '▶ Run Shortcut', share_file: '📤 Share' };
+  function renderCard(card) {
+    const box = document.createElement('div'); box.className = 'actCard'; box.dataset.card = card.id;
+    const h = document.createElement('div'); h.className = 'ach'; h.textContent = card.title; box.appendChild(h);
+    (card.details || []).forEach(([k, v]) => {
+      const r = document.createElement('div'); r.className = 'acr';
+      const kb = document.createElement('b'); kb.textContent = k + ': '; const vs = document.createElement('span'); vs.textContent = v; vs.dir = 'auto';
+      r.appendChild(kb); r.appendChild(vs); box.appendChild(r);
+    });
+    if (card.note) { const n = document.createElement('div'); n.className = 'acn'; n.textContent = card.note; box.appendChild(n); }
+    const live = pending && pending.cardId === card.id;
+    if (card.buttons && live && !card.state) {
+      const row = document.createElement('div'); row.className = 'acb';
+      card.buttons.forEach((b) => {
+        const el = document.createElement('button'); el.type = 'button'; el.textContent = b.label; if (b.go) el.className = 'go';
+        el.dataset.cardBtn = String(b.value);
+        el.onclick = () => onCardButton(card.id, b.value);
+        row.appendChild(el);
+      });
+      box.appendChild(row);
+    } else if (card.buttons) {
+      const s = document.createElement('div'); s.className = 'acs'; s.textContent = card.state || 'Action card from earlier'; box.appendChild(s);
+    }
+    return box;
+  }
+  function markCard(id, state) {
+    const i = msgs.findIndex((m) => m.meta && m.meta.card && m.meta.card.id === id);
+    if (i < 0) return;
+    msgs[i].meta.card.state = state;
+    if (list.children[i]) list.children[i].replaceWith(renderMsg(msgs[i]));
+  }
+  function onCardButton(id, value) {
+    if (!pending || pending.cardId !== id) { toast('This action card has expired.'); return; }
+    const p = pending;
+    if (p.type === 'confirm' && /^map:/.test(String(value))) {
+      const provider = String(value).slice(4);
+      S.mapsProvider = provider; saveS();                       // remembered — change it in Tools → Action preferences
+      const re = T.prepare('open_maps', Object.assign({}, p.prep.args, { provider }), toolCtx());
+      if (re.ok) p.prep = re;
+      confirmPending();
+    }
+    else if (p.type === 'confirm') { if (value === 'yes') confirmPending(); else cancelPending(); }
+    else if (p.type === 'choose') { const c = p.choices[Number(value)]; if (c) chooseContact(c); else cancelPending(); }
+    else if (p.type === 'retry') { pending = null; markCard(id, value === 'yes' ? '↻ Retrying' : 'Dismissed'); if (value === 'yes') retryLast(p.text); }
+  }
+  function speakLine(prep) {
+    const msgDetail = (prep.details || []).find(([k]) => k === 'Message' || k === 'Text');
+    return prep.summary + (msgDetail && msgDetail[1] !== '(empty)' ? ': ' + msgDetail[1] : '') + '.';
+  }
+  function showConfirmCard(prep, lang, stepLabel) {
+    const id = 'card' + (++cardSeq) + '_' + Date.now().toString(36);
+    const isTap = !prep.confirm;
+    const title = (prep.confirm ? '⚠️ ' : '👉 ') + (stepLabel || '') + prep.summary;
+    const askMaps = prep.tool === 'open_maps' && PLATFORM === 'ios-web' && !S.mapsProvider && !(prep.args && prep.args.provider);
+    const buttons = askMaps
+      ? [{ label: 'Apple Maps', value: 'map:apple', go: true }, { label: 'Google Maps', value: 'map:google' }, { label: 'Cancel', value: 'no' }]
+      : isTap
+      ? [{ label: (prep.action && prep.action.tapLabel) || ('Open ' + (prep.what || prep.label)), value: 'yes', go: true }, { label: 'Cancel', value: 'no' }]
+      : [{ label: CONFIRM_LABEL[prep.tool] || ('✓ ' + prep.label), value: 'yes', go: true }, { label: 'Cancel', value: 'no' }];
+    pending = { type: 'confirm', cardId: id, prep };
+    const q = isTap ? T.say('tap_to_open', {}, lang) : T.say('confirm_q', {}, lang);
+    setVoiceState('IDLE', isTap ? 'tap to open' : 'waiting for haan / nahi'); setActionInfo((stepLabel || '') + prep.summary);
+    return reply(q, lang, { meta: { card: { id, title, details: prep.details, note: prep.note, buttons }, via: 'NOORA tools' }, speakText: speakLine(prep) + ' ' + q });
+  }
+  function confirmPending() {
+    const p = pending; pending = null;
+    markCard(p.cardId, '✓ Confirmed');
+    const out = executePrep(p.prep);       // URL opens synchronously inside the tap (iOS needs the gesture)
+    Promise.resolve(out).then((res) => afterExecute(p.prep, res || { ok: false, message: 'no result' }));
+  }
+  function cancelPending() {
+    const p = pending; pending = null;
+    if (p && p.cardId) markCard(p.cardId, '✕ Cancelled');
+    const lang = plan ? plan.lang : (prefLang() || L.ENGLISH);
+    plan = null; setActionInfo('');
+    reply(T.say('cancelled', {}, lang), lang, { meta: { via: 'NOORA tools' } });
+  }
+  async function afterExecute(prep, res) {
+    const lang = plan ? plan.lang : (prefLang() || L.ENGLISH);
+    const more = plan && plan.i + 1 < plan.steps.length;
+    await reportResult(prep, res, lang, more);
+    if (!res.ok) { plan = null; return; }
+    if (!plan) return;
+    plan.i++;
+    if (res.leftApp && plan.i < plan.steps.length) await waitForReturn();
+    advancePlan();
+  }
+  function waitForReturn(maxMs) {
+    return new Promise((resolve) => {
+      let hidden = document.hidden;
+      const onVis = () => { if (document.hidden) hidden = true; else if (hidden) { cleanup(); setTimeout(resolve, 500); } };
+      const tm = setTimeout(() => { if (!hidden) { cleanup(); resolve(); } }, maxMs || 2500);
+      function cleanup() { document.removeEventListener('visibilitychange', onVis); clearTimeout(tm); }
+      document.addEventListener('visibilitychange', onVis);
+    });
+  }
+  async function reportResult(prep, res, lang, more) {
+    if (res.silent && res.ok) { busy = false; return; }
+    let text;
+    if (res.ok) text = prep.confirm || res.leftApp ? T.say('opened', { what: prep.what || prep.label }, lang) : T.say('done', { what: res.message || prep.summary }, lang);
+    else if (res.code === 'not_installed') text = T.say('not_installed', { app: prep.what || prep.label }, lang);
+    else if (res.code === 'permission') text = T.say('action_failed', { reason: (res.message || 'permission needed') + ' — allow it and ask me again.' }, lang);
+    else text = T.say('action_failed', { reason: res.message || 'unknown error' }, lang);
+    if (res.ok && res.message && (prep.confirm || res.leftApp) && res.note) text += '\n' + res.note;
+    await reply(text + (more && res.ok ? '' : ''), lang, { meta: { via: 'NOORA tools' + (IS_ANDROID_WV ? ' · Android' : '') }, speak: !(res.leftApp && more) });
+    if (res.code === 'not_installed' && res.fallbackUrl) {
+      const fb = { ok: true, tool: 'open_url', label: 'Browser', summary: 'Open ' + res.fallbackUrl.split('?')[0] + ' in the browser instead', what: 'the browser', confirm: false, details: [], action: { kind: 'native', payload: { type: 'browser', url: res.fallbackUrl }, needsTap: true, tapLabel: '🌐 Open in browser' } };
+      plan = plan || { steps: [], i: 0, lang };
+      showConfirmCard(fb, lang, '');
+    }
+  }
+
+  /** Execute a prepared action. URL actions run synchronously (gesture-safe). */
+  function executePrep(prep) {
+    const a = prep.action || {};
+    try {
+      if (a.kind === 'url') return openExternal(a.url);
+      if (a.kind === 'native') {
+        const payload = Object.assign({}, a.payload);
+        if (payload.type === 'share' && payload.source === 'last_attachment' && lastAttachment) {
+          payload.name = lastAttachment.name; payload.mime = lastAttachment.mime || 'application/octet-stream';
+          payload.data = String(lastAttachment.dataUrl || '').split(',')[1] || '';
+          if (!payload.data) return { ok: false, message: 'The attachment is no longer in memory — attach it again.' };
+        }
+        const r = nativeRun(payload);
+        if (!r.ok && r.code === 'not_installed' && a.fallbackUrl) return Object.assign({}, r, { fallbackUrl: a.fallbackUrl });
+        if (!r.ok && a.fallbackUrl && !a.fallbackOn && r.code === 'no_activity') { const f = openExternal(a.fallbackUrl); return Object.assign({ message: r.message }, f); }
+        return { ok: !!r.ok, code: r.code, message: r.message || '', leftApp: !!r.leftApp, data: r };
+      }
+      if (a.kind === 'ics') {
+        const blob = new Blob([a.content], { type: 'text/calendar;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        if (typeof window.__nooraOpenHook === 'function') { window.__nooraOpenHook('ics:' + a.content); }
+        else { const el = document.createElement('a'); el.href = url; el.download = a.filename || 'noora.ics'; document.body.appendChild(el); el.click(); el.remove(); }
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+        return { ok: true, message: 'calendar file ready — tap "Add" / "Add to Calendar" to save it' };
+      }
+      if (a.kind === 'local') {
+        if (a.op === 'pick') { const el = $(a.input); if (!el) return { ok: false, message: 'picker missing' }; pickToChat = true; el.click(); return { ok: true, silent: true }; }
+        if (a.op === 'share') return shareLastAttachment();
+        if (a.op === 'notify') return webNotify(a.title, a.text);
+      }
+      if (a.kind === 'result') return { ok: true, message: a.text };
+    } catch (e) { return { ok: false, message: friendlyError(e) }; }
+    return { ok: false, message: 'nothing to run' };
+  }
+  async function shareLastAttachment() {
+    if (!lastAttachment || !lastAttachment.file) return { ok: false, message: 'attach the photo/file first (📎)' };
+    const files = [lastAttachment.file];
+    if (!navigator.share || (navigator.canShare && !navigator.canShare({ files }))) return { ok: false, message: 'this browser cannot share files — long-press the image to save/share it instead' };
+    try { await navigator.share({ files, title: lastAttachment.name }); return { ok: true, message: 'shared' }; }
+    catch (e) { return { ok: false, message: e && e.name === 'AbortError' ? 'share cancelled' : 'share failed' }; }
+  }
+  async function webNotify(title, text) {
+    if (!('Notification' in window)) return { ok: false, message: IS_IOS ? 'iPhone allows web notifications only for an installed Home Screen app (iOS 16.4+)' : 'notifications are not supported in this browser' };
+    let perm = Notification.permission;
+    if (perm === 'default') perm = await Notification.requestPermission();
+    if (perm !== 'granted') return { ok: false, message: 'notification permission was not granted' };
+    try {
+      const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null;
+      if (reg && reg.showNotification) await reg.showNotification(title, { body: text, icon: 'icons/icon-192.png' });
+      else new Notification(title, { body: text, icon: 'icons/icon-192.png' });
+      return { ok: true, message: 'notification shown' };
+    } catch (e) { return { ok: false, message: 'could not show the notification' }; }
+  }
+
+  // ---- plan runner (multi-step, pauses for confirmation / missing info) ----
+  async function runPlan(steps, lang, opts) {
+    const list = (steps || []).filter((s) => s && s.tool).slice(0, 6);
+    if (!list.length) { busy = false; return; }
+    if (pending && pending.cardId) markCard(pending.cardId, 'Replaced by a new request');
+    pending = null;
+    plan = { steps: list.map((s) => ({ tool: s.tool, args: Object.assign({}, s.args || {}) })), i: 0, lang: lang || prefLang() || L.ENGLISH, source: (opts && opts.source) || 'local' };
+    busy = true;
+    setActionInfo(plan.steps.map((s, i) => (i + 1) + '. ' + ((T.getTool(s.tool) || {}).label || s.tool)).join('  →  '));
+    return advancePlan();
+  }
+  async function advancePlan() {
+    try {
+      while (plan && plan.i < plan.steps.length) {
+        const st = plan.steps[plan.i];
+        const lang = plan.lang;
+        const tl = T.getTool(st.tool);
+        setVoiceState('EXECUTING', tl ? tl.label : st.tool);
+        const res = await resolveStep(st);
+        if (res.pause) { busy = false; return; }
+        st.args = res.args;
+        const prep = T.prepare(st.tool, res.args, toolCtx());
+        if (!prep.ok) {
+          const reason = prep.error.replace(/^[^:]+: /, '');
+          const text = prep.code === 'unavailable' ? T.say('unavailable', { what: prep.label || st.tool, reason }, lang) : T.say('action_failed', { reason: prep.error }, lang);
+          plan = null; setActionInfo('');
+          setVoiceState('ERROR', prep.label || '');
+          return reply(text, lang, { meta: { via: 'NOORA tools' } });
+        }
+        const stepLabel = plan.steps.length > 1 ? '(' + (plan.i + 1) + '/' + plan.steps.length + ') ' : '';
+        const a = prep.action || {};
+        if (prep.confirm || a.needsTap || (a.kind === 'url' && !IS_ANDROID_WV)) { await showConfirmCard(prep, lang, stepLabel); return; }
+        if (a.kind === 'local' || a.kind === 'result') { await runLocal(prep, lang); if (!plan) return; plan.i++; continue; }
+        const out = executePrep(prep);
+        const res2 = await Promise.resolve(out);
+        const more = plan.i + 1 < plan.steps.length;
+        await reportResult(prep, res2, lang, more);
+        if (!res2.ok || !plan) { plan = null; return; }
+        plan.i++;
+        if (res2.leftApp && plan.i < plan.steps.length) await waitForReturn();
+      }
+    } catch (e) {
+      const lang = plan ? plan.lang : L.ENGLISH;
+      plan = null;
+      return reply(T.say('action_failed', { reason: friendlyError(e) }, lang), lang);
+    }
+    plan = null; busy = false; setActionInfo('');
+    if (voiceState === 'EXECUTING') setVoiceState('IDLE');
+  }
+  async function runLocal(prep, lang) {
+    const a = prep.action;
+    if (a.kind === 'result') return reply(a.text, lang, { meta: { via: 'NOORA tools' } });
+    if (a.op === 'web_search') {
+      if (S.webSearchOn === false) return reply('Web & research is off in Settings — turn it on to search live sources.', lang);
+      return liveSearch(a.query, a.query, false, lang);
+    }
+    if (a.op === 'remember') {
+      if (!S.memoryOn) return reply(T.say('action_failed', { reason: 'Memory is off in Settings' }, lang), lang);
+      if (a.nickname) { await saveNickname(a.nickname, a.value, a.category); return reply(T.say('saved_nick', { name: a.nickname, value: a.value }, lang), lang, { meta: { via: 'memory' } }); }
+      await Store.addMemory(a.fact, a.category);
+      return reply(C.remembered(lang, a.fact), lang, { meta: { via: 'memory' } });
+    }
+    if (a.op === 'recall') return reply(C.memoryList(lang, await Store.memories()), lang, { meta: { via: 'memory' } });
+    if (a.op === 'image') return generateImage(a.prompt, lang, null, null);
+    return reply(T.say('action_failed', { reason: 'unknown local action' }, lang), lang);
+  }
+  async function saveNickname(name, value, category) {
+    const rows = await Store.memoryRows();
+    const old = T.findNickname(rows, name, category);
+    if (old) await Store.deleteMemory(old.id);
+    return Store.addMemoryRecord(T.nicknameRecord(name, value, category));
+  }
+  const CONTACT_TOOLS = ['call_phone', 'send_sms', 'send_whatsapp'];
+  async function resolveStep(st) {
+    const args = Object.assign({}, st.args);
+    const lang = plan.lang;
+    const rows = await Store.memoryRows();
+    if (CONTACT_TOOLS.includes(st.tool) && !args.number) {
+      const name = String(args.contact || '').trim();
+      if (!name) { askFor('number', '', lang); return { pause: true }; }
+      const nick = T.findNickname(rows, name, 'contacts');
+      if (nick && T.normalizePhone(nick.value).ok) { args.number = nick.value; args.contactName = nick.name; return { args }; }
+      if (bridge()) {
+        const r = nativeRun({ type: 'contacts', query: name });
+        if (r.code === 'permission') {
+          pending = { type: 'perm', perm: 'contacts', name };
+          await reply(T.langKey(lang) === 'en' ? 'I need Contacts permission to find ' + name + ' — please tap Allow.' : 'Jaanu, ' + name + ' ko dhoondne ke liye Contacts permission chahiye — Allow dabao.', lang, { meta: { via: 'Android' } });
+          return { pause: true };
+        }
+        if (r.ok) {
+          const matches = T.matchContacts(r.results || [], name);
+          if (matches.length === 1) { args.number = matches[0].number; args.contactName = matches[0].name; return { args }; }
+          if (matches.length > 1) { askChoose(name, matches.slice(0, 6), lang); return { pause: true }; }
+        }
+        askFor('number', name, lang, 'need_number'); return { pause: true };
+      }
+      askFor('number', name, lang, 'need_number_web'); return { pause: true };
+    }
+    if (st.tool === 'send_email' && !args.to) {
+      const name = String(args.contact || '').trim();
+      const nick = name && T.findNickname(rows, name, 'contacts');
+      if (nick && /@/.test(nick.value)) { args.to = nick.value; return { args }; }
+      askFor('email', name, lang); return { pause: true };
+    }
+    if (st.tool === 'open_maps' && args.query) {
+      const nick = T.findNickname(rows, args.query, 'places');
+      if (nick) { args.placeName = nick.name; args.query = nick.value; return { args }; }
+      if (/^(home|ghar)$/i.test(args.query)) { askFor('place', 'home', lang); return { pause: true }; }
+    }
+    return { args };
+  }
+  function askFor(type, name, lang, key) {
+    pending = { type, name };
+    let text;
+    if (type === 'number') text = name ? T.say(key || 'need_number', { name }, lang) : (T.langKey(lang) === 'en' ? 'Which number? (e.g. +92 300 1234567)' : 'Kaunsa number, jaanu? (jaise +92 300 1234567)');
+    else if (type === 'email') text = T.langKey(lang) === 'en' ? 'What is ' + (name || 'their') + ' email address?' : 'Jaanu, ' + (name || 'unka') + ' email address kya hai?';
+    else text = T.langKey(lang) === 'en' ? "What's your home address? I'll remember it for next time." : 'Jaanu, ghar ka address bata do — main yaad rakh lungi.';
+    setVoiceState('IDLE', 'waiting for your answer');
+    return reply(text, lang, { meta: { via: 'NOORA tools' } });
+  }
+  function askChoose(name, matches, lang) {
+    const id = 'card' + (++cardSeq) + '_' + Date.now().toString(36);
+    pending = { type: 'choose', cardId: id, choices: matches, name };
+    const q = T.say('ambiguous', { choices: T.describeChoices(matches, lang) }, lang);
+    const buttons = matches.map((c, i) => ({ label: c.name + (c.label ? ' · ' + c.label : '') + ' · ' + c.number, value: i, go: i === 0 })).concat([{ label: 'Cancel', value: 'cancel' }]);
+    return reply(q, lang, { meta: { card: { id, title: 'Which ' + name + '?', details: [], buttons }, via: 'Contacts' } });
+  }
+  function chooseContact(c) {
+    const p = pending; pending = null;
+    if (p && p.cardId) markCard(p.cardId, '✓ ' + c.name);
+    if (!plan) return;
+    const st = plan.steps[plan.i];
+    st.args.number = c.number; st.args.contactName = c.name;
+    busy = true; advancePlan();
+  }
+  /** Typed / spoken reply while NOORA waits (haan / nahi / a choice / a number). Returns true if consumed. */
+  async function handlePendingReply(text) {
+    const p = pending; if (!p) return false;
+    const yn = T.parseYesNo(text);
+    const lang = plan ? plan.lang : C.detect(text, prefLang());
+    if (p.type === 'confirm') {
+      if (yn === 'yes') { await addUser(text); confirmPending(); return true; }
+      if (yn === 'no') { await addUser(text); cancelPending(); return true; }
+      markCard(p.cardId, 'Skipped'); pending = null; plan = null; return false;
+    }
+    if (p.type === 'retry') {
+      if (yn === 'yes') { await addUser(text); pending = null; markCard(p.cardId, '↻ Retrying'); retryLast(p.text); return true; }
+      markCard(p.cardId, 'Dismissed'); pending = null; if (yn === 'no') { await addUser(text); reply('Theek hai.', lang); return true; } return false;
+    }
+    if (yn === 'no') { await addUser(text); cancelPending(); return true; }
+    if (p.type === 'choose') {
+      const c = T.pickChoice(p.choices, text);
+      if (c) { await addUser(text); chooseContact(c); return true; }
+      if (T.parseCommand(text)) { markCard(p.cardId, 'Skipped'); pending = null; plan = null; return false; }
+      await addUser(text); await reply(T.say('ambiguous', { choices: T.describeChoices(p.choices, lang) }, lang), lang); return true;
+    }
+    if (p.type === 'number' || p.type === 'email' || p.type === 'place') {
+      if (!plan) { pending = null; return false; }
+      const st = plan.steps[plan.i];
+      if (p.type === 'number') {
+        const m = T.asciiDigits(text).match(/\+?\d[\d\s\-().]{2,20}\d/);
+        const ph = m ? T.normalizePhone(m[0]) : { ok: false };
+        if (!ph.ok) { if (T.parseCommand(text)) { pending = null; plan = null; return false; } await addUser(text); await reply(T.say('action_failed', { reason: ph.reason || 'that does not look like a phone number' }, lang), lang); return true; }
+        await addUser(text); pending = null;
+        st.args.number = ph.number; if (p.name) st.args.contactName = p.name;
+        if (p.name && S.memoryOn) offerSave(p.name, ph.number, 'contacts', lang);
+      } else if (p.type === 'email') {
+        const m = String(text).match(/[^\s@<>(),;:]+@[^\s@<>(),;:]+\.[A-Za-z]{2,}/);
+        if (!m) { await addUser(text); await reply(T.say('action_failed', { reason: 'that does not look like an email address' }, lang), lang); return true; }
+        await addUser(text); pending = null; st.args.to = m[0];
+        if (p.name && S.memoryOn) offerSave(p.name, m[0], 'contacts', lang);
+      } else {
+        const addr = String(text).trim();
+        if (addr.length < 3) return false;
+        await addUser(text); pending = null; st.args.placeName = 'home'; st.args.query = addr;
+        if (S.memoryOn) offerSave('home', addr, 'places', lang);
+      }
+      busy = true; advancePlan(); return true;
+    }
+    if (p.type === 'perm') { pending = null; plan = null; return false; }
+    return false;
+  }
+  function offerSave(name, value, category, lang) {
+    const m = { convId, role: 'assistant', text: (T.langKey(lang) === 'en' ? 'Want me to remember ' : 'Yaad rakhun? ') + name + ' → ' + value, meta: { saveNick: { name, value, category }, via: 'memory' }, ts: Date.now() };
+    append(m);
+  }
+
+  // ---- AI tool calls → plan ----
+  async function handleAiToolCalls(r, lang, refs) {
+    let calls = (r.toolCalls || []).slice();
+    let shown = r.text || '';
+    const ex = T.extractActionBlock(shown);
+    if (ex.calls.length || ex.error) { shown = ex.text; calls = calls.concat(ex.calls); }
+    if (!calls.length) return false;
+    const good = calls.filter((c) => !c.badArgs);
+    removePending();
+    if (shown.trim()) await reply(shown.trim(), lang, { speak: false, meta: { via: r.via + ' · tools' } });
+    if (!good.length) { await reply(T.say('action_failed', { reason: 'the AI sent an action I could not read — please say it again' }, lang), lang); return true; }
+    await runPlan(good.map((c) => ({ tool: c.name, args: c.args })), lang, { source: 'ai' });
+    return true;
+  }
+  function retryLast(text) { if (!text) return; busy = true; const lang = C.detect(text, prefLang()); chat(text, lang, false, false); }
+
+  // ---- chat attachments: preview · remove · status · validation → pipeline ----
+  let chatPending = []; let chatSeq = 0;
+  const fileIcon = { pdf: '📄', docx: '📝', doc: '📝', sheet: '📊', csv: '📊', text: '📃', audio: '🎵', video: '🎬', image: '🖼', other: '📦' };
+  function addChatFiles(fileList) {
+    for (const file of Array.from(fileList || [])) {
+      const v = C.validateUpload(file);
+      const kind = T.classifyFile(file.name, file.type);
+      const item = { id: ++chatSeq, file, kind, status: v.ok ? 'ready' : 'error', error: v.ok ? '' : v.reason, preview: '' };
+      if (item.status === 'ready') {
+        if (kind === 'doc') { item.status = 'error'; item.error = 'Old .doc (Word 97-2003) can\'t be read in the browser — save it as .docx or PDF.'; }
+        else if (kind === 'other') { item.status = 'error'; item.error = 'Unsupported file type (' + (file.type || 'unknown') + ').'; }
+        else if (kind === 'audio') { const ar = T.audioRoute(S); if (!ar.ok && !S.serverUrl) { item.status = 'error'; item.error = ar.reason; } }
+      }
+      if ((kind === 'image' || kind === 'video') && item.status === 'ready') { try { item.preview = URL.createObjectURL(file); } catch (e) {} }
+      chatPending.push(item);
+    }
+    renderChatPending(); updateMicIcon();
+    if (chatPending.length) { showTab('chat'); input.focus && input.focus(); }
+  }
+  function renderChatPending() {
+    const box = $('chatPending'); if (!box) return;
+    box.innerHTML = '';
+    box.hidden = !chatPending.length;
+    chatPending.forEach((it) => {
+      const d = document.createElement('div'); d.className = 'fcItem ' + it.status; d.dataset.kind = it.kind;
+      if (it.preview && it.kind === 'image') { const im = document.createElement('img'); im.alt = ''; im.src = it.preview; d.appendChild(im); }
+      else if (it.preview && it.kind === 'video') { const vi = document.createElement('video'); vi.muted = true; vi.src = it.preview; d.appendChild(vi); }
+      else { const ic = document.createElement('div'); ic.className = 'ficon'; ic.textContent = fileIcon[it.kind] || '📦'; d.appendChild(ic); }
+      const meta = document.createElement('div'); meta.className = 'meta';
+      const b = document.createElement('b'); b.textContent = it.file.name || 'file';
+      const sp = document.createElement('span');
+      const st = it.status === 'reading' ? '⏳ reading…' : it.status === 'error' ? '⚠ ' + it.error : it.status === 'done' ? '✓ sent' : '✓ ready';
+      sp.textContent = Math.max(1, Math.round((it.file.size || 0) / 1024)) + ' KB · ' + it.kind + ' · ' + st;
+      meta.appendChild(b); meta.appendChild(sp); d.appendChild(meta);
+      const del = document.createElement('button'); del.type = 'button'; del.className = 'del'; del.textContent = '✕'; del.setAttribute('aria-label', 'Remove ' + (it.file.name || 'file'));
+      del.onclick = () => { if (it.preview) URL.revokeObjectURL(it.preview); chatPending = chatPending.filter((x) => x !== it); renderChatPending(); updateMicIcon(); };
+      d.appendChild(del); box.appendChild(d);
+    });
+  }
+  const readDataUrl = (blob) => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => rej(new Error('read failed')); fr.readAsDataURL(blob); });
+  function videoFrame(file) {
+    return new Promise((resolve) => {
+      const url = URL.createObjectURL(file);
+      const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.preload = 'auto';
+      let done = false;
+      const finish = (r) => { if (done) return; done = true; URL.revokeObjectURL(url); resolve(r); };
+      const tm = setTimeout(() => finish({ meta: null, dataUrl: null }), 10000);
+      v.onloadedmetadata = () => { const t = isFinite(v.duration) && v.duration > 0 ? Math.min(1, v.duration / 2) : 0; try { v.currentTime = t; } catch (e) {} };
+      v.onseeked = () => {
+        try {
+          const k = Math.min(1, 1024 / Math.max(v.videoWidth || 1, v.videoHeight || 1));
+          const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(v.videoWidth * k)); c.height = Math.max(1, Math.round(v.videoHeight * k));
+          c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+          clearTimeout(tm);
+          finish({ meta: { duration: v.duration, width: v.videoWidth, height: v.videoHeight, at: v.currentTime }, dataUrl: v.videoWidth ? c.toDataURL('image/jpeg', 0.85) : null });
+        } catch (e) { clearTimeout(tm); finish({ meta: { duration: v.duration, width: v.videoWidth, height: v.videoHeight }, dataUrl: null }); }
+      };
+      v.onerror = () => { clearTimeout(tm); finish({ meta: null, dataUrl: null }); };
+      v.src = url;
+    });
+  }
+  async function transcribe(file, model) {
+    const fd = new FormData(); fd.append('file', file, file.name || 'audio'); fd.append('model', model);
+    const r = await http(S.baseUrl.replace(/\/+$/, '') + '/audio/transcriptions', { method: 'POST', headers: { Authorization: 'Bearer ' + S.apiKey }, body: fd }, 120000);
+    if (!r.ok) throw new Error('transcription failed (' + reasonOf(r) + ')');
+    const j = await r.res.json();
+    if (!j || typeof j.text !== 'string') throw new Error('transcription returned no text');
+    return j.text;
+  }
+  async function processAttachment(it) {
+    const f = it.file, name = f.name || 'file', mime = f.type || '';
+    const base = { name, kind: it.kind };
+    const keep = async (dataUrl) => { lastAttachment = { name, mime: mime || 'application/octet-stream', file: f, dataUrl: dataUrl || (f.size <= 15 * 1024 * 1024 ? await readDataUrl(f) : '') }; };
+    if (it.kind === 'image') {
+      const dataUrl = await scaleImage(f, 1280);
+      await Store.addFile({ name, mime: mime || 'image/jpeg', kind: 'image', ts: Date.now(), dataUrl });
+      await keep(await readDataUrl(f));
+      return Object.assign(base, { dataUrl });
+    }
+    if (it.kind === 'pdf') {
+      const text = await parsePdf(f); await keep();
+      if (!text.replace(/\s|…|\(\d+ more pages not extracted\)/g, '')) return Object.assign(base, { note: 'this PDF has no text layer (probably a scan). I can\'t OCR PDFs directly — send a screenshot/photo of the page instead.' });
+      await Store.addFile({ name, mime: 'application/pdf', kind: 'doc', ts: Date.now(), text: text.slice(0, 100000) });
+      return Object.assign(base, { text });
+    }
+    if (it.kind === 'docx' || it.kind === 'sheet' || it.kind === 'csv' || it.kind === 'text') {
+      const text = it.kind === 'docx' ? await parseDocx(f) : it.kind === 'sheet' ? await parseSheet(f) : (await f.text()).slice(0, 20000);
+      await keep();
+      if (!text.trim()) throw new Error('empty');
+      await Store.addFile({ name, mime: mime || 'text/plain', kind: 'doc', ts: Date.now(), text: text.slice(0, 100000) });
+      return Object.assign(base, { text });
+    }
+    if (it.kind === 'audio') {
+      const ar = T.audioRoute(S);
+      await keep();
+      if (ar.route === 'transcriptions') { const text = await transcribe(f, ar.model); return Object.assign(base, { text: 'Transcript (' + ar.model + '):\n' + text }); }
+      const dataUrl = lastAttachment.dataUrl || await readDataUrl(f);
+      return Object.assign(base, { audio: { data: String(dataUrl).split(',')[1] || '', format: T.audioFormat(name, mime) || 'wav' } });
+    }
+    if (it.kind === 'video') {
+      const v = await videoFrame(f); await keep();
+      const m = v.meta;
+      const metaTxt = m ? ('video ' + (isFinite(m.duration) ? m.duration.toFixed(1) + ' s' : 'unknown length') + ', ' + m.width + '×' + m.height) : 'video (this browser could not decode it)';
+      if (v.dataUrl) return Object.assign(base, { dataUrl: v.dataUrl, note: metaTxt + '. Only ONE frame (at ' + (m.at || 0).toFixed(1) + ' s) is attached — NOORA cannot watch the whole video or hear its audio.' });
+      return Object.assign(base, { note: metaTxt + '. No frame could be extracted, so I can only see the file details — not the video content.' });
+    }
+    throw new Error('unsupported');
+  }
+  async function sendWithAttachments(raw) {
+    if (busy) return toast(aiName() + ' is still answering…');
+    const items = chatPending.filter((x) => x.status === 'ready');
+    if (!items.length) { toast(chatPending.length ? 'Remove the files with ⚠ errors first.' : 'No file selected.'); return; }
+    unlockSpeech(); busy = true; stopSpeaking();
+    const question = String(raw || '').trim();
+    input.value = ''; autoGrow();
+    const processed = [];
+    for (const it of items) {
+      it.status = 'reading'; renderChatPending();
+      try { processed.push(await processAttachment(it)); it.status = 'done'; }
+      catch (e) { it.status = 'error'; it.error = it.kind === 'pdf' || it.kind === 'docx' || it.kind === 'sheet' ? 'could not read this ' + it.kind + ' (' + friendlyError(e) + ')' : friendlyError(e); }
+      renderChatPending();
+    }
+    chatPending = chatPending.filter((x) => x.status === 'error'); renderChatPending(); updateMicIcon();
+    if (!processed.length) { busy = false; toast('Could not read the file(s) — see the ⚠ notes.'); return; }
+    const names = processed.map((p) => (fileIcon[p.kind] || '📎') + ' ' + p.name).join('\n');
+    const firstImg = processed.find((p) => p.dataUrl);
+    await addUser((question ? question + '\n' : '') + names, firstImg ? firstImg.dataUrl : null);
+    const lang = C.detect(question || 'please', prefLang());
+    const cmd = question && T.parseCommand(question);
+    if (cmd) { busy = false; return runPlan(cmd.steps, lang); }
+    const hasImg = processed.some((p) => p.dataUrl), hasAudio = processed.some((p) => p.audio);
+    const vr = T.visionReady(S);
+    let usable = processed;
+    let skipped = '';
+    if ((hasImg || hasAudio) && !vr.ok) {
+      usable = processed.filter((p) => !p.dataUrl && !p.audio).concat(processed.filter((p) => p.dataUrl || p.audio).map((p) => ({ name: p.name, kind: p.kind, note: 'image/audio not sent — no vision/audio model configured' })));
+      skipped = vr.reason;
+      if (!processed.some((p) => p.text)) { return reply(C.visionNeedsKey(lang) + '\n\n(' + vr.reason + ')', lang, { meta: { via: 'honest — no vision model' } }); }
+    }
+    const content = T.buildAttachmentContent(question, usable);
+    showPending(C.word(lang, 'thinking')); status('Reading your file…'); setVoiceState('THINKING', 'reading file');
+    const messages = await buildMessages(lang, false, null);
+    messages[messages.length - 1] = { role: 'user', content };
+    const r = await AI.chat(messages, Array.isArray(content), { stream: !Array.isArray(content) });
+    if (r.text) return reply((skipped ? '⚠️ ' + skipped + '\n\n' : '') + (r.warning ? r.warning + '\n\n' : '') + r.text, lang, { meta: { via: r.via + ' · ' + processed.length + ' file(s)' } });
+    const why = short(r.failure);
+    return reply((Array.isArray(content) ? (hasAudio ? 'I couldn\'t get the audio understood: ' : C.visionNeedsKey(lang) + '\n') : C.noAi(lang, why) + '\n') + '(' + why + ')', lang, { meta: { via: 'offline' } });
+  }
+
+  // ---- Tools tab: registered tools + phone actions with real forms (no prompt()) ----
+  const ACTION_ROWS = ['call_phone', 'send_sms', 'send_whatsapp', 'send_email', 'open_maps', 'open_camera', 'open_gallery', 'open_files', 'share_file', 'open_app', 'set_alarm', 'set_timer', 'set_reminder', 'calendar_event', 'media_control', 'open_settings', 'torch', 'notify', 'run_shortcut', 'open_url', 'web_search'];
+  const FIELD_LABEL = { number: 'Phone number', contact: 'Contact name (from your phone contacts)', message: 'Message', to: 'Email address(es)', subject: 'Subject', body: 'Message', query: 'Place or address', navigate: 'Directions / route', provider: 'Maps app',
+    'open_app.name': 'App name', 'run_shortcut.name': 'Shortcut name (exactly as in the Shortcuts app)', input: 'Text to pass (optional)', url: 'Web address', title: 'Title', start: 'Start (e.g. kal 3 baje / 2026-10-06 15:00)', end: 'End (optional)',
+    location: 'Location', notes: 'Notes', text: 'Text', at: 'When (e.g. in 10 minutes / kal 9 baje)', hour: 'Hour (0–23)', minute: 'Minute', seconds: 'Seconds', label: 'Label', mode: 'Mode', where: 'Where', source: 'What to share', app: 'Share to', panel: 'Settings screen', action: 'Action', on: 'Turn on', expression: 'Expression' };
+  const FIELD_HINT = { number: '+92 300 1234567', to: 'name@example.com', query: 'e.g. Lulu Hypermarket, Lahore', url: 'example.com', at: 'in 10 minutes', start: 'kal 3 baje' };
+  function formModal(tool, preset) {
+    const t = T.getTool(tool); if (!t) return;
+    const form = document.createElement('form'); form.className = 'toolForm'; form.noValidate = true;
+    const props = t.params.properties || {}; const req = t.params.required || [];
+    const fields = {};
+    Object.keys(props).forEach((k) => {
+      const p = props[k];
+      if (k === 'contact' && PLATFORM !== 'android' && tool !== 'send_email') return;
+      const wrap = document.createElement('label'); wrap.className = 'fl';
+      const cap = document.createElement('span'); cap.textContent = (FIELD_LABEL[tool + '.' + k] || FIELD_LABEL[k] || p.title || k) + (req.includes(k) ? ' *' : ''); wrap.appendChild(cap);
+      let el;
+      if (p.enum) { el = document.createElement('select'); (req.includes(k) ? [] : ['']).concat(p.enum).forEach((v) => { const o = document.createElement('option'); o.value = v; o.textContent = v || '—'; el.appendChild(o); }); }
+      else if (p.type === 'boolean') { el = document.createElement('input'); el.type = 'checkbox'; }
+      else if (k === 'body' || k === 'message' || k === 'text') { el = document.createElement('textarea'); el.rows = 3; }
+      else {
+        el = document.createElement('input');
+        el.type = p.type === 'integer' || p.type === 'number' ? 'number' : (k === 'number' ? 'tel' : (k === 'to' ? 'email' : 'text'));
+        if (k === 'to') el.type = 'text';
+        if (p.type === 'integer') el.step = '1';
+        if (k === 'number') el.inputMode = 'tel';
+      }
+      el.name = k; el.dataset.field = k;
+      el.placeholder = FIELD_HINT[k] || (p.description ? String(p.description).slice(0, 70) : '');
+      if (preset && preset[k] != null) { if (el.type === 'checkbox') el.checked = !!preset[k]; else el.value = preset[k]; }
+      wrap.appendChild(el);
+      const err = document.createElement('small'); err.className = 'ferr'; err.hidden = true; wrap.appendChild(err);
+      fields[k] = { el, err, p };
+      form.appendChild(wrap);
+    });
+    const ge = document.createElement('div'); ge.className = 'ferr'; ge.hidden = true; form.appendChild(ge);
+    const collect = () => {
+      const a = {};
+      Object.keys(fields).forEach((k) => {
+        const { el, p } = fields[k];
+        if (el.type === 'checkbox') { if (el.checked) a[k] = true; return; }
+        const v = String(el.value || '').trim(); if (!v) return;
+        a[k] = p.type === 'integer' || p.type === 'number' ? Number(v) : v;
+      });
+      return a;
+    };
+    const run = () => {
+      Object.values(fields).forEach((f) => { f.err.hidden = true; f.el.classList.remove('bad'); });
+      ge.hidden = true;
+      const a = collect();
+      const prep = T.prepare(tool, a, toolCtx());
+      if (!prep.ok) {
+        const msg = prep.error.replace(/^[^:]+: /, '');
+        let placed = false;
+        Object.keys(fields).forEach((k) => { if (new RegExp('\\b' + k + '\\b', 'i').test(msg) || (k === 'number' && /phone/i.test(msg)) || (k === 'to' && /email/i.test(msg))) { fields[k].err.textContent = msg; fields[k].err.hidden = false; fields[k].el.classList.add('bad'); placed = true; } });
+        if (!placed) { ge.textContent = msg; ge.hidden = false; }
+        return;
+      }
+      $('modal').hidden = true;
+      showTab('chat');
+      busy = false;
+      plan = { steps: [{ tool, args: a }], i: 0, lang: prefLang() || L.ENGLISH, source: 'form' };
+      const act = prep.action || {};
+      if (prep.confirm || act.needsTap || (act.kind === 'url' && !IS_ANDROID_WV)) {
+        // The form submit was already a tap, but contact actions still show the explicit review card.
+        if (!prep.confirm && act.kind === 'url') { const res = executePrep(prep); afterExecute(prep, res); return; }
+        showConfirmCard(prep, plan.lang, ''); return;
+      }
+      if (act.kind === 'local' && act.op === 'pick') { const res = executePrep(prep); afterExecute(prep, res); return; }
+      busy = true; advancePlan();
+    };
+    form.onsubmit = (e) => { e.preventDefault(); run(); };
+    modal(t.label, form, [{ label: t.confirm ? 'Review' : 'Run', go: true, keepOpen: true, fn: run }, { label: 'Cancel' }]);
+    const first = form.querySelector('input,textarea,select'); if (first && !IS_IOS) first.focus();
+  }
+  function renderToolsTab() {
+    const tl = $('toolsList');
+    if (tl) {
+      tl.innerHTML = '';
+      const all = T.listTools(PLATFORM);
+      T.GROUPS.forEach((g) => {
+        const ts = all.filter((t) => t.group === g); if (!ts.length) return;
+        const h = document.createElement('div'); h.className = 'toolGroup'; h.textContent = g; tl.appendChild(h);
+        ts.forEach((t) => {
+          const d = document.createElement('div'); d.className = 'toolRow' + (t.available.ok ? '' : ' off'); d.dataset.tool = t.name;
+          const tt = document.createElement('div'); tt.className = 't'; tt.textContent = t.label + (t.confirm ? ' · 🔒 confirm' : '') + (t.available.ok ? '' : ' (not available here)');
+          const ss = document.createElement('div'); ss.className = 's';
+          ss.textContent = (t.available.ok ? t.description : t.available.reason) + (t.permissions.length ? ' · needs: ' + t.permissions.join(', ') : '');
+          d.appendChild(tt); d.appendChild(ss); tl.appendChild(d);
+        });
+      });
+    }
+    const pa = $('phoneActions');
+    if (pa) {
+      pa.innerHTML = '';
+      ACTION_ROWS.forEach((name) => {
+        const t = T.getTool(name); if (!t) return;
+        const av = T.availability(t, PLATFORM);
+        const d = document.createElement('div'); d.className = 'phoneRow' + (av.ok ? '' : ' off'); d.dataset.tool = name;
+        const tt = document.createElement('div'); tt.className = 't'; tt.textContent = t.label;
+        const ss = document.createElement('div'); ss.className = 's';
+        ss.textContent = av.ok ? (t.description.split('. ')[0] + (T.needsConfirm(t) ? ' · requires confirmation' : '')) : av.reason;
+        const btn = document.createElement('button'); btn.type = 'button'; btn.textContent = av.ok ? 'Run ' + t.label : 'Not available'; btn.disabled = !av.ok;
+        btn.dataset.runTool = name;
+        btn.onclick = () => formModal(name);
+        d.appendChild(tt); d.appendChild(ss); d.appendChild(btn); pa.appendChild(d);
+      });
+    }
+    if ($('prefMaps')) $('prefMaps').value = S.mapsProvider || '';
+    if ($('prefCc')) $('prefCc').value = S.defaultCountryCode || '';
+    if ($('siriCard')) $('siriCard').hidden = PLATFORM === 'android';
+  }
+  if ($('vsOrb')) $('vsOrb').onclick = () => { unlockSpeech(); if (listening) stopMic(); else if (voiceState === 'SPEAKING') { stopSpeaking(); setVoiceState('IDLE'); } else startListening(); };
+  if ($('btnPrefSave')) $('btnPrefSave').onclick = () => {
+    const mp = $('prefMaps').value; const cc = String($('prefCc').value || '').replace(/[^\d]/g, '').slice(0, 4);
+    S.mapsProvider = mp; S.defaultCountryCode = cc; saveS();
+    $('prefCc').value = cc; toast('Saved — maps: ' + (mp || 'ask each time') + (cc ? ' · WhatsApp country code +' + cc : ''));
+  };
+
+  // ---- voice input: Web Speech or Android native SpeechRecognizer ----
+  let nativeListening = false;
+  function startNativeListening() {
+    stopSpeaking();
+    const lang = prefLang() ? prefLang().speech : (navigator.language || 'ur-PK');
+    try {
+      const r = JSON.parse(window.NooraNative.sttStart(lang) || '{}');
+      if (!r.ok) {
+        if (r.code === 'permission') { setVoiceState('LISTENING', 'asking for microphone permission'); return; }
+        const msg = r.code === 'unavailable' ? 'Speech recognition is not available on this phone (no Google speech service). Use the keyboard 🎤.' : friendlySpeechError(r.code);
+        setListening(false, msg); setVoiceState('ERROR', msg); continuous = false; updateVoiceBar(); return;
+      }
+      nativeListening = true; setListening(true); setVoiceState('LISTENING'); setTranscript('');
+    } catch (e) { setListening(false, 'Could not start the microphone.'); setVoiceState('ERROR', 'mic'); }
+  }
+  function onNativeStt(ev) {
+    if (ev.phase === 'partial') { input.value = ev.text || ''; autoGrow(); setTranscript(ev.text, false); return; }
+    if (ev.phase === 'ready') { setVoiceState('LISTENING'); return; }
+    if (ev.phase === 'final') {
+      nativeListening = false; setListening(false);
+      const t = String(ev.text || '').trim(); input.value = t; autoGrow();
+      setTranscript(t, true);
+      if (t) send(t); else { setVoiceState('IDLE'); if (continuous) setTimeout(() => { if (continuous && !busy) startListening(); }, 600); }
+      return;
+    }
+    if (ev.phase === 'error') {
+      nativeListening = false;
+      const code = ev.code || 'error';
+      if (code === 'no-speech' || code === 'no-match') { setListening(false); setVoiceState('IDLE', 'didn\'t catch that'); if (continuous) setTimeout(() => { if (continuous && !busy) startListening(); }, 800); return; }
+      const msg = friendlySpeechError(code) || 'Mic error — try again.';
+      setListening(false, msg); setVoiceState('ERROR', msg); toast(msg, 6000);
+      if (code === 'permission' || code === 'not-allowed') continuous = false;
+      updateVoiceBar();
+    }
+  }
+  window.__nooraNativeEvent = (ev) => {
+    try {
+      if (!ev || typeof ev !== 'object') return;
+      if (ev.type === 'stt') return onNativeStt(ev);
+      if (ev.type === 'permission') {
+        if (ev.perm === 'mic') { if (ev.granted) startNativeListening(); else { const m = T.say('mic_denied', {}, prefLang() || L.ROMAN_URDU); setListening(false, m); setVoiceState('ERROR', m); continuous = false; } return; }
+        if (ev.perm === 'contacts' && pending && pending.type === 'perm') {
+          pending = null;
+          if (ev.granted && plan) { busy = true; advancePlan(); }
+          else { const lang = plan ? plan.lang : L.ROMAN_URDU; const name = plan && plan.steps[plan.i] && plan.steps[plan.i].args.contact; if (plan) { askFor('number', name || '', lang, 'need_number'); } }
+          return;
+        }
+        if (ev.perm === 'notifications' || ev.perm === 'media') { toast(ev.granted ? 'Permission allowed — ask me again.' : 'Permission not allowed.'); }
+      }
+      if (ev.type === 'assist') { window.__nooraStartVoice(); }
+    } catch (e) { /* never surface raw errors */ }
+  };
+  window.__nooraStartVoice = () => {
+    showTab('chat'); unlockSpeech();
+    continuous = true; S.continuousVoice = true; saveS(); updateVoiceBar(); refreshStatus();
+    if (!listening) startListening();
+  };
+
+  // ---- deep-link params: ?voice=1 opens voice mode, ?cmd=<text> runs a command (Siri Shortcuts) ----
+  function handleLaunchParams() {
+    let params;
+    try { params = new URLSearchParams(location.search); } catch (e) { return; }
+    const cmd = (params.get('cmd') || '').trim().slice(0, 500);
+    const voice = params.get('voice') === '1';
+    if (!cmd && !voice) return;
+    try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
+    showTab('chat');
+    if (cmd) { setTranscript(cmd, true); setTimeout(() => send(cmd), 300); }
+    else if (voice) {
+      // iOS Safari only starts the mic from a tap — show a big prompt instead of failing silently.
+      if (NATIVE_STT || (SR && !IS_IOS)) setTimeout(() => window.__nooraStartVoice(), 400);
+      else { setVoiceState('IDLE', 'tap the mic to speak'); toast(IS_IOS ? 'Tap 🎤 to talk — iPhone needs a tap before the mic can start.' : 'Tap 🎤 to talk.', 6000); }
+    }
+  }
+  window.addEventListener('unhandledrejection', (e) => {
+    try { e.preventDefault(); } catch (x) {}
+    busy = false; removePending();
+    setVoiceState('ERROR', 'something went wrong');
+    toast('Kuch gadbad ho gayi, jaanu — dobara try karo.', 5000);
+  });
+
+  // ======== end 2.2.0 orchestrator block ========
 
   function toast(t, ms = 3200) { const el = $('toast'); el.textContent = t; el.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(() => { el.hidden = true; }, ms); }
   const status = (t) => { $('statusText').textContent = t; };
@@ -453,6 +1265,12 @@
         a.onclick = (e) => { e.preventDefault(); window.NooraNative.action(JSON.stringify(meta.action.native)); };
       }
       b.appendChild(a);
+    }
+    if (meta.card) b.appendChild(renderCard(meta.card));
+    if (meta.saveNick && !meta.saveNick.done) {
+      const sv = document.createElement('button'); sv.type = 'button'; sv.className = 'act'; sv.textContent = '💾 Remember ' + meta.saveNick.name;
+      sv.onclick = async () => { await saveNickname(meta.saveNick.name, meta.saveNick.value, meta.saveNick.category); meta.saveNick.done = true; sv.disabled = true; sv.textContent = '✓ Saved ' + meta.saveNick.name + ' → ' + meta.saveNick.value; };
+      b.appendChild(sv);
     }
     if (meta.downloadZip) {
       const a = document.createElement('button'); a.className = 'act'; a.textContent = 'Download project (.zip)';
@@ -538,14 +1356,33 @@
     stopSpeaking(); continuous = false; S.continuousVoice = false; saveS(); updateVoiceBar(); await loadConversation(await Store.newConversation()); toast('New chat started');
   }
 
+  const DOC_ASK = /^(?:please\s+|noora\s+|janu\s+|jaanu\s+)?(?:read|summari[sz]e|parho|parh do|parh ke sunao|khulasa (?:karo|batao)|summary (?:do|batao|banao))\s+(?:this|the|my|ye|yeh|is|meri|mera)?\s*(?:latest\s+)?(?:pdf|document|doc|file|docx|report)\b/i;
+  const DOC_ASK2 = /^(?:ye|yeh|is|this)\s+(?:pdf|document|file|report)\s+(?:ko\s+)?(?:parho|parh do|summari[sz]e karo|ka khulasa batao|ki summary do)$/i;
   async function send(raw) {
     const text = (raw || '').trim();
+    if (chatPending.length && chatPending.some((x) => x.status === 'ready')) return sendWithAttachments(text);
     if (!text) return;
+    if (pending) {
+      input.value = ''; autoGrow(); updateMicIcon();
+      if (await handlePendingReply(text)) return;
+    }
     if (busy) return toast(aiName() + ' is still answering…');
+    if (DOC_ASK.test(text) || DOC_ASK2.test(text)) {
+      if (lastAttachment && lastAttachment.file) { addChatFiles([lastAttachment.file]); return sendWithAttachments(text); }
+      input.value = ''; autoGrow(); updateMicIcon();
+      await addUser(text);
+      const l0 = C.detect(text, prefLang());
+      return reply(T.langKey(l0) === 'en'
+        ? 'Please attach the file with 📎 first, then ask again. ' + (IS_ANDROID_WV ? 'NOORA can only read files you pick — it does not scan your storage.' : 'A web app can\'t browse your phone\'s files or find your "latest PDF" by itself.')
+        : 'Jaanu, pehle 📎 se file attach kar do, phir dobara kaho. ' + (IS_ANDROID_WV ? 'Main sirf wohi file parh sakti hoon jo aap chuno — storage scan nahi karti.' : 'Web app aap ke phone ki files khud nahi dekh sakti, na "latest PDF" dhoond sakti hai.'), l0, { meta: { via: 'honest' } });
+    }
     unlockSpeech();
     input.value = ''; autoGrow(); updateMicIcon(); stopSpeaking();
+    setTranscript(text, true); setVoiceState('THINKING');
     await addUser(text);
     const lang = C.detect(text, prefLang());
+    const cmd = T.parseCommand(text);
+    if (cmd && cmd.steps && cmd.steps.length) return runPlan(cmd.steps, lang);
     const lastBot = [...msgs].reverse().find((m) => m.role === 'assistant' && !m.pending);
     const lastGen = lastBot && lastBot.meta && lastBot.meta.genPrompt ? lastBot : null;
     handle(C.route(text, !!lastGen), text, lang, lastGen);
@@ -564,37 +1401,18 @@
       case 'ForgetMemory': return modal('Clear all saved memories?', '', [
         { label: 'Clear', go: true, fn: async () => { await Store.clearMemories(); reply(C.forgot(lang), lang); } },
         { label: 'Cancel', fn: () => { busy = false; reply('OK, kept them.', lang); } }]);
-      case 'Flashlight':
-        if (IS_ANDROID_WV) return nativeAction({ type: 'torch', on: /on|open|چالو|آن/i.test(text) }, lang);
-        return reply(C.notOnIphone(lang, 'torch'), lang);
+      case 'Flashlight': return runPlan([{ tool: 'torch', args: { on: r.on !== false } }], lang);
       case 'Alarm':
-        if (IS_ANDROID_WV && r.hour != null) return nativeAction({ type: 'alarm', hour: r.hour, minute: r.minute || 0, label: 'NOORA' }, lang);
-        return reply(C.notOnIphone(lang, 'alarm'), lang);
+        if (r.hour != null) return runPlan([{ tool: 'set_alarm', args: { hour: r.hour, minute: r.minute || 0, label: 'NOORA' } }], lang);
+        return chat(text, lang, false, false);
       case 'Timer':
-        if (IS_ANDROID_WV && r.seconds) return nativeAction({ type: 'timer', seconds: r.seconds }, lang);
-        return reply(C.notOnIphone(lang, 'timer'), lang);
-      case 'OpenApp':
-        if (IS_ANDROID_WV) return nativeAction({ type: 'openApp', name: r.name }, lang);
-        return reply(C.notOnIphone(lang, 'app'), lang);
-      case 'Call': {
-        if (!r.number) return reply(t4(`I can't look up "${r.who}" from contacts here. Say the number, e.g. "call 0300 1234567".`,
-          `"${r.who}" کا نمبر یہاں نہیں مل سکتا۔ نمبر بولیں۔`, `"${r.who}" ka number yahan nahi mil sakta.`, `"${r.who}" का नंबर यहाँ नहीं मिल सकता।`), lang);
-        const href = 'tel:' + r.number;
-        return reply('📞 ' + t4(`Tap to call ${r.number} — you'll confirm.`, `${r.number} پر کال — تصدیق ہوگی۔`, `${r.number} par call — confirm hoga.`, `${r.number} पर कॉल — पुष्टि होगी।`), lang,
-          { meta: { action: { href, label: 'Call ' + r.number, native: IS_ANDROID_WV ? { type: 'call', number: r.number } : null, confirm: `Call ${r.number}?` } } });
-      }
-      case 'Sms': {
-        const href = 'sms:' + (r.number || '') + (r.body ? (IS_IOS ? '&body=' : '?body=') + encodeURIComponent(r.body) : '');
-        const who = r.number || r.who || '';
-        return reply('✉️ ' + t4(`Tap to open Messages${who ? ' for ' + who : ''}. Nothing is sent until YOU press Send.`,
-          `Messages کھولیں — بھیجنا آپ کریں گے۔`, `Messages kholein — send aap karenge.`, `Messages खोलें — भेजना आप करेंगे।`), lang,
-          { meta: { action: { href, label: 'Open Messages', confirm: `SMS ${who ? 'to ' + who : ''}\n${r.body ? '"' + r.body + '"' : '(empty)'}` } } });
-      }
-      case 'Maps': {
-        const href = IS_ANDROID_WV ? ('geo:0,0?q=' + encodeURIComponent(r.query)) : ('https://maps.apple.com/?q=' + encodeURIComponent(r.query));
-        return reply('🗺 Maps: ' + r.query, lang, { meta: { action: { href, label: 'Open in Maps', native: IS_ANDROID_WV ? { type: 'maps', query: r.query } : null } } });
-      }
-      case 'OpenUrl': return reply('🌐 ' + r.url, lang, { meta: { action: { href: r.url, label: 'Open website' } } });
+        if (r.seconds) return runPlan([{ tool: 'set_timer', args: { seconds: r.seconds } }], lang);
+        return chat(text, lang, false, false);
+      case 'OpenApp': return runPlan([{ tool: 'open_app', args: { name: r.app || r.name || '' } }], lang);
+      case 'Call': return runPlan([{ tool: 'call_phone', args: r.number ? { number: r.number } : { contact: r.who || '' } }], lang);
+      case 'Sms': return runPlan([{ tool: 'send_sms', args: Object.assign(r.number ? { number: r.number } : { contact: r.who || '' }, r.body ? { message: r.body } : {}) }], lang);
+      case 'Maps': return runPlan([{ tool: 'open_maps', args: { query: r.query } }], lang);
+      case 'OpenUrl': return runPlan([{ tool: 'open_url', args: { url: r.url } }], lang);
       case 'ImageGen': return generateImage(r.prompt, lang, null, null);
       case 'ImageEdit': return lastGen ? generateImage(lastGen.meta.genPrompt + ', ' + r.change, lang, lastGen.meta.seed, r.change) : generateImage(r.change, lang, null, null);
       case 'Currency': return liveCurrency(r, lang);
@@ -607,10 +1425,8 @@
   }
 
   function nativeAction(payload, lang) {
-    try {
-      const res = window.NooraNative.action(JSON.stringify(payload));
-      return reply(res || 'Done.', lang, { meta: { via: 'Android native' } });
-    } catch (e) { return reply('Native action failed: ' + e.message, lang); }
+    const r = nativeRun(payload);
+    return reply(r.ok ? (r.message || 'Done.') : T.say('action_failed', { reason: r.message || 'Android action failed' }, lang), lang, { meta: { via: 'Android native' } });
   }
 
   async function activeAssistant() {
@@ -649,20 +1465,28 @@
     // Live streaming into pending bubble when possible
     let streamEl = null;
     const onDelta = (delta, full) => {
-      const pending = list.querySelector('.bubble.pending');
-      if (!pending) return;
-      pending.classList.add('streaming');
-      let txt = pending.querySelector('.txt');
-      if (!txt) { pending.innerHTML = ''; txt = document.createElement('div'); txt.className = 'txt'; txt.dir = 'auto'; pending.appendChild(txt); }
-      txt.textContent = full;
-      streamEl = pending;
+      const pend = list.querySelector('.bubble.pending');
+      if (!pend) return;
+      pend.classList.add('streaming');
+      let txt = pend.querySelector('.txt');
+      if (!txt) { pend.innerHTML = ''; txt = document.createElement('div'); txt.className = 'txt'; txt.dir = 'auto'; pend.appendChild(txt); }
+      txt.textContent = full.replace(/```noora[\s\S]*$/i, '').replace(/<noora-action>[\s\S]*$/i, '');
+      streamEl = pend;
       scrollEnd();
     };
-    const r = await AI.chat(await buildMessages(lang, medical, override), false, { stream: true, onDelta });
+    setVoiceState('THINKING');
+    const r = await AI.chat(await buildMessages(lang, medical, override), false, { stream: true, onDelta, tools: !medical });
     const warn = medical ? C.medicalWarning(lang, emergency) + '\n\n' : '';
+    if (r.text != null && !medical && await handleAiToolCalls(r, lang, refs)) return;
     if (r.text) return reply((r.warning ? r.warning + '\n\n' : '') + warn + r.text, lang, { sources: refs.slice(0, 3).map((x) => x.source), meta: { via: r.via + (refs.length ? ' + Wikipedia' : '') + (r.streamed ? ' · stream' : '') } });
     const note = C.noAi(lang, short(r.failure));
     if (medical) return reply(warn + note, lang, { meta: { via: 'offline' } });
+    if (r.network || !navigator.onLine) {
+      const id = 'card' + (++cardSeq) + '_' + Date.now().toString(36);
+      pending = { type: 'retry', cardId: id, text };
+      setVoiceState('ERROR', 'connection');
+      return reply(T.say('net_error', {}, lang), lang, { meta: { via: 'offline', card: { id, title: '📶 ' + short(r.failure).slice(0, 80), details: [], buttons: [{ label: '↻ Try again', value: 'yes', go: true }, { label: 'No', value: 'no' }] } } });
+    }
     const wiki = refs.length ? refs : (text.length > 6 ? await Live.wiki(C.keywords(text), wikiLang(lang)) : []);
     if (wiki.length) return reply(note + '\n\nWikipedia (live):\n' + wiki.slice(0, 3).map((x) => `• ${x.source.title}: ${x.snippet}`).join('\n'), lang,
       { sources: wiki.slice(0, 3).map((x) => x.source), meta: { via: 'Wikipedia' }, speakText: note });
@@ -792,7 +1616,8 @@
     });
   }
 
-  async function handleFile(f) {
+  async function handleFile(f) { if (f) addChatFiles([f]); }
+  async function handleFileLegacy(f) {
     if (!f || busy) return toast(busy ? aiName() + ' is still answering…' : 'No file');
     unlockSpeech();
     const question = input.value.trim();
@@ -830,7 +1655,7 @@
     } catch (e) { toast('File error: ' + e.message); busy = false; }
   }
 
-  $('file').addEventListener('change', async (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) handleFile(f); });
+  $('file').addEventListener('change', (e) => { const fs = Array.from(e.target.files || []); e.target.value = ''; if (fs.length) addChatFiles(fs); });
 
   function scaleImage(file, max) {
     return new Promise((resolve, reject) => {
@@ -853,11 +1678,14 @@
   }
 
   function modal(title, body, buttons) {
-    $('mTitle').textContent = title; $('mBody').textContent = body; const box = $('mBtns'); box.innerHTML = '';
+    $('mTitle').textContent = title;
+    if (body && typeof body === 'object' && body.nodeType) { $('mBody').textContent = ''; $('mBody').appendChild(body); } else $('mBody').textContent = body || '';
+    const box = $('mBtns'); box.innerHTML = '';
     buttons.forEach((b) => {
       const el = document.createElement(b.href ? 'a' : 'button'); el.textContent = b.label; if (b.go) el.className = 'go';
+      if (!b.href) el.type = 'button';
       if (b.href) { el.href = b.href; if (/^https?:/.test(b.href)) { el.target = '_blank'; el.rel = 'noopener'; } }
-      el.onclick = () => { $('modal').hidden = true; if (b.fn) b.fn(); };
+      el.onclick = () => { if (!b.keepOpen) $('modal').hidden = true; if (b.fn) b.fn(); };
       box.appendChild(el);
     });
     $('modal').hidden = false;
@@ -1014,7 +1842,10 @@
     const clean = C.cleanSpeakText(text);
     if (!clean) { if (onend) onend(); return; }
     lastSpeakPayload = { text: clean, lang: lang || null };
-    if (!o.force && (S.muted || !S.ttsOn)) { if (onend) onend(); return; }
+    if (!o.force && (S.muted || !S.ttsOn)) { if (voiceState === 'THINKING' || voiceState === 'EXECUTING') setVoiceState('IDLE'); if (onend) onend(); return; }
+    setVoiceState('SPEAKING');
+    const userEnd = onend;
+    onend = () => { if (voiceState === 'SPEAKING') setVoiceState('IDLE'); if (userEnd) userEnd(); };
     const provider = (o.provider != null ? o.provider : S.ttsProvider) || 'browser';
     // cancel previous without bumping token twice awkwardly
     if ('speechSynthesis' in window) speechSynthesis.cancel();
@@ -1060,7 +1891,8 @@
     continuous = false; S.continuousVoice = false; saveS();
     stopSpeaking();
     if (listening && rec) { try { if (rec.abort) rec.abort(); else rec.stop(); } catch (e) {} }
-    setListening(false);
+    if (nativeListening) { try { window.NooraNative.sttStop(); } catch (e) {} nativeListening = false; }
+    setListening(false); setVoiceState('IDLE');
     updateVoiceBar(); refreshStatus();
     toast('Voice conversation stopped');
   }
@@ -1108,14 +1940,17 @@
       if (on) el.textContent = `🎤 Listening (${prefLang() ? prefLang().label : 'phone language'})… tap ■ to stop`;
     }
     $('btnMic').classList.toggle('live', on);
+    if (on) setVoiceState('LISTENING'); else if (voiceState === 'LISTENING' && !errMsg) setVoiceState('IDLE');
     updateMicIcon(); updateVoiceBar(); if (!on && !errMsg) refreshStatus();
   }
   function startListening() {
+    if (NATIVE_STT) return startNativeListening();
     if (!SR) {
       continuous = false; updateVoiceBar();
       const detail = (IS_IOS ? 'Safari / home-screen mode often blocks web speech recognition.' : 'No speech recognition API.') +
         '\n\nUse the keyboard 🎤 dictation key instead.';
       status(C.speechErrorMessage('stt-unavailable'));
+      setVoiceState('ERROR', 'voice input not supported here');
       return modal('Voice input not supported here', detail, [{ label: 'OK' }]);
     }
     stopSpeaking();
@@ -1129,10 +1964,13 @@
         let interim = '';
         for (let i = e.resultIndex; i < e.results.length; i++) { const t = e.results[i][0].transcript; if (e.results[i].isFinal) finalText += t; else interim += t; }
         input.value = (finalText + interim).trim(); autoGrow();
+        setTranscript((finalText + interim).trim(), !interim);
       };
       rec.onerror = (e) => {
         errored = true;
-        const msg = C.speechErrorMessage(e.error, rec && rec.lang);
+        if (e.error === 'no-speech' && continuous) { setListening(false); setVoiceState('IDLE', 'didn\'t catch that'); setTimeout(() => { if (continuous && !busy) startListening(); }, 800); return; }
+        const msg = friendlySpeechError(e.error) || C.speechErrorMessage(e.error, rec && rec.lang);
+        if (e.error !== 'aborted') setVoiceState('ERROR', msg);
         setListening(false, e.error === 'aborted' ? null : msg);
         if (e.error !== 'aborted') {
           status(msg);
@@ -1149,27 +1987,34 @@
       };
       rec.start(); setListening(true);
     } catch (e) {
-      setListening(false, 'Could not start speech: ' + e.message + ' — try keyboard 🎤 dictation.');
-      toast('Could not start speech recognition: ' + e.message, 6000);
+      const msg = 'Mic start nahi ho saka, jaanu — keyboard ka 🎤 dictation use kar lo.';
+      setListening(false, msg); setVoiceState('ERROR', msg);
+      toast(msg, 6000);
       continuous = false;
     }
   }
 
   function updateMicIcon() {
-    const b = $('btnMic'), i = ICON[listening ? 'stop' : input.value.trim() ? 'send' : 'mic'];
+    const hasSend = !!input.value.trim() || (typeof chatPending !== 'undefined' && chatPending.some((x) => x.status === 'ready'));
+    const b = $('btnMic'), i = ICON[listening ? 'stop' : hasSend ? 'send' : 'mic'];
     b.style.backgroundImage = listening ? i : i + ', linear-gradient(135deg,#8B5CF6,#22D3EE)';
     b.style.backgroundSize = listening ? '22px' : '26px, cover';
-    b.setAttribute('aria-label', listening ? 'Stop listening' : input.value.trim() ? 'Send' : 'Speak');
+    b.setAttribute('aria-label', listening ? 'Stop listening' : hasSend ? 'Send' : 'Speak');
   }
   function autoGrow() { input.style.height = 'auto'; input.style.height = Math.min(120, input.scrollHeight) + 'px'; }
   setIcon($('btnTts'), S.ttsOn ? 'volOn' : 'volOff'); setIcon($('btnNew'), 'add'); setIcon($('btnAttach'), 'attach'); setIcon($('btnVoiceMode'), 'voice'); setIcon($('btnUploadFile'), 'attach');
   document.querySelectorAll('.back').forEach((b) => setIcon(b, 'back'));
   updateMicIcon();
 
+  function stopMic() {
+    if (nativeListening) { try { window.NooraNative.sttStop(); } catch (e) {} nativeListening = false; }
+    if (rec) { try { rec.stop(); } catch (e) {} }
+    setListening(false);
+  }
   $('btnMic').onclick = () => {
     unlockSpeech();
-    if (listening) { try { rec.stop(); } catch (e) {} setListening(false); }
-    else if (input.value.trim()) send(input.value);
+    if (listening) stopMic();
+    else if (input.value.trim() || chatPending.some((x) => x.status === 'ready')) send(input.value);
     else startListening();
   };
   input.addEventListener('input', () => { autoGrow(); if (!listening) updateMicIcon(); });
@@ -1203,7 +2048,7 @@
   $('btnVoiceReplay').onclick = () => { unlockSpeech(); replayLast(); };
   $('btnVoiceMic').onclick = () => {
     unlockSpeech();
-    if (listening) { try { rec.stop(); } catch (e) {} setListening(false); toast('Mic off'); }
+    if (listening) { stopMic(); toast('Mic off'); }
     else startListening();
   };
   $('btnNew').onclick = newChat;
@@ -1746,7 +2591,11 @@
     const btn = $(btnId), inp = $(inputId);
     if (!btn || !inp) return;
     btn.onclick = () => inp.click();
-    inp.onchange = () => { addFcFiles(inp.files); inp.value = ''; };
+    inp.onchange = () => {
+      const fs = Array.from(inp.files || []); inp.value = '';
+      if (pickToChat) { pickToChat = false; addChatFiles(fs); return; }
+      addFcFiles(fs);
+    };
   }
   wireFc('btnPickFile', 'fcPicker');
   wireFc('btnCamera', 'fcCamera');
@@ -1760,97 +2609,28 @@
     drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
     drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('drag'); addFcFiles(e.dataTransfer.files); });
   }
-  if ($('btnFcSend')) $('btnFcSend').onclick = async () => {
+  if ($('btnFcSend')) $('btnFcSend').onclick = () => {
     if (!fcPending.length) return;
-    showTab('chat');
-    for (const item of fcPending.slice()) {
-      try {
-        const file = item.file;
-        const dt = new DataTransfer();
-        dt.items.add(file);
-        const fin = $('file');
-        if (fin) { fin.files = dt.files; fin.dispatchEvent(new Event('change')); }
-      } catch (e) { toast('Could not attach ' + item.file.name); }
-    }
+    const files = fcPending.map((x) => x.file);
     fcPending = []; renderFcPending();
+    addChatFiles(files);      // → chat tray: preview, remove, then type a question and press send
+    toast(files.length + ' file(s) attached — add a question (optional) and press send.');
   };
 
   function openTools() {
     if ($('toolsPlatformNote')) {
       $('toolsPlatformNote').textContent = PLATFORM === 'android'
-        ? 'Android: native bridge for call/SMS/maps/alarm/timer/torch/open-app after confirm. Bluetooth opens Settings only (does not toggle).'
-        : 'Web/iOS: deep links (tel, sms, mailto, maps, WhatsApp, Shortcuts). Alarm/torch/open-app are not available here — no fake success.';
+        ? 'Android app: real intents via the native bridge (dial/call, SMS, WhatsApp, email, maps, camera, alarm, timer, calendar, settings, media keys, share). Contacts need permission. Calls/messages always ask you first. Android 10+ cannot toggle Bluetooth/Wi-Fi from apps — NOORA opens the settings panel.'
+        : (IS_IOS ? 'iPhone (web app): deep links — Phone, Messages, Mail, WhatsApp, Maps, Shortcuts, calendar (.ics). iOS does not let web apps set alarms, open other apps by name, read contacts or listen in the background. Use Shortcuts for alarms/timers.'
+          : 'Web: deep links (tel, sms, mailto, WhatsApp, maps, .ics calendar). Alarms, torch, app launching and contacts need the Android app.');
     }
-    const tl = $('toolsList');
-    if (tl) {
-      tl.innerHTML = '';
-      toolRegistry.list().forEach((t) => {
-        const d = document.createElement('div'); d.className = 'toolRow';
-        d.innerHTML = '<div class="t"></div><div class="s"></div>';
-        d.querySelector('.t').textContent = t.name + (t.disabled ? ' (disabled)' : '');
-        d.querySelector('.s').textContent = t.description || t.id;
-        tl.appendChild(d);
-      });
-    }
-    const pa = $('phoneActions');
-    if (pa) {
-      pa.innerHTML = '';
-      C.listDeviceActions(PLATFORM).forEach((act) => {
-        const d = document.createElement('div'); d.className = 'phoneRow';
-        d.innerHTML = '<div class="t"></div><div class="s"></div><button type="button"></button>';
-        d.querySelector('.t').textContent = act.label;
-        d.querySelector('.s').textContent = (act.honest || '') + (act.confirm ? ' · requires confirmation' : '') + (act.android && PLATFORM !== 'android' ? ' · Android only' : '');
-        const btn = d.querySelector('button');
-        btn.textContent = 'Run ' + act.label;
-        btn.onclick = () => runPhoneAction(act);
-        pa.appendChild(d);
-      });
-    }
-  }
-  function runPhoneAction(act) {
-    const go = () => {
-      if (act.id === 'bluetooth-settings') {
-        if (PLATFORM === 'android' && window.NooraNative) {
-          try {
-            const res = window.NooraNative.action(JSON.stringify({ type: 'openApp', name: 'bluetooth' }));
-            toast(res || 'Requested Bluetooth settings — may open Settings, does not toggle.');
-          } catch (e) { toast('Could not open Bluetooth settings'); }
-        } else toast('Bluetooth settings only on Android — opens Settings, does not toggle.');
-        return;
-      }
-      if (act.android && PLATFORM === 'android' && window.NooraNative) {
-        let payload = { type: act.id === 'open-app' ? 'openApp' : act.id };
-        if (act.id === 'call') { const n = prompt('Number to call?'); if (!n) return; payload.number = n; }
-        if (act.id === 'sms') { const n = prompt('Number?'); if (!n) return; payload.number = n; payload.body = prompt('Message?') || ''; }
-        if (act.id === 'maps') { const q = prompt('Place?'); if (!q) return; payload.query = q; }
-        if (act.id === 'alarm') { payload.hour = parseInt(prompt('Hour (0-23)?', '7'), 10); payload.minute = parseInt(prompt('Minute?', '0'), 10) || 0; }
-        if (act.id === 'timer') { payload.seconds = parseInt(prompt('Seconds?', '60'), 10) || 60; }
-        if (act.id === 'torch') { payload.on = true; }
-        if (act.id === 'open-app') { const n = prompt('App name?'); if (!n) return; payload.name = n; }
-        try { toast(window.NooraNative.action(JSON.stringify(payload)) || 'Done'); }
-        catch (e) { toast('Native failed: ' + e.message); }
-        return;
-      }
-      let href = '';
-      if (act.id === 'call') { const n = prompt('Number?'); if (!n) return; href = 'tel:' + n; }
-      else if (act.id === 'sms') { const n = prompt('Number?'); if (!n) return; const body = prompt('Message?') || ''; href = 'sms:' + n + (body ? (IS_IOS ? '&body=' : '?body=') + encodeURIComponent(body) : ''); }
-      else if (act.id === 'mailto') { const a = prompt('Email?'); if (!a) return; href = 'mailto:' + a; }
-      else if (act.id === 'whatsapp') { const n = prompt('Phone with country code?'); if (!n) return; href = 'whatsapp://send?phone=' + encodeURIComponent(n); }
-      else if (act.id === 'maps') { const q = prompt('Place?'); if (!q) return; href = IS_IOS ? ('https://maps.apple.com/?q=' + encodeURIComponent(q)) : ('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q)); }
-      else if (act.id === 'shortcut') { const n = prompt('Shortcut name?'); if (!n) return; href = 'shortcuts://run-shortcut?name=' + encodeURIComponent(n); }
-      else { toast(act.label + ' not available on this platform — no fake success.'); return; }
-      if (href) {
-        if (act.confirm) confirmLink('Open ' + act.label + '?', href, 'Open');
-        else { location.href = href; }
-      }
-    };
-    if (act.confirm) modal(act.label, act.honest || 'Confirm this device action.', [{ label: 'Continue', go: true, fn: go }, { label: 'Cancel' }]);
-    else go();
+    renderToolsTab();
   }
   if ($('btnToolCalc')) $('btnToolCalc').onclick = () => {
-    const r = C.toolCalculator($('toolCalcIn').value);
+    const r = T.calculate($('toolCalcIn').value);
     $('toolCalcOut').textContent = r.ok ? ('= ' + r.message) : ('Error: ' + r.message);
   };
+  if ($('toolCalcIn')) $('toolCalcIn').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('btnToolCalc').click(); } });
   if ($('btnToolTime')) $('btnToolTime').onclick = () => {
     const r = C.toolDateTime();
     $('toolTimeOut').textContent = r.message;
@@ -1894,9 +2674,12 @@
     continuous = !!S.continuousVoice;
     refreshStatus(); updateEmpty(); updateVoiceBar();
     openHomeDash();
+    setVoiceState('IDLE');
+    handleLaunchParams();
     if ('serviceWorker' in navigator && document.querySelector('link[data-pwa]') && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
       navigator.serviceWorker.register('./sw.js').catch(() => {});
     }
-    window.__noora = { send, Store, S, route: C.route, msgs: () => msgs, showTab, AI, Live, VERSION: C.VERSION, speak, stopVoiceMode, replayLast, updateVoiceBar, continuous: () => continuous, tools: toolRegistry };
+    window.__noora = { send, Store, S, route: C.route, msgs: () => msgs, showTab, AI, Live, VERSION: C.VERSION, speak, stopVoiceMode, replayLast, updateVoiceBar, continuous: () => continuous, tools: toolRegistry,
+      T, runPlan, pending: () => pending, plan: () => plan, voiceState: () => voiceState, addChatFiles, chatPending: () => chatPending, setVoiceState, platform: PLATFORM };
   })();
 })();

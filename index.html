@@ -83,6 +83,14 @@
       </div>
       <div id="suggestions"></div>
     </section>
+    <div id="voiceState" class="voiceState" hidden aria-live="polite">
+      <button type="button" class="vsOrb" id="vsOrb" aria-label="Voice: Ready">🎙</button>
+      <div class="vsText">
+        <div class="vsLabel" id="vsLabel">Ready</div>
+        <div class="vsTranscript" id="vsTranscript" dir="auto"></div>
+        <div class="vsAction" id="vsAction" dir="auto"></div>
+      </div>
+    </div>
     <div id="listening" hidden>🎤 Listening… tap ■ to stop</div>
     <div id="voiceBar" hidden>
       <button type="button" id="btnVoiceMute" class="vbtn" title="Mute / unmute TTS">🔇 Mute</button>
@@ -90,6 +98,7 @@
       <button type="button" id="btnVoiceReplay" class="vbtn" title="Replay last reply">↻ Replay</button>
       <button type="button" id="btnVoiceMic" class="vbtn" title="Mic on/off">🎤 Mic</button>
     </div>
+    <div id="chatPending" class="fcPending chatTray" hidden aria-label="Files to send"></div>
     <footer id="bar">
       <div class="field">
         <button class="icon" id="btnAttach" aria-label="Attach file"></button>
@@ -97,7 +106,7 @@
       </div>
       <button id="btnMic" aria-label="Voice input / send"></button>
     </footer>
-    <input type="file" id="file" accept="image/*,.pdf,.csv,.xlsx,.xls,.txt,.md,.docx,application/pdf,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document,audio/*,video/*" hidden>
+    <input type="file" id="file" multiple accept="image/*,.pdf,.csv,.xlsx,.xls,.txt,.md,.json,.docx,.doc,.mp3,.wav,.m4a,.aac,.ogg,.mp4,.mov,.webm,application/pdf,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document,audio/*,video/*" hidden>
   </section>
 
   <!-- Conversations panel (search / rename / delete) -->
@@ -187,8 +196,18 @@
       <h3>Phone actions</h3>
       <p class="note" id="toolsPlatformNote"></p>
       <div id="phoneActions"></div>
+      <div class="glassCard" id="toolPrefsCard">
+        <h3>Action preferences</h3>
+        <label>Maps app<select id="prefMaps"><option value="">Ask each time</option><option value="google">Google Maps</option><option value="apple">Apple Maps</option><option value="geo">Phone default (Android geo:)</option></select></label>
+        <label>WhatsApp default country code (for numbers like 0300…)<input id="prefCc" type="text" inputmode="numeric" placeholder="e.g. 92 or 968" maxlength="5"></label>
+        <button type="button" class="outline" id="btnPrefSave">Save preferences</button>
+      </div>
+      <div class="glassCard" id="siriCard" hidden>
+        <h3>Siri / iPhone Shortcuts</h3>
+        <p class="note">iPhone web apps cannot listen for a wake word. Make a Shortcut instead: Shortcuts → + → “Open URL” → <code>https://azeemash572-eng.github.io/noora-ai-web/?voice=1</code>, name it “Noora”, then say “Hey Siri, Noora”. To pass a spoken command: “Dictate Text” → “URL Encode” → Open URL <code>…/noora-ai-web/?cmd=</code> + the encoded text. Full recipes: docs/SIRI-SHORTCUTS.md.</p>
+      </div>
       <div class="glassCard" id="toolCalcCard">
-        <label>Calculator<input id="toolCalcIn" placeholder="e.g. (12+3)*2" inputmode="decimal"></label>
+        <label>Calculator<input id="toolCalcIn" type="text" placeholder="e.g. (12+3)×2, 15% of 200 → 15%*200" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"></label>
         <button type="button" class="outline" id="btnToolCalc">Calculate</button>
         <p class="note" id="toolCalcOut"></p>
       </div>
@@ -212,6 +231,8 @@
           <option value="projects">Projects</option>
           <option value="context">Context</option>
           <option value="user">User-selected</option>
+          <option value="contacts">Contacts / nicknames</option>
+          <option value="places">Places</option>
         </select></label>
         <button type="button" class="outline" id="btnAddMemory">+ Add memory</button>
       </div>
@@ -360,6 +381,7 @@
 <div id="toast" hidden></div>
 
 <script src="core.js"></script>
+<script src="tools.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

@@ -143,7 +143,7 @@ test('parsers with real captured payloads', () => {
 });
 
 test('version and arabic + model map', () => {
-  assert.equal(C.VERSION, '2.1.0');
+  assert.equal(C.VERSION, '2.2.0');
   assert.ok(C.Lang.ARABIC);
   assert.equal(C.detect('مرحبا كيف حالك', C.Lang.ARABIC), C.Lang.ARABIC);
   assert.ok(C.MODEL_MAP['Google Gemini']['Fast'][0].includes('gemini'));
@@ -164,7 +164,7 @@ test('version and arabic + model map', () => {
 
 
 test('voice settings persistence helpers + provider config without keys in repo', () => {
-  assert.equal(C.VERSION, '2.1.0');
+  assert.equal(C.VERSION, '2.2.0');
   assert.ok(Array.isArray(C.TTS_PROVIDERS));
   assert.ok(C.TTS_PROVIDERS.some((p) => p.id === 'browser' && !p.needsKey));
   assert.ok(C.TTS_PROVIDERS.some((p) => p.id === 'openai' && p.needsKey));
@@ -203,7 +203,7 @@ test('voice settings persistence helpers + provider config without keys in repo'
   // Repo sources must not contain hard-coded provider secrets
   const fs = require('node:fs');
   const root = __dirname + '/..';
-  for (const f of ['app.js', 'core.js', 'index.html', 'sw.js']) {
+  for (const f of ['app.js', 'core.js', 'tools.js', 'index.html', 'sw.js']) {
     const src = fs.readFileSync(root + '/' + f, 'utf8');
     assert.ok(C.assertNoHardcodedSecrets(src), f + ' must not hard-code API keys');
     assert.ok(!/sk-[A-Za-z0-9]{20,}/.test(src), f + ' no sk- keys');

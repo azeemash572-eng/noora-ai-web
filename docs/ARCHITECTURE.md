@@ -1,6 +1,6 @@
 # NOORA AI Command Center — Architecture (Phase 1)
 
-**Version:** 2.1.0  
+**Version:** 2.2.0  
 **Hosting:** Static GitHub Pages (`azeemash572-eng/noora-ai-web`) + Android WebView (`com.nura.assistant`). Optional Node `/server` proxy for Replit Secrets (not deployed with Pages).
 
 ## Current working features (preserved)
@@ -96,3 +96,26 @@ Runtime (Pages / WebView) still loads bundled static files: `core.js` (pure shar
 - Never fake a button or claim an OS action succeeded if it did not.
 - Video / img2img / edit / upscale: disabled with reason until a real provider is configured.
 - Keys never hard-coded; optional server keeps secrets in env.
+
+
+## 2.2.0: voice-first tool engine
+
+```
+voice (Web Speech or Android SpeechRecognizer via NooraNative.sttStart) / typed text / ?cmd=
+   → send()
+      → pending reply? (haan / nahi / contact choice / number / address) → handlePendingReply
+      → T.parseCommand (local NL rules, multi-step)  ──┐
+      → C.route (legacy live data / greetings)          ├→ runPlan(steps) → advancePlan loop
+      → AI.chat({tools}) → tool_calls / noora-action ──┘      resolveStep (memory nicknames → Android contacts → ask)
+                                                              T.prepare (schema validation, platform availability, URL / intent build)
+                                                              confirm? → action card (tap or voice "haan") → executePrep
+                                                              executePrep → openExternal (deep link) | nativeRun (NooraNative.run JSON) | ics | local
+                                                              reportResult → spoken reply (NOORA persona) → next step after returning to the app
+```
+
+- **`tools.js` (NooraTools)**: the tool registry. Each tool has name, group, label, description, JSON-schema params, permissions, confirm/risk, platforms, an unavailable reason and `prepare`. It also holds the URL builders, the safe calculator, `parseWhen`, the NL parser, yes/no, contact matching, nickname memory records, attachment helpers, AI tool-call helpers and persona strings. It is pure and Node-testable.
+- **`app.js` orchestrator block**: plan/pending state, action cards, voice state machine (`body[data-voice-state]`, `#homeVoiceBtn` / `#vsOrb` `data-state`), native bridge calls, chat attachment tray, Tools-tab forms (no `prompt()`), deep-link params, Android native STT events (`window.__nooraNativeEvent`) and `window.__nooraStartVoice` (ACTION_ASSIST).
+- **Android `NativeActions.kt`**: `run(json)` → `{ok, code, message, leftApp, results}` using standard intents only. Contacts and media reads are permission-gated. `ReminderReceiver` posts reminder notifications. There is no Accessibility Service and no foreground/background listening service.
+- **Memory**: nickname rows `{kind:'nickname', key, name, value, category:'contacts'|'places'}` in the existing `memories` store. They are saved only when the user taps "Remember …" or says "yaad rakho …".
+- **Settings** (`noora.settings`, keys preserved): new `mapsProvider` ('' = ask, apple, google, geo) and `defaultCountryCode` (WhatsApp numbers without a country code).
+- **Tests**: see `docs/TEST-CHECKLIST.md`.

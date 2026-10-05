@@ -98,14 +98,14 @@ assert.ok(Math.abs(saved.rate - 1.2) < 0.001);
 assert.equal(saved.ttsProvider, 'browser');
 assert.equal(saved.ttsApiKey || '', '');
 
-await page.click('#bottomNav button[data-tab="home"]');
+await page.click('#bottomNav button[data-tab="chat"]');
 await page.click('#btnVoiceMode');
 assert.ok(await page.locator('#voiceBar').isVisible());
 await page.waitForTimeout(350);
 const listeningVisible = await page.locator('#listening').isVisible();
 if (listeningVisible) {
   const txt = await page.locator('#listening').innerText();
-  assert.ok(!/^🎤 Listening/.test(txt) || /blocked|not allowed|Home Screen|dictation|Speech/i.test(txt), 'stuck Listening: ' + txt);
+  assert.ok(!/^🎤 Listening/.test(txt) || /blocked|not allowed|permission|Home Screen|dictation|Speech/i.test(txt), 'stuck Listening: ' + txt);
 }
 await page.screenshot({ path: path.join(ROOT, 'docs/voice-mode-chat.png'), fullPage: true });
 await page.click('#btnVoiceStop');
@@ -116,7 +116,7 @@ await page.locator('#sVoiceTest').scrollIntoViewIfNeeded();
 await page.screenshot({ path: path.join(ROOT, 'docs/voice-settings.png'), fullPage: true });
 
 const ver = await page.evaluate(() => window.__noora.VERSION);
-assert.equal(ver, '2.0.3');
+assert.equal(ver, '2.2.0');
 
 await browser.close();
 server.close();

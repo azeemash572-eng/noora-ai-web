@@ -46,8 +46,8 @@ page.on('pageerror', (e) => errors.push(String(e)));
 page.on('console', (msg) => { if (msg.type() === 'error') errors.push(msg.text()); });
 
 await page.goto(`http://127.0.0.1:${port}/index.html`, { waitUntil: 'domcontentloaded' });
-await page.waitForFunction(() => window.__noora && window.__noora.VERSION === '2.1.0', null, { timeout: 10000 });
-assert.equal(await page.evaluate(() => window.__noora.VERSION), '2.1.0');
+await page.waitForFunction(() => window.__noora && window.__noora.VERSION === '2.2.0', null, { timeout: 10000 });
+assert.equal(await page.evaluate(() => window.__noora.VERSION), '2.2.0');
 
 const tabs = ['home', 'chat', 'create', 'files', 'tools', 'memory', 'settings'];
 for (const tab of tabs) {
@@ -80,7 +80,7 @@ const navCount = await page.locator('#bottomNav button').count();
 assert.equal(navCount, 7);
 
 assert.equal(errors.length, 0, 'console errors: ' + errors.join(' | '));
-console.log('CC smoke OK — 7 tabs, VERSION 2.1.0, no console errors');
+console.log('CC smoke OK — 7 tabs, VERSION 2.2.0, no console errors');
 
 const shotDir = path.join(ROOT, 'docs');
 for (const tab of tabs) {

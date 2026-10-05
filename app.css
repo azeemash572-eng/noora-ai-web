@@ -171,5 +171,47 @@ body{
 .toolRow .s,.phoneRow .s{font-size:12px;color:var(--text2);margin-top:4px}
 .phoneRow button{margin-top:8px;width:100%;padding:10px;border-radius:12px;background:var(--accent);color:#fff}
 .conv .ren{position:absolute;right:42px;top:10px;width:36px;height:36px;color:var(--accent2);font-size:14px}
-.bubble.streaming::after{content:'▍opacity:.5;animation:blink 1s infinite}
+.bubble.streaming::after{content:'▍';opacity:.5;animation:blink 1s infinite}
 @keyframes blink{50%{opacity:0}}
+
+/* ---- 2.2.0: action cards · voice states · chat attachment tray · tool forms ---- */
+.actCard{margin-top:10px;padding:10px 12px;border-radius:14px;background:var(--surface2);border:1px solid var(--stroke);text-align:left}
+.actCard .ach{font-weight:600;margin-bottom:6px}
+.actCard .acr{font-size:13px;color:var(--text2);margin:2px 0;word-break:break-word}
+.actCard .acr b{color:var(--text);font-weight:600}
+.actCard .acn{font-size:12px;color:var(--text2);margin-top:6px}
+.actCard .acb{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.actCard .acb button{flex:1;min-width:110px;padding:10px 12px;border-radius:12px;background:var(--surface);border:1px solid var(--stroke);color:var(--text);font-size:14px}
+.actCard .acb button.go{background:var(--accent);border-color:var(--accent);color:#fff}
+.actCard .acs{font-size:12px;color:var(--accent2);margin-top:8px}
+.voiceState{display:flex;align-items:center;gap:12px;padding:8px 12px;margin:0 10px 4px;border-radius:16px;background:var(--glass);border:1px solid var(--glass-border);flex:none}
+.voiceState[hidden]{display:none!important}
+.vsOrb{flex:none;width:56px;height:56px;border-radius:50%;font-size:24px;background:linear-gradient(135deg,#8B5CF6,#22D3EE);color:#fff;border:none;transition:transform .2s, box-shadow .2s}
+.vsText{flex:1;min-width:0}
+.vsLabel{font-weight:600;font-size:14px}
+.vsTranscript{font-size:13px;color:var(--text);margin-top:2px;word-break:break-word}
+.vsAction{font-size:12px;color:var(--accent2);margin-top:2px;word-break:break-word}
+.vsOrb[data-state="listening"],.voiceOrb[data-state="listening"]{box-shadow:0 0 0 6px rgba(34,211,238,.25),0 0 28px rgba(34,211,238,.6);animation:vsPulse 1.2s ease-in-out infinite}
+.vsOrb[data-state="thinking"],.voiceOrb[data-state="thinking"]{animation:vsSpin 1.6s linear infinite;opacity:.9}
+.vsOrb[data-state="executing"],.voiceOrb[data-state="executing"]{box-shadow:0 0 0 6px rgba(139,92,246,.35)}
+.vsOrb[data-state="speaking"],.voiceOrb[data-state="speaking"]{animation:vsPulse .7s ease-in-out infinite;box-shadow:0 0 24px rgba(139,92,246,.7)}
+.vsOrb[data-state="error"],.voiceOrb[data-state="error"]{background:linear-gradient(135deg,#ef4444,#f97316)}
+@keyframes vsPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
+@keyframes vsSpin{from{filter:hue-rotate(0deg)}to{filter:hue-rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.vsOrb,.voiceOrb{animation:none!important}}
+.chatTray{margin:0 10px 4px;max-height:34vh;overflow-y:auto;flex:none}
+.chatTray[hidden]{display:none!important}
+.fcItem .ficon{width:48px;height:48px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px;background:var(--surface)}
+.fcItem.error{border-color:#5a2432}
+.fcItem.error .meta span{color:var(--danger)}
+.fcItem .del{flex:none;width:32px;height:32px;border-radius:50%;background:var(--surface);color:var(--text2)}
+.toolGroup{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--accent2);margin:14px 2px 2px}
+.toolRow.off,.phoneRow.off{opacity:.6}
+.phoneRow button:disabled{background:var(--surface2);color:var(--text2)}
+.toolForm{display:flex;flex-direction:column;gap:10px;text-align:left;margin-top:6px}
+.toolForm .fl{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--text2)}
+.toolForm input,.toolForm select,.toolForm textarea{width:100%;box-sizing:border-box;padding:10px;border-radius:10px;background:var(--surface2);border:1px solid var(--stroke);color:var(--text);font-size:16px}
+.toolForm input[type=checkbox]{width:auto}
+.toolForm .bad{border-color:var(--danger)}
+.ferr{color:var(--danger);font-size:12px}
+.ferr[hidden]{display:none}

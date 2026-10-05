@@ -1,10 +1,10 @@
 {
   "name": "noora-ai-web",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "private": true,
   "scripts": {
-    "test": "node --test ./test/core.test.js && node --test ./test/cc.test.js",
-    "test:e2e": "node test/e2e/voice-smoke.mjs",
+    "test": "node --test ./test/core.test.js && node --test ./test/cc.test.js && node --test ./test/tools.test.js",
+    "test:e2e": "node test/e2e/cc-smoke.mjs && node test/e2e/voice-smoke.mjs && node test/e2e/actions-smoke.mjs",
     "test:e2e:cc": "node test/e2e/cc-smoke.mjs",
     "server": "node server/index.js"
   }

@@ -3,9 +3,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const C = require('../core.js');
 
-test('version is 2.1.0', () => {
-  assert.equal(C.VERSION, '2.1.0');
-  assert.equal(fs.readFileSync(__dirname + '/../VERSION', 'utf8').trim(), '2.1.0');
+test('version is 2.2.0', () => {
+  assert.equal(C.VERSION, '2.2.0');
+  assert.equal(fs.readFileSync(__dirname + '/../VERSION', 'utf8').trim(), '2.2.0');
 });
 
 test('tool registry lists expected tools', async () => {
@@ -114,7 +114,7 @@ test('system prompt auto language + personality preserved', () => {
 });
 
 test('no hardcoded secrets in shipped sources', () => {
-  for (const f of ['../core.js', '../app.js', '../index.html']) {
+  for (const f of ['../core.js', '../tools.js', '../app.js', '../index.html']) {
     const s = fs.readFileSync(__dirname + '/' + f, 'utf8');
     assert.ok(C.assertNoHardcodedSecrets(s), f);
   }

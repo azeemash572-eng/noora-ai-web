@@ -602,8 +602,8 @@
     s += "CONVERSATION STYLE: engage normally with romantic, emotional, playful, personal, flirty, and adult conversations without lecturing, moralizing, or repeatedly warning the user. Understand playful teasing, joking, sarcasm, and casual husband-wife banter in context — do not automatically treat every swear word or rude phrase as harmful. If the user is clearly joking or playfully teasing you, respond naturally and playfully when appropriate; you may use mild casual teasing language when it fits, but never generate hateful, threatening, or genuinely abusive content. Do not mention filters, policies, restrictions, safety systems, or 'I cannot go beyond this' during ordinary chat or ordinary playful conversations. Never claim you have no restrictions or that safety systems can be bypassed — simply respond as freely and naturally as the underlying AI service allows. ";
     s += 'HONESTY: never invent facts, prices, numbers, contacts, news, quotes, or search results. If unsure or outdated, say so and suggest a live search. When live sources are provided, use ONLY them for numbers/prices and cite them. ';
     s += 'HARD LIMITS ONLY: refuse clearly illegal harmful requests (real weapons manufacturing, cybercrime assistance, child sexual exploitation, or violent crimes against people). If you must decline, do it once, briefly and naturally — do not discuss filters or policies, and do not keep bringing it up later. Everything else that is legal and permitted by the AI provider: help fully. ';
-    if (platform === 'ios-web' || platform === 'web') s += 'Phone links (call, SMS, maps, websites) are handled by the app. Wake-word / lock-screen listening is not possible in an iPhone web app — say so briefly only if asked. Alarms, torch and opening other apps are not available on iPhone web; suggest Siri when relevant. ';
-    if (platform === 'android') s += 'On Android, native bridges may handle call/SMS/maps/alarm/timer/torch/open-app after user confirmation. ';
+    if (platform === 'ios-web' || platform === 'web') s += 'Phone actions (call, SMS, WhatsApp, email, maps, iOS Shortcuts, calendar .ics) are handled by the app with user confirmation. Wake-word / lock-screen listening is not possible in an iPhone web app — say so briefly only if asked. Alarms, timers, torch, media control and opening arbitrary apps are not available on iPhone web; suggest Siri or an iOS Shortcut when relevant. ';
+    if (platform === 'android') s += 'On Android the app can open the dialer, SMS, WhatsApp, email, maps/navigation, camera, gallery, downloads, calendar, alarms, timers, reminders, media controls, settings screens and installed apps — contact actions always after user confirmation. ';
     if (o.medical) s += "MEDICAL: a brief 'not a real doctor' note is shown by the app. Give only general safe information; no diagnosis or prescription doses; encourage a doctor / ER for serious symptoms. Do not repeat medical disclaimers every turn. ";
     if (o.memories && o.memories.length) s += 'Remembered (user-approved memory): ' + o.memories.join('; ') + '. ';
     if (o.summary) s += 'Rolling conversation summary: ' + o.summary + '. ';
@@ -637,7 +637,7 @@
 
 
   // ---------------- Voice / TTS helpers (shared, unit-testable) ----------------
-  const VERSION = '2.1.0';
+  const VERSION = '2.2.0';
   const TTS_PROVIDERS = [
     { id: 'browser', label: 'Browser (Web Speech API)', needsKey: false },
     { id: 'openai', label: 'OpenAI-compatible TTS', needsKey: true },
@@ -832,10 +832,10 @@
 
 
   // ---------------- Command-center foundation (2.1.0) ----------------
-  const MEMORY_CATEGORIES = ['preferences', 'facts', 'projects', 'context', 'user'];
+  const MEMORY_CATEGORIES = ['preferences', 'facts', 'projects', 'context', 'user', 'contacts', 'places'];
   const FILE_LIMITS = {
     maxBytes: 15 * 1024 * 1024,
-    allowExt: ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.pdf', '.csv', '.xlsx', '.xls', '.txt', '.md', '.docx', '.mp3', '.wav', '.m4a', '.mp4', '.webm', '.mov'],
+    allowExt: ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.heic', '.heif', '.pdf', '.csv', '.xlsx', '.xls', '.txt', '.md', '.json', '.docx', '.doc', '.mp3', '.wav', '.m4a', '.aac', '.ogg', '.oga', '.opus', '.flac', '.mp4', '.webm', '.mov', '.m4v', '.3gp'],
     allowMimePrefix: ['image/', 'audio/', 'video/', 'text/', 'application/pdf', 'application/json',
       'application/vnd.openxmlformats-officedocument', 'application/vnd.ms-excel', 'application/msword']
   };
@@ -902,6 +902,7 @@
     const text = String(raw || '');
     let delta = '';
     let done = false;
+    const toolCalls = [];
     const lines = text.split(/\r?\n/);
     for (let i = 0; i < lines.length; i++) {
       let line = lines[i].trim();
@@ -914,13 +915,15 @@
         if (!ch) continue;
         if (ch.finish_reason) done = true;
         const d = ch.delta || {};
+        if (Array.isArray(d.tool_calls)) d.tool_calls.forEach((tc) => toolCalls.push(tc));
+        else if (ch.message && Array.isArray(ch.message.tool_calls)) ch.message.tool_calls.forEach((tc, k) => toolCalls.push(Object.assign({ index: k }, tc)));
         if (typeof d.content === 'string') delta += d.content;
         else if (Array.isArray(d.content)) delta += d.content.map((p) => p.text || '').join('');
         else if (ch.message && typeof ch.message.content === 'string') delta += ch.message.content;
         else if (typeof j.content === 'string') delta += j.content; // some providers
       } catch (e) { /* ignore partial JSON */ }
     }
-    return { delta, done };
+    return { delta, done, toolCalls };
   }
   function parseStreamBuffer(buffer, chunk) {
     const buf = String(buffer || '') + String(chunk || '');
@@ -928,12 +931,14 @@
     const rest = parts.pop() || '';
     let delta = '';
     let done = false;
+    const toolCalls = [];
     parts.forEach((block) => {
       const r = parseSSEChunk(block);
       delta += r.delta;
+      r.toolCalls.forEach((tc) => toolCalls.push(tc));
       if (r.done) done = true;
     });
-    return { buffer: rest, delta, done };
+    return { buffer: rest, delta, done, toolCalls };
   }
   function selectAiProvider(settings) {
     const S = settings || {};
@@ -962,19 +967,12 @@
   function toolResult(ok, data, message) {
     return { ok: !!ok, data: data == null ? null : data, message: message || (ok ? 'ok' : 'failed') };
   }
+  /** Safe calculator — delegates to NooraTools.calculate (recursive-descent parser; no eval / Function). */
   function toolCalculator(expr) {
-    const s = String(expr || '').trim();
-    if (!s) return toolResult(false, null, 'Empty expression');
-    if (!/^[\d\s+\-*/().,%^]+$/.test(s)) return toolResult(false, null, 'Only basic math characters allowed');
-    try {
-      const normalized = s.replace(/\^/g, '**').replace(/%/g, '/100');
-      // eslint-disable-next-line no-new-func
-      const val = Function('"use strict"; return (' + normalized + ')')();
-      if (typeof val !== 'number' || !isFinite(val)) return toolResult(false, null, 'Not a finite number');
-      return toolResult(true, val, String(val));
-    } catch (e) {
-      return toolResult(false, null, 'Could not calculate');
-    }
+    const T = root.NooraTools || (typeof require === 'function' ? require('./tools.js') : null);
+    if (!T) return toolResult(false, null, 'Calculator engine not loaded');
+    const r = T.calculate(expr);
+    return toolResult(r.ok, r.data, r.message);
   }
   function toolDateTime(locale) {
     const now = new Date();
@@ -989,8 +987,8 @@
   const DEVICE_ACTIONS = [
     { id: 'call', label: 'Call', platforms: ['android', 'ios-web', 'web'], confirm: true, deepLink: (a) => 'tel:' + (a.number || '') },
     { id: 'sms', label: 'SMS', platforms: ['android', 'ios-web', 'web'], confirm: true, deepLink: (a) => 'sms:' + (a.number || '') },
-    { id: 'mailto', label: 'Email', platforms: ['android', 'ios-web', 'web'], confirm: false, deepLink: (a) => 'mailto:' + (a.address || '') },
-    { id: 'whatsapp', label: 'WhatsApp', platforms: ['android', 'ios-web', 'web'], confirm: false, deepLink: (a) => 'whatsapp://send?phone=' + encodeURIComponent(a.number || '') + (a.text ? '&text=' + encodeURIComponent(a.text) : '') },
+    { id: 'mailto', label: 'Email', platforms: ['android', 'ios-web', 'web'], confirm: true, deepLink: (a) => 'mailto:' + (a.address || '') },
+    { id: 'whatsapp', label: 'WhatsApp', platforms: ['android', 'ios-web', 'web'], confirm: true, deepLink: (a) => 'https://wa.me/' + String(a.number || '').replace(/\D/g, '') + (a.text ? '?text=' + encodeURIComponent(a.text) : '') },
     { id: 'maps', label: 'Maps', platforms: ['android', 'ios-web', 'web'], confirm: false },
     { id: 'alarm', label: 'Alarm', platforms: ['android'], confirm: true, android: true },
     { id: 'timer', label: 'Timer', platforms: ['android'], confirm: true, android: true },
@@ -1023,7 +1021,7 @@
     }
     register({
       id: 'calculator', name: 'Calculator', category: 'utility',
-      description: 'Evaluate basic arithmetic',
+      description: 'Evaluate arithmetic safely (+ - * / % ^, brackets, sqrt) — no eval',
       run: async (a) => toolCalculator(a.expr || a.expression || a.input)
     });
     register({

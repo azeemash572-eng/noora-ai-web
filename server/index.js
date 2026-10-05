@@ -13,7 +13,7 @@ app.use(cors({ origin: process.env.CORS_ORIGIN || true }));
 app.use(express.json({ limit: '2mb' }));
 
 app.get('/health', (req, res) => {
-  res.json({ ok: true, version: '2.1.0', hasGemini: !!process.env.GEMINI_API_KEY, hasOpenAI: !!process.env.OPENAI_API_KEY, hasEleven: !!process.env.ELEVENLABS_API_KEY });
+  res.json({ ok: true, version: '2.2.0', hasGemini: !!process.env.GEMINI_API_KEY, hasOpenAI: !!process.env.OPENAI_API_KEY, hasEleven: !!process.env.ELEVENLABS_API_KEY });
 });
 
 app.use('/ai', require('./ai'));
@@ -30,7 +30,7 @@ app.use((req, res) => res.status(404).json({ error: 'not found', path: req.path 
 
 if (require.main === module) {
   app.listen(PORT, '0.0.0.0', () => {
-    console.log('NOORA server 2.1.0 listening on http://127.0.0.1:' + PORT);
+    console.log('NOORA server 2.2.0 listening on http://127.0.0.1:' + PORT);
   });
 }
 module.exports = app;

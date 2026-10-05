@@ -10,27 +10,18 @@ When you set **Server URL** in the app Settings, the client routes AI / TTS / im
 
 ```bash
 cd server
-cp .env.example .env   # fill GEMINI_API_KEY etc. — never commit .env
+cp .env.example .env          # fill GEMINI_API_KEY etc. — never commit .env
+cp package.json.example package.json
 npm install
-npm start              # http://127.0.0.1:8787
+npm start                     # http://127.0.0.1:8787
 ```
+
+(`package.json` is named `package.json.example` in git so GitHub Pages does not try to npm-install this folder.)
 
 Health: `GET /health` → `{ ok: true, version: "2.1.0" }`
 
-AI without key: `POST /ai/chat` with no `GEMINI_API_KEY` / `OPENAI_API_KEY` → `401` JSON `{ error: "key missing" }` (honest).
+AI without key: `POST /ai/chat` → `401` `{ error: "key missing" }`.
 
-Free image (no key): `GET /image/txt2img?prompt=sunset` proxies Pollinations.
+Free image: `GET /image/txt2img?prompt=sunset` proxies Pollinations (upstream may rate-limit).
 
-## Endpoints
-
-| Method | Path | Notes |
-|--------|------|-------|
-| GET | `/health` | Liveness |
-| POST | `/ai/chat` | OpenAI-compat proxy (Gemini/OpenAI env keys); supports `stream` |
-| POST | `/voice/tts` | ElevenLabs or OpenAI TTS via env keys |
-| GET | `/image/txt2img` | Pollinations proxy (no key) |
-| POST | `/video/*` | `{ error: "no provider configured" }` |
-| GET | `/tools` | Lists server-side tool ids |
-| POST | `/files/validate` | Type/size check |
-
-Do **not** deploy this repo's server to GitHub Pages (static only).
+Do **not** deploy this server to GitHub Pages (static only).

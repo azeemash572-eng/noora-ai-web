@@ -75,6 +75,7 @@ await context.addInitScript(() => {
 });
 const page = await context.newPage();
 await page.goto(`http://127.0.0.1:${port}/index.html`, { waitUntil: 'domcontentloaded' });
+await page.click('#bottomNav button[data-tab="chat"]');
 assert.match(await page.locator('#aiDisplayName').innerText(), /Noora/i);
 assert.ok(await page.locator('#btnVoiceMode').isVisible());
 

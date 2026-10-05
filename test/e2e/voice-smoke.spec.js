@@ -71,6 +71,7 @@ test('iPhone viewport Voice Mode + Voice Settings (mocked speech)', async () => 
   });
   const page = await context.newPage();
   await page.goto(`http://127.0.0.1:${port}/index.html`, { waitUntil: 'domcontentloaded' });
+  await page.click('#bottomNav button[data-tab="chat"]');
   await expect(page.locator('#aiDisplayName')).toContainText(/Noora/i);
   await expect(page.locator('#btnVoiceMode')).toBeVisible();
 

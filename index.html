@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>NOORA AI</title>
-<meta name="description" content="NOORA AI — personal assistant (English, Urdu, Arabic, Hindi, Punjabi)">
+<meta name="description" content="NOORA AI — personal command center (English, Urdu, Arabic, Hindi, Punjabi)">
 <meta name="theme-color" content="#0B0B12">
 <meta name="color-scheme" content="dark">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -30,14 +30,42 @@
 </div>
 
 <div id="app">
-  <!-- HOME / CHAT -->
+  <!-- HOME (command center dashboard) -->
   <section class="tab" id="tab-home">
+    <header class="pageHead glass">
+      <img id="homeAvatar" src="icons/icon-192.png" alt="" class="navAvatar">
+      <div class="who"><div class="name" id="homeGreeting">NOORA</div><div class="status"><span id="homeDot"></span><span id="homeStatus">Ready</span></div></div>
+    </header>
+    <div class="scroll homeDash">
+      <button type="button" class="voiceOrb" id="homeVoiceBtn" aria-label="Start voice">🎙</button>
+      <p class="orbHint">Tap for voice · hold the chat mic anytime</p>
+      <div class="quickCmd glassCard">
+        <input id="homeQuick" type="text" placeholder="Quick command…" dir="auto" enterkeyhint="go" autocomplete="off">
+        <button type="button" class="primary sm" id="homeQuickGo">Go</button>
+      </div>
+      <h3>Shortcuts</h3>
+      <div class="gridActions">
+        <button type="button" class="glassCard actTile" data-home-act="chat">💬 Chat</button>
+        <button type="button" class="glassCard actTile" data-home-act="image">🖼 Create image</button>
+        <button type="button" class="glassCard actTile" data-home-act="video">🎬 Create video</button>
+        <button type="button" class="glassCard actTile" data-home-act="file">📎 Attach file</button>
+        <button type="button" class="glassCard actTile" data-home-act="phone">📱 Phone actions</button>
+        <button type="button" class="glassCard actTile" data-home-act="web">🔎 Web search</button>
+      </div>
+      <h3>Recent conversations</h3>
+      <div id="homeRecent" class="homeRecent"></div>
+    </div>
+  </section>
+
+  <!-- CHAT -->
+  <section class="tab" id="tab-chat" hidden>
     <header id="top">
       <img id="avatar" src="icons/icon-192.png" alt="Noora">
       <div class="who">
         <div class="name" id="aiDisplayName">Noora</div>
         <div class="status"><span id="dot"></span><span id="statusText">Ready</span></div>
       </div>
+      <button class="icon" id="btnChatsList" aria-label="Conversations" title="Conversations">🗂</button>
       <button class="icon" id="btnTts" aria-label="Voice replies on/off"></button>
       <button class="icon" id="btnVoiceMode" aria-label="Continuous voice conversation" title="Voice conversation"></button>
       <button class="icon" id="btnNew" aria-label="New chat"></button>
@@ -69,10 +97,10 @@
       </div>
       <button id="btnMic" aria-label="Voice input / send"></button>
     </footer>
-    <input type="file" id="file" accept="image/*,.pdf,.csv,.xlsx,.xls,.txt,.md,.docx,application/pdf,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
+    <input type="file" id="file" accept="image/*,.pdf,.csv,.xlsx,.xls,.txt,.md,.docx,application/pdf,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document,audio/*,video/*" hidden>
   </section>
 
-  <!-- CHATS -->
+  <!-- Conversations panel (search / rename / delete) -->
   <section class="tab" id="tab-chats" hidden>
     <header class="pageHead"><h2>Chats</h2><button class="danger-link" id="hClear">Clear all</button></header>
     <div class="toolbar">
@@ -82,20 +110,135 @@
     <div class="scroll" id="hList"></div>
   </section>
 
-  <!-- AI -->
-  <section class="tab" id="tab-ai" hidden>
-    <header class="pageHead"><h2>AI</h2></header>
+  <!-- CREATE -->
+  <section class="tab" id="tab-create" hidden>
+    <header class="pageHead"><h2>Create</h2></header>
+    <div class="toolbar">
+      <button class="chip sel" data-create-pane="image">Image Studio</button>
+      <button class="chip" data-create-pane="video">Video Studio</button>
+    </div>
+    <div class="scroll" id="createImagePane">
+      <div class="glassCard">
+        <label>Prompt<textarea id="imgPrompt" rows="3" placeholder="Describe the image…" dir="auto"></textarea></label>
+        <label>Count<select id="imgCount"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></label>
+        <button type="button" class="primary" id="btnImgGen">Generate (Pollinations)</button>
+        <p class="note" id="imgGenStatus">Provider: Pollinations txt2img (free). img2img / edit / upscale need a configured provider — currently disabled.</p>
+      </div>
+      <div class="studioActions">
+        <button type="button" class="outline" id="btnImg2Img" disabled title="No img2img provider configured">img2img — unavailable</button>
+        <button type="button" class="outline" id="btnImgEdit" disabled title="No edit provider configured">Edit — unavailable</button>
+        <button type="button" class="outline" id="btnImgBg" disabled title="No background-replace provider">BG replace — unavailable</button>
+        <button type="button" class="outline" id="btnImgUpscale" disabled title="No upscale provider">Enhance / upscale — unavailable</button>
+      </div>
+      <div id="imgResults" class="imgResults"></div>
+    </div>
+    <div class="scroll" id="createVideoPane" hidden>
+      <div class="glassCard">
+        <label>Video provider<select id="vidProvider"><option value="">None configured</option></select></label>
+        <label>Base URL<input id="vidBase" placeholder="https://…" inputmode="url" autocapitalize="off"></label>
+        <label>API key<input id="vidKey" type="password" placeholder="stored on this device only" autocomplete="off"></label>
+        <button type="button" class="outline" id="btnVidSave">Save video provider</button>
+        <p class="note" id="vidStatus">No video provider configured. Ops stay disabled until you add a real endpoint — nothing is faked.</p>
+        <label>Prompt<textarea id="vidPrompt" rows="3" placeholder="Describe a video…" dir="auto"></textarea></label>
+        <button type="button" class="primary" id="btnVidGen" disabled>Generate video</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- FILES -->
+  <section class="tab" id="tab-files" hidden>
+    <header class="pageHead"><h2>Files</h2><button class="icon" id="btnUploadFile" aria-label="Upload">＋</button></header>
+    <div class="fileCenter glassCard" id="fileDropZone">
+      <p class="note">Tap to pick · drag &amp; drop on desktop · camera / gallery below</p>
+      <div class="fabRow wrap">
+        <button type="button" class="outline" id="btnPickFile">📁 Pick file</button>
+        <button type="button" class="outline" id="btnCamera">📷 Camera</button>
+        <button type="button" class="outline" id="btnGallery">🖼 Gallery</button>
+        <button type="button" class="outline" id="btnAudioCap">🎤 Audio</button>
+        <button type="button" class="outline" id="btnVideoCap">🎬 Video</button>
+      </div>
+      <input type="file" id="fcPicker" hidden multiple>
+      <input type="file" id="fcCamera" accept="image/*" capture="environment" hidden>
+      <input type="file" id="fcGallery" accept="image/*" hidden>
+      <input type="file" id="fcAudio" accept="audio/*" capture hidden>
+      <input type="file" id="fcVideo" accept="video/*" capture hidden>
+      <div id="fcPending" class="fcPending"></div>
+      <button type="button" class="primary" id="btnFcSend" hidden>Attach to chat</button>
+    </div>
+    <div class="toolbar">
+      <button class="chip sel" data-ff="all">All</button>
+      <button class="chip" data-ff="image">Images</button>
+      <button class="chip" data-ff="doc">Documents</button>
+      <button class="chip" data-ff="note">Notes</button>
+    </div>
+    <div class="scroll" id="filesList"></div>
+    <div class="fabRow">
+      <button class="outline" id="btnNewNote">+ Note</button>
+      <button class="outline" id="btnNewPrompt">+ Saved prompt</button>
+    </div>
+  </section>
+
+  <!-- TOOLS -->
+  <section class="tab" id="tab-tools" hidden>
+    <header class="pageHead"><h2>Tools</h2></header>
     <div class="scroll">
-      <h3>Model</h3>
+      <h3>Registered tools</h3>
+      <div id="toolsList"></div>
+      <h3>Phone actions</h3>
+      <p class="note" id="toolsPlatformNote"></p>
+      <div id="phoneActions"></div>
+      <div class="glassCard" id="toolCalcCard">
+        <label>Calculator<input id="toolCalcIn" placeholder="e.g. (12+3)*2" inputmode="decimal"></label>
+        <button type="button" class="outline" id="btnToolCalc">Calculate</button>
+        <p class="note" id="toolCalcOut"></p>
+      </div>
+      <div class="glassCard">
+        <button type="button" class="outline" id="btnToolTime">Show date / time</button>
+        <p class="note" id="toolTimeOut"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- MEMORY -->
+  <section class="tab" id="tab-memory" hidden>
+    <header class="pageHead"><h2>Memory</h2></header>
+    <div class="scroll">
+      <div class="glassCard">
+        <label class="row">Remember things I ask<input type="checkbox" id="sMemOnTab" class="switch"></label>
+        <label>Category filter<select id="memCatFilter">
+          <option value="">All</option>
+          <option value="preferences">Preferences</option>
+          <option value="facts">Facts</option>
+          <option value="projects">Projects</option>
+          <option value="context">Context</option>
+          <option value="user">User-selected</option>
+        </select></label>
+        <button type="button" class="outline" id="btnAddMemory">+ Add memory</button>
+      </div>
+      <div id="memTabList"></div>
+    </div>
+  </section>
+
+  <!-- SETTINGS (includes AI provider) -->
+  <section class="tab" id="tab-settings" hidden>
+    <header class="pageHead"><h2>Settings</h2></header>
+    <div class="scroll">
+      <h3>Profile</h3>
+      <div class="card">
+        <label>Your name<input id="sName" placeholder="e.g. Ayesha" autocomplete="given-name"></label>
+      </div>
+      <h3>AI model</h3>
       <div class="card">
         <label>Preset<select id="sPreset"></select></label>
-        <p class="note" id="presetNote">Presets map to real models for the provider you choose in Settings.</p>
+        <p class="note" id="presetNote">Presets map to real models for the provider you choose.</p>
         <label>Provider<select id="sProvider"></select></label>
         <label>Base URL (OpenAI-compatible)<input id="sBase" placeholder="https://api.openai.com/v1" inputmode="url" autocapitalize="off" autocorrect="off"></label>
         <label>API key<input id="sKey" type="password" placeholder="paste your key" autocapitalize="off" autocorrect="off" autocomplete="off"></label>
         <label>Chat model<input id="sModel" placeholder="gpt-4o-mini" autocapitalize="off" autocorrect="off"></label>
         <label>Vision model<input id="sVision" placeholder="gpt-4o-mini" autocapitalize="off" autocorrect="off"></label>
         <label class="row">Web &amp; research (live sources)<input type="checkbox" id="sWeb" class="switch"></label>
+        <label>Optional Server URL<input id="sServerUrl" placeholder="https://your-replit.example (leave empty for direct)" inputmode="url" autocapitalize="off"></label>
+        <p class="note">When set, AI/TTS/image calls go through your Node proxy (env keys). Leave empty to use keys stored on this device.</p>
         <button class="primary" id="sTest">Save &amp; test AI connection</button>
         <p class="note" id="sTestResult"></p>
       </div>
@@ -113,34 +256,6 @@
         <div id="assistList"></div>
         <button class="outline" id="btnNewAssist">+ Create assistant</button>
       </div>
-      <p class="about" id="aiAbout"></p>
-    </div>
-  </section>
-
-  <!-- FILES -->
-  <section class="tab" id="tab-files" hidden>
-    <header class="pageHead"><h2>Files</h2><button class="icon" id="btnUploadFile" aria-label="Upload"></button></header>
-    <div class="toolbar">
-      <button class="chip sel" data-ff="all">All</button>
-      <button class="chip" data-ff="image">Images</button>
-      <button class="chip" data-ff="doc">Documents</button>
-      <button class="chip" data-ff="note">Notes</button>
-    </div>
-    <div class="scroll" id="filesList"></div>
-    <div class="fabRow">
-      <button class="outline" id="btnNewNote">+ Note</button>
-      <button class="outline" id="btnNewPrompt">+ Saved prompt</button>
-    </div>
-  </section>
-
-  <!-- SETTINGS -->
-  <section class="tab" id="tab-settings" hidden>
-    <header class="pageHead"><h2>Settings</h2></header>
-    <div class="scroll">
-      <h3>Profile</h3>
-      <div class="card">
-        <label>Your name<input id="sName" placeholder="e.g. Ayesha" autocomplete="given-name"></label>
-      </div>
       <h3>Voice</h3>
       <div class="card">
         <label class="row">Speak replies aloud<input type="checkbox" id="sTts" class="switch"></label>
@@ -154,7 +269,7 @@
           <label>TTS API key<input id="sTtsKey" type="password" placeholder="paste TTS key (stored only on this device)" autocapitalize="off" autocorrect="off" autocomplete="off"></label>
           <label>TTS model<input id="sTtsModel" placeholder="tts-1" autocapitalize="off" autocorrect="off"></label>
           <label>TTS voice ID<input id="sTtsVoiceId" placeholder="nova / shimmer / alloy / …" autocapitalize="off" autocorrect="off"></label>
-          <p class="note">Keys are saved in local Settings only — never baked into the app. Works with OpenAI TTS or any OpenAI-compatible <code>/audio/speech</code> endpoint.</p>
+          <p class="note">Keys are saved in local Settings only — never baked into the app.</p>
         </div>
         <div id="elevenProviderFields" hidden>
           <label>ElevenLabs API key<input id="sElevenKey" type="password" placeholder="paste ElevenLabs xi-api-key (this device only)" autocapitalize="off" autocorrect="off" autocomplete="off"></label>
@@ -170,7 +285,7 @@
           </datalist>
           <label>Stability <span id="sElevenStabVal">0.5</span><input type="range" id="sElevenStability" min="0" max="1" step="0.05" value="0.5"></label>
           <label>Similarity <span id="sElevenSimVal">0.75</span><input type="range" id="sElevenSimilarity" min="0" max="1" step="0.05" value="0.75"></label>
-          <p class="note">Default model is <code>eleven_multilingual_v2</code> (not English-only). Speed uses <code>voice_settings.speed</code> from the Speaking speed slider. Keys stay in local Settings only — never hard-coded.</p>
+          <p class="note">Keys stay in local Settings only — never hard-coded.</p>
         </div>
         <label>Device voice (Browser provider)<select id="sVoice"></select></label>
         <label>Speaking speed<input type="range" id="sRate" min="0.5" max="1.6" step="0.1"></label>
@@ -178,7 +293,7 @@
         <label>Volume<input type="range" id="sVolume" min="0" max="1" step="0.05"></label>
         <p class="note" id="voiceInfo"></p>
         <button type="button" class="outline" id="sVoiceTest">▶ Voice Test (current settings)</button>
-        <p class="note">Wake word / lock-screen listening is <b>not possible</b> in an iPhone web app. On Android, the OS may allow mic while the app is open; there is no fake always-on wake word. iPhone Safari / Home Screen often blocks web speech recognition — use keyboard 🎤 dictation if STT fails.</p>
+        <p class="note">Wake word / lock-screen listening is <b>not possible</b> in an iPhone web app.</p>
       </div>
       <h3>Memory</h3>
       <div class="card">
@@ -205,14 +320,17 @@
       <h3>On this device</h3>
       <div class="card"><p class="note" id="sIphone"></p></div>
       <p class="about" id="about"></p>
+      <p class="about" id="aiAbout"></p>
     </div>
   </section>
 
   <nav id="bottomNav">
-    <button data-tab="home" class="on"><span class="ni">💬</span><span>Home</span></button>
-    <button data-tab="chats"><span class="ni">🗂</span><span>Chats</span></button>
-    <button data-tab="ai"><span class="ni">✦</span><span>AI</span></button>
+    <button data-tab="home" class="on"><span class="ni">⌂</span><span>Home</span></button>
+    <button data-tab="chat"><span class="ni">💬</span><span>Chat</span></button>
+    <button data-tab="create"><span class="ni">✦</span><span>Create</span></button>
     <button data-tab="files"><span class="ni">📁</span><span>Files</span></button>
+    <button data-tab="tools"><span class="ni">🛠</span><span>Tools</span></button>
+    <button data-tab="memory"><span class="ni">🧠</span><span>Memory</span></button>
     <button data-tab="settings"><span class="ni">⚙️</span><span>Settings</span></button>
   </nav>
 </div>

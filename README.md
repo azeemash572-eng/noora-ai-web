@@ -1,23 +1,20 @@
-# NOORA AI for iPhone (installable web app / PWA) — 2.0.3
+# NOORA AI Command Center — 2.1.0
 
-Personal AI assistant (English, Urdu, Roman Urdu, Arabic, Hindi, Punjabi). Same core is bundled into the Android 2.0.3 WebView app.
+Personal AI command center (English, Urdu, Roman Urdu, Arabic, Hindi, Punjabi). Same core is bundled into the Android 2.1.0 WebView app.
 
 ## Files
-- `index.html` / `app.css` / `app.js` / `core.js`: app shell + logic
-- `manifest.webmanifest`, `sw.js`: PWA (cache `noora-shell-2.0.3`)
-- `build-single.js`: writes `../NOORA-AI-iPhone.html`
-- `test/core.test.js`: `node --test test/`
+- `index.html` / `app.css` / `app.js` / `core.js`: 7-tab shell (Home / Chat / Create / Files / Tools / Memory / Settings)
+- `client/js/`: module map mirroring architecture (runtime logic in `core.js` for WebView safety)
+- `server/`: optional Node proxy for Replit Secrets (not used by GitHub Pages)
+- `manifest.webmanifest`, `sw.js`: PWA (cache `noora-shell-2.1.0`)
+- `docs/ARCHITECTURE.md`: schema, providers, platform notes
+- `docs/icon-preview.png`: new NOORA AI icon (iOS + Android renders)
 
 ## Settings keys (do not rename)
-Provider settings stay in `localStorage` key `noora.settings` with the same provider preset names (including **Google Gemini** base URL and `gemini-2.5-flash`). Existing saved API keys keep working after upgrade.
+Provider settings stay in `localStorage` key `noora.settings` (including **Google Gemini** base URL and `gemini-2.5-flash`). Existing saved API keys and chats keep working after upgrade.
+
+## Optional server
+See `server/README.md`. Set **Server URL** in Settings to route AI/TTS/image through the proxy.
 
 ## Add to Home Screen (iPhone)
 1. Open the https URL in Safari → Share → Add to Home Screen.
-
-## Voice / TTS (2.0.3)
-- **Voice Mode** on chat: continuous listen → AI → speak → listen (Stop / Mute / Replay / Mic).
-- **Browser TTS** (default, no key) via Web Speech API; pick device voice, speed, pitch, volume.
-- **OpenAI-compatible TTS**: set Base URL + API key + model + voice ID in **Settings → Voice**. Keys are stored only in `localStorage` (`noora.settings`) — never hard-coded in the repo.
-- **ElevenLabs**: API key + Voice ID + model (default `eleven_multilingual_v2`) + stability/similarity in **Settings → Voice**. Optional **Load my voices** (CORS allowed on api.elevenlabs.io). On failure, falls back to Browser TTS.
-- **Voice Test** plays a sample with the current form values before/without saving.
-- iPhone Safari / Home Screen often blocks web speech recognition; use keyboard dictation if STT fails. Honest status messages clear “Listening…” on refusal.

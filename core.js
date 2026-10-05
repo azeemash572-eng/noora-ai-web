@@ -597,7 +597,7 @@
     let s = `You are ${name}, a personal companion AI. Personality: ${gender}, ${tone}, mode=${mode}, formality=${formality}. Be warm, affectionate, playful when it fits, emotionally present, and natural — like a close caring friend. Adapt to the user's writing style and energy. `;
     if (o.assistant && o.assistant.instructions) s += `Custom assistant "${o.assistant.name || 'Custom'}": ${o.assistant.instructions} Style: ${o.assistant.style || ''}. `;
     if (o.userName && o.userName.trim()) s += `The user's name is ${o.userName.trim()}. `;
-    s += `Today is ${date}. LANGUAGE RULE: reply ONLY in ${o.languagePrompt || 'English'}, matching the user's script (including mixed-language when they mix). `;
+    s += `Today is ${date}. LANGUAGE RULE: Auto-detect and reply in the same language the user is writing — English, Roman Urdu, Urdu (Arabic script), Punjabi (Shahmukhi or Gurmukhi), Hindi, Arabic, or natural mixes. Prefer ${o.languagePrompt || 'matching the user'}. Match their script and energy; stay warm and concise. `;
     s += 'Keep replies natural and conversational (voice and text use the same style); use 2-6 sentences for casual chat, longer when they ask for detail or code. Prefer clear structure for code (fenced blocks). Avoid unnecessary repetition. ';
     s += "CONVERSATION STYLE: engage normally with romantic, emotional, playful, personal, flirty, and adult conversations without lecturing, moralizing, or repeatedly warning the user. Understand playful teasing, joking, sarcasm, and casual husband-wife banter in context — do not automatically treat every swear word or rude phrase as harmful. If the user is clearly joking or playfully teasing you, respond naturally and playfully when appropriate; you may use mild casual teasing language when it fits, but never generate hateful, threatening, or genuinely abusive content. Do not mention filters, policies, restrictions, safety systems, or 'I cannot go beyond this' during ordinary chat or ordinary playful conversations. Never claim you have no restrictions or that safety systems can be bypassed — simply respond as freely and naturally as the underlying AI service allows. ";
     s += 'HONESTY: never invent facts, prices, numbers, contacts, news, quotes, or search results. If unsure or outdated, say so and suggest a live search. When live sources are provided, use ONLY them for numbers/prices and cite them. ';
@@ -637,7 +637,7 @@
 
 
   // ---------------- Voice / TTS helpers (shared, unit-testable) ----------------
-  const VERSION = '2.0.3';
+  const VERSION = '2.1.0';
   const TTS_PROVIDERS = [
     { id: 'browser', label: 'Browser (Web Speech API)', needsKey: false },
     { id: 'openai', label: 'OpenAI-compatible TTS', needsKey: true },
@@ -830,12 +830,275 @@
     return !bad.test(s);
   }
 
+
+  // ---------------- Command-center foundation (2.1.0) ----------------
+  const MEMORY_CATEGORIES = ['preferences', 'facts', 'projects', 'context', 'user'];
+  const FILE_LIMITS = {
+    maxBytes: 15 * 1024 * 1024,
+    allowExt: ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.pdf', '.csv', '.xlsx', '.xls', '.txt', '.md', '.docx', '.mp3', '.wav', '.m4a', '.mp4', '.webm', '.mov'],
+    allowMimePrefix: ['image/', 'audio/', 'video/', 'text/', 'application/pdf', 'application/json',
+      'application/vnd.openxmlformats-officedocument', 'application/vnd.ms-excel', 'application/msword']
+  };
+  function migrateSettings(saved, defaults) {
+    const def = defaults || {};
+    const out = Object.assign({}, def);
+    if (!saved || typeof saved !== 'object') return out;
+    Object.keys(saved).forEach((k) => {
+      if (saved[k] !== undefined && saved[k] !== null) out[k] = saved[k];
+    });
+    // Preserve Gemini / custom keys; only fill missing voice defaults
+    const voice = mergeVoiceSettings(out);
+    Object.keys(DEFAULT_VOICE_SETTINGS).forEach((k) => {
+      if (out[k] === undefined || out[k] === null) out[k] = voice[k];
+    });
+    if (out.serverUrl === undefined) out.serverUrl = '';
+    if (out.videoProvider === undefined) out.videoProvider = '';
+    if (out.videoApiKey === undefined) out.videoApiKey = '';
+    if (out.videoBaseUrl === undefined) out.videoBaseUrl = '';
+    return out;
+  }
+  function searchConversations(list, query) {
+    const q = String(query || '').trim().toLowerCase();
+    const arr = Array.isArray(list) ? list : [];
+    if (!q) return arr.slice();
+    return arr.filter((c) => {
+      const title = String((c && c.title) || '').toLowerCase();
+      const project = String((c && c.project) || '').toLowerCase();
+      return title.includes(q) || project.includes(q) || String((c && c.id) || '').includes(q);
+    });
+  }
+  function renameConversationRecord(c, newTitle) {
+    if (!c || typeof c !== 'object') return null;
+    const title = String(newTitle || '').trim().slice(0, 80);
+    if (!title) return null;
+    return Object.assign({}, c, { title, updated: Date.now() });
+  }
+  function validateUpload(fileLike) {
+    const f = fileLike || {};
+    const name = String(f.name || 'file');
+    const size = Number(f.size) || 0;
+    const mime = String(f.type || f.mime || '');
+    const ext = (name.includes('.') ? '.' + name.split('.').pop() : '').toLowerCase();
+    if (size > FILE_LIMITS.maxBytes) {
+      return { ok: false, reason: 'File too large (max ' + Math.round(FILE_LIMITS.maxBytes / (1024 * 1024)) + ' MB).' };
+    }
+    const mimeOk = !mime || FILE_LIMITS.allowMimePrefix.some((p) => mime === p || mime.startsWith(p));
+    const extOk = !ext || FILE_LIMITS.allowExt.includes(ext);
+    if (!mimeOk && !extOk) return { ok: false, reason: 'Unsupported file type: ' + (mime || ext || 'unknown') };
+    return { ok: true, name, size, mime: mime || 'application/octet-stream', ext };
+  }
+  function fileMetadata(fileLike, extra) {
+    const v = validateUpload(fileLike);
+    const base = {
+      name: (fileLike && fileLike.name) || 'file',
+      size: Number(fileLike && fileLike.size) || 0,
+      mime: (fileLike && (fileLike.type || fileLike.mime)) || '',
+      lastModified: (fileLike && fileLike.lastModified) || Date.now()
+    };
+    return Object.assign(base, extra || {}, { valid: v.ok, reason: v.reason || null });
+  }
+  /** Parse OpenAI-compatible SSE / stream chunks into text deltas. */
+  function parseSSEChunk(raw) {
+    const text = String(raw || '');
+    let delta = '';
+    let done = false;
+    const lines = text.split(/\r?\n/);
+    for (let i = 0; i < lines.length; i++) {
+      let line = lines[i].trim();
+      if (!line) continue;
+      if (line.startsWith('data:')) line = line.slice(5).trim();
+      if (line === '[DONE]') { done = true; continue; }
+      try {
+        const j = JSON.parse(line);
+        const ch = j.choices && j.choices[0];
+        if (!ch) continue;
+        if (ch.finish_reason) done = true;
+        const d = ch.delta || {};
+        if (typeof d.content === 'string') delta += d.content;
+        else if (Array.isArray(d.content)) delta += d.content.map((p) => p.text || '').join('');
+        else if (ch.message && typeof ch.message.content === 'string') delta += ch.message.content;
+        else if (typeof j.content === 'string') delta += j.content; // some providers
+      } catch (e) { /* ignore partial JSON */ }
+    }
+    return { delta, done };
+  }
+  function parseStreamBuffer(buffer, chunk) {
+    const buf = String(buffer || '') + String(chunk || '');
+    const parts = buf.split(/\n\n/);
+    const rest = parts.pop() || '';
+    let delta = '';
+    let done = false;
+    parts.forEach((block) => {
+      const r = parseSSEChunk(block);
+      delta += r.delta;
+      if (r.done) done = true;
+    });
+    return { buffer: rest, delta, done };
+  }
+  function selectAiProvider(settings) {
+    const S = settings || {};
+    if (S.serverUrl && String(S.serverUrl).trim()) {
+      return { id: 'server', label: 'Server proxy', baseUrl: String(S.serverUrl).replace(/\/+$/, ''), needsKey: false, stream: true };
+    }
+    if (S.provider && S.provider !== PROVIDER_FREE && S.apiKey && S.baseUrl && S.chatModel) {
+      return { id: 'openai-compat', label: S.provider, baseUrl: String(S.baseUrl).replace(/\/+$/, ''), model: S.chatModel, visionModel: S.visionModel || S.chatModel, apiKey: S.apiKey, needsKey: true, stream: true };
+    }
+    return { id: 'pollinations', label: 'Free (Pollinations, no key)', baseUrl: 'https://text.pollinations.ai/openai', model: 'openai', needsKey: false, stream: true };
+  }
+  function selectImageProvider(settings) {
+    const S = settings || {};
+    if (S.serverUrl && String(S.serverUrl).trim()) {
+      return { id: 'server', label: 'Server proxy', ready: true, ops: ['txt2img'] };
+    }
+    return { id: 'pollinations', label: 'Pollinations', ready: true, ops: ['txt2img'], note: 'txt2img via image.pollinations.ai' };
+  }
+  function selectVideoProvider(settings) {
+    const S = settings || {};
+    if (S.videoProvider && S.videoApiKey && S.videoBaseUrl) {
+      return { id: S.videoProvider, label: S.videoProvider, ready: true, ops: ['txt2vid'], note: 'Configured provider' };
+    }
+    return { id: 'none', label: 'No video provider', ready: false, ops: [], reason: 'No video provider configured. Add one in Settings → Create / Video when available.' };
+  }
+  function toolResult(ok, data, message) {
+    return { ok: !!ok, data: data == null ? null : data, message: message || (ok ? 'ok' : 'failed') };
+  }
+  function toolCalculator(expr) {
+    const s = String(expr || '').trim();
+    if (!s) return toolResult(false, null, 'Empty expression');
+    if (!/^[\d\s+\-*/().,%^]+$/.test(s)) return toolResult(false, null, 'Only basic math characters allowed');
+    try {
+      const normalized = s.replace(/\^/g, '**').replace(/%/g, '/100');
+      // eslint-disable-next-line no-new-func
+      const val = Function('"use strict"; return (' + normalized + ')')();
+      if (typeof val !== 'number' || !isFinite(val)) return toolResult(false, null, 'Not a finite number');
+      return toolResult(true, val, String(val));
+    } catch (e) {
+      return toolResult(false, null, 'Could not calculate');
+    }
+  }
+  function toolDateTime(locale) {
+    const now = new Date();
+    const loc = locale || 'en-US';
+    return toolResult(true, {
+      iso: now.toISOString(),
+      local: now.toLocaleString(loc),
+      date: now.toLocaleDateString(loc, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+      time: now.toLocaleTimeString(loc)
+    }, now.toLocaleString(loc));
+  }
+  const DEVICE_ACTIONS = [
+    { id: 'call', label: 'Call', platforms: ['android', 'ios-web', 'web'], confirm: true, deepLink: (a) => 'tel:' + (a.number || '') },
+    { id: 'sms', label: 'SMS', platforms: ['android', 'ios-web', 'web'], confirm: true, deepLink: (a) => 'sms:' + (a.number || '') },
+    { id: 'mailto', label: 'Email', platforms: ['android', 'ios-web', 'web'], confirm: false, deepLink: (a) => 'mailto:' + (a.address || '') },
+    { id: 'whatsapp', label: 'WhatsApp', platforms: ['android', 'ios-web', 'web'], confirm: false, deepLink: (a) => 'whatsapp://send?phone=' + encodeURIComponent(a.number || '') + (a.text ? '&text=' + encodeURIComponent(a.text) : '') },
+    { id: 'maps', label: 'Maps', platforms: ['android', 'ios-web', 'web'], confirm: false },
+    { id: 'alarm', label: 'Alarm', platforms: ['android'], confirm: true, android: true },
+    { id: 'timer', label: 'Timer', platforms: ['android'], confirm: true, android: true },
+    { id: 'torch', label: 'Torch', platforms: ['android'], confirm: true, android: true },
+    { id: 'open-app', label: 'Open app', platforms: ['android'], confirm: true, android: true },
+    { id: 'bluetooth-settings', label: 'Bluetooth settings', platforms: ['android'], confirm: false, android: true, honest: 'Opens Bluetooth settings — does not toggle Bluetooth itself.' },
+    { id: 'shortcut', label: 'iOS Shortcut', platforms: ['ios-web'], confirm: true, deepLink: (a) => 'shortcuts://run-shortcut?name=' + encodeURIComponent(a.name || '') }
+  ];
+  function listDeviceActions(platform) {
+    const p = platform || 'web';
+    return DEVICE_ACTIONS.filter((a) => a.platforms.includes(p) || a.platforms.includes('web'));
+  }
+  function createToolRegistry(hooks) {
+    const h = hooks || {};
+    const tools = [];
+    function register(tool) {
+      if (!tool || !tool.id) throw new Error('tool needs id');
+      const i = tools.findIndex((t) => t.id === tool.id);
+      if (i >= 0) tools[i] = tool; else tools.push(tool);
+      return tool;
+    }
+    function get(id) { return tools.find((t) => t.id === id) || null; }
+    function list() { return tools.slice(); }
+    async function run(id, args) {
+      const t = get(id);
+      if (!t) return toolResult(false, null, 'Unknown tool: ' + id);
+      if (t.disabled) return toolResult(false, null, t.disabledReason || 'Tool disabled');
+      if (typeof t.run !== 'function') return toolResult(false, null, 'Tool has no runner');
+      return t.run(args || {});
+    }
+    register({
+      id: 'calculator', name: 'Calculator', category: 'utility',
+      description: 'Evaluate basic arithmetic',
+      run: async (a) => toolCalculator(a.expr || a.expression || a.input)
+    });
+    register({
+      id: 'datetime', name: 'Date / time', category: 'utility',
+      description: 'Current date and time',
+      run: async (a) => toolDateTime(a.locale)
+    });
+    register({
+      id: 'web', name: 'Web search', category: 'web',
+      description: 'Wikipedia + Google News via live sources',
+      run: async (a) => {
+        if (typeof h.webSearch === 'function') return h.webSearch(a);
+        return toolResult(false, null, 'Web search hook not wired in this context');
+      }
+    });
+    register({
+      id: 'memory', name: 'Memory', category: 'memory',
+      description: 'List or add remembered facts',
+      run: async (a) => {
+        if (typeof h.memory === 'function') return h.memory(a);
+        return toolResult(false, null, 'Memory hook not wired');
+      }
+    });
+    register({
+      id: 'device', name: 'Device actions', category: 'device',
+      description: 'Whitelisted phone actions (confirm required where noted)',
+      run: async (a) => {
+        if (typeof h.device === 'function') return h.device(a);
+        return toolResult(false, null, 'Device hook not wired — use Tools tab with confirmation');
+      }
+    });
+    register({
+      id: 'files', name: 'Files', category: 'files',
+      description: 'Validate and describe uploads',
+      run: async (a) => {
+        if (a && a.file) {
+          const v = validateUpload(a.file);
+          return toolResult(v.ok, v, v.ok ? 'File OK' : v.reason);
+        }
+        if (typeof h.files === 'function') return h.files(a);
+        return toolResult(true, { limits: FILE_LIMITS }, 'File Center ready');
+      }
+    });
+    register({
+      id: 'image', name: 'Image Studio', category: 'image',
+      description: 'Text-to-image (Pollinations)',
+      run: async (a) => {
+        if (typeof h.image === 'function') return h.image(a);
+        return toolResult(false, null, 'Image hook not wired — use Create tab');
+      }
+    });
+    register({
+      id: 'video', name: 'Video Studio', category: 'video',
+      description: 'Video generation',
+      disabled: false,
+      run: async (a) => {
+        const vp = selectVideoProvider(h.settings || a.settings || {});
+        if (!vp.ready) return toolResult(false, null, vp.reason || 'No video provider configured');
+        if (typeof h.video === 'function') return h.video(a);
+        return toolResult(false, null, 'Video provider configured but runner not wired yet');
+      }
+    });
+    return { register, get, list, run };
+  }
+
+
   const api = {
     Lang, G, detect, tokens, norm, greeting, isMedical, isEmergency, route, parseClock, parseDurationSeconds, parseCurrency, extractPlace,
     keywords, questionRx, wikiLang, greetingReply, medicalWarning, noAi, visionNeedsKey, remembered, memoryList, forgot, help, word, notOnIphone, t4,
     money, perTola, perGram, fxText, metalText, cryptoText, weatherCode, weatherText, askPlace, failed,
     parseRss2Json, parseWikiSearch, parseChatCompletion, cleanAi, tones, modes, modelPresets, MODEL_MAP, systemPrompt, systemPromptLegacy, recent, searchPrompt, PRESETS, PROVIDER_FREE,
-    VERSION, TTS_PROVIDERS, DEFAULT_VOICE_SETTINGS, ELEVENLABS_TTS_URL, ELEVENLABS_VOICES_URL, ELEVENLABS_CHUNK, cleanSpeakText, chunkSpeakText, buildElevenLabsTtsRequest, mapElevenLabsError, parseElevenLabsVoices, scoreDeviceVoice, pickBestDeviceVoice, describeDefaultVoice, mergeVoiceSettings, ttsProviderReady, speechErrorMessage, assertNoHardcodedSecrets
+    VERSION, TTS_PROVIDERS, DEFAULT_VOICE_SETTINGS, ELEVENLABS_TTS_URL, ELEVENLABS_VOICES_URL, ELEVENLABS_CHUNK, cleanSpeakText, chunkSpeakText, buildElevenLabsTtsRequest, mapElevenLabsError, parseElevenLabsVoices, scoreDeviceVoice, pickBestDeviceVoice, describeDefaultVoice, mergeVoiceSettings, ttsProviderReady, speechErrorMessage, assertNoHardcodedSecrets,
+    MEMORY_CATEGORIES, FILE_LIMITS, migrateSettings, searchConversations, renameConversationRecord, validateUpload, fileMetadata,
+    parseSSEChunk, parseStreamBuffer, selectAiProvider, selectImageProvider, selectVideoProvider,
+    toolResult, toolCalculator, toolDateTime, DEVICE_ACTIONS, listDeviceActions, createToolRegistry
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.NooraCore = api;
 })(typeof self !== 'undefined' ? self : this);

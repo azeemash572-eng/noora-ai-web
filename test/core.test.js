@@ -143,7 +143,7 @@ test('parsers with real captured payloads', () => {
 });
 
 test('version and arabic + model map', () => {
-  assert.equal(C.VERSION, '2.0.3');
+  assert.equal(C.VERSION, '2.1.0');
   assert.ok(C.Lang.ARABIC);
   assert.equal(C.detect('مرحبا كيف حالك', C.Lang.ARABIC), C.Lang.ARABIC);
   assert.ok(C.MODEL_MAP['Google Gemini']['Fast'][0].includes('gemini'));
@@ -164,7 +164,7 @@ test('version and arabic + model map', () => {
 
 
 test('voice settings persistence helpers + provider config without keys in repo', () => {
-  assert.equal(C.VERSION, '2.0.3');
+  assert.equal(C.VERSION, '2.1.0');
   assert.ok(Array.isArray(C.TTS_PROVIDERS));
   assert.ok(C.TTS_PROVIDERS.some((p) => p.id === 'browser' && !p.needsKey));
   assert.ok(C.TTS_PROVIDERS.some((p) => p.id === 'openai' && p.needsKey));

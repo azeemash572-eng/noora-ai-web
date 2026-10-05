@@ -1,4 +1,4 @@
-/* NOORA AI 2.0.3 web / PWA / Android WebView shell. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
+/* NOORA AI 2.1.0 command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
 (function () {
   'use strict';
   const C = window.NooraCore, L = C.Lang;
@@ -26,15 +26,13 @@
     userName: '', aiName: 'Noora', tone: 'Warm & caring', mode: 'caring', formality: 'balanced',
     provider: C.PROVIDER_FREE, baseUrl: '', apiKey: '', chatModel: '', visionModel: '',
     modelPreset: 'Fast', webSearchOn: true, memoryOn: true,
-    pinOn: false, pinHash: '', continuousVoice: false, activeAssistantId: null
+    pinOn: false, pinHash: '', continuousVoice: false, activeAssistantId: null,
+    serverUrl: '', videoProvider: '', videoApiKey: '', videoBaseUrl: ''
   }, C.DEFAULT_VOICE_SETTINGS);
   let S = Object.assign({}, DEF);
   try {
     const raw = JSON.parse(localStorage.getItem('noora.settings') || '{}');
-    S = Object.assign(S, raw);
-    // Merge voice defaults for new keys (ElevenLabs) without dropping existing AI/Gemini keys
-    const voiceMerged = C.mergeVoiceSettings(S);
-    Object.keys(C.DEFAULT_VOICE_SETTINGS).forEach((k) => { if (S[k] === undefined || S[k] === null) S[k] = voiceMerged[k]; });
+    S = C.migrateSettings(raw, DEF);
   } catch (e) {}
   const saveS = () => { try { localStorage.setItem('noora.settings', JSON.stringify(S)); } catch (e) {} };
   const hasOwnKey = () => S.provider !== C.PROVIDER_FREE && S.apiKey && S.baseUrl && S.chatModel;
@@ -127,9 +125,10 @@
         if (!db) { mem.messages = []; mem.conversations = []; mem.summaries = {}; lsSave(); return; }
         await tx('messages', 'readwrite', (s) => s.clear()); await tx('conversations', 'readwrite', (s) => s.clear());
       },
-      async addMemory(fact) {
+      async addMemory(fact, category) {
         if (!S.memoryOn) return null;
-        const m = { fact, ts: Date.now() };
+        const cat = (C.MEMORY_CATEGORIES || []).includes(category) ? category : (category || 'facts');
+        const m = { fact, ts: Date.now(), category: cat };
         if (!db) { m.id = mem.seq++; mem.memories.push(m); lsSave(); return m.id; }
         return tx('memories', 'readwrite', (s) => s.add(m));
       },
@@ -274,8 +273,11 @@
   }
 
   const AI = {
-    async openAi(url, model, messages, key) {
+    async openAi(url, model, messages, key, opts = {}) {
+      const stream = !!opts.stream;
+      const onDelta = opts.onDelta;
       const body = { model, messages, temperature: S.modelPreset === 'Creative' ? 0.95 : S.modelPreset === 'Advanced reasoning' ? 0.4 : 0.7 };
+      if (stream) body.stream = true;
       if (!key) body.referrer = 'noora-ai-web';
       const headers = { 'Content-Type': 'application/json' };
       if (key) headers.Authorization = 'Bearer ' + key;
@@ -284,6 +286,29 @@
         let detail = '';
         if (r.res) { try { const j = await r.res.json(); const m = (j.error && (j.error.message || j.error)) || j.message; if (m && typeof m === 'string') detail = ' (' + m.slice(0, 90) + ')'; } catch (e) {} }
         return { failure: reasonOf(r) + detail };
+      }
+      if (stream && r.res && r.res.body && typeof r.res.body.getReader === 'function') {
+        try {
+          const reader = r.res.body.getReader();
+          const dec = new TextDecoder();
+          let buf = '', full = '';
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const parsed = C.parseStreamBuffer(buf, dec.decode(value, { stream: true }));
+            buf = parsed.buffer;
+            if (parsed.delta) { full += parsed.delta; if (onDelta) onDelta(parsed.delta, full); }
+            if (parsed.done) break;
+          }
+          if (buf.trim()) {
+            const last = C.parseSSEChunk(buf);
+            if (last.delta) { full += last.delta; if (onDelta) onDelta(last.delta, full); }
+          }
+          if (full.trim()) return { text: full, streamed: true };
+          return { failure: 'empty stream' };
+        } catch (e) {
+          return { failure: 'stream failed: ' + (e.message || e) };
+        }
       }
       try { const t = C.parseChatCompletion(await r.res.json()); return t ? { text: t } : { failure: 'empty reply' }; } catch (e) { return { failure: 'bad JSON' }; }
     },
@@ -295,29 +320,73 @@
       if (!t || (t.startsWith('{') && t.includes('"error"'))) return { failure: 'error body' };
       return { text: t };
     },
-    async chat(messages, vision = false) {
+    async chat(messages, vision = false, opts = {}) {
       const reasons = [];
+      const onDelta = opts.onDelta;
+      const tryStream = opts.stream !== false;
+      const server = (S.serverUrl || '').trim().replace(/\/+$/, '');
+      if (server) {
+        const model = vision && S.visionModel ? S.visionModel : (S.chatModel || 'gemini-2.5-flash');
+        const r = await this.openAi(server + '/ai/chat', model, messages, null, { stream: tryStream, onDelta });
+        if (r.text) return { text: C.cleanAi(r.text), via: 'Server proxy · ' + model, streamed: r.streamed };
+        reasons.push('server: ' + r.failure);
+      }
       if (hasOwnKey()) {
         const model = vision && S.visionModel ? S.visionModel : S.chatModel;
-        const r = await this.openAi(S.baseUrl.replace(/\/+$/, '') + '/chat/completions', model, messages, S.apiKey);
-        if (r.text) return { text: C.cleanAi(r.text), via: `${S.provider} · ${model}` };
-        reasons.push(`${S.provider}: ${r.failure}`);
+        const r = await this.openAi(S.baseUrl.replace(/\/+$/, '') + '/chat/completions', model, messages, S.apiKey, { stream: tryStream, onDelta });
+        if (r.text) return { text: C.cleanAi(r.text), via: `${S.provider} · ${model}`, streamed: r.streamed };
+        // stream failed → non-stream fallback
+        if (tryStream) {
+          const r2 = await this.openAi(S.baseUrl.replace(/\/+$/, '') + '/chat/completions', model, messages, S.apiKey, { stream: false });
+          if (r2.text) return { text: C.cleanAi(r2.text), via: `${S.provider} · ${model}` };
+          reasons.push(`${S.provider}: ${r.failure || r2.failure}`);
+        } else reasons.push(`${S.provider}: ${r.failure}`);
       }
-      const warning = reasons.length ? `⚠️ Your ${S.provider} key/model failed (${reasons[0].split(': ').slice(1).join(': ').slice(0, 100)}). Answered with the free server instead — check AI tab.` : null;
+      const warning = reasons.length ? `⚠️ Your ${S.provider || 'provider'} key/model failed (${reasons[0].split(': ').slice(1).join(': ').slice(0, 100)}). Answered with the free server instead — check Settings.` : null;
       for (let attempt = 0; attempt < 2; attempt++) {
         if (attempt === 1) await new Promise((r) => setTimeout(r, 6000));
         const freeModel = 'openai';
-        const a = await this.openAi('https://text.pollinations.ai/openai', freeModel, messages, null);
-        if (a.text) return { text: C.cleanAi(a.text), via: 'Pollinations (free)', warning };
+        const a = await this.openAi('https://text.pollinations.ai/openai', freeModel, messages, null, { stream: tryStream, onDelta });
+        if (a.text) return { text: C.cleanAi(a.text), via: 'Pollinations (free)', warning, streamed: a.streamed };
         const b = await this.plain(messages);
         if (b.text) return { text: C.cleanAi(b.text), via: 'Pollinations (free)', warning };
-        const c = await this.openAi('https://gen.pollinations.ai/v1/chat/completions', freeModel, messages, null);
-        if (c.text) return { text: C.cleanAi(c.text), via: 'Pollinations (free)', warning };
+        const c = await this.openAi('https://gen.pollinations.ai/v1/chat/completions', freeModel, messages, null, { stream: tryStream && attempt === 0, onDelta });
+        if (c.text) return { text: C.cleanAi(c.text), via: 'Pollinations (free)', warning, streamed: c.streamed };
         if (attempt === 1 || vision) { reasons.push(`free AI: ${a.failure} / ${b.failure} / ${c.failure}`); break; }
       }
       return { text: null, failure: reasons.join('; ') };
     }
   };
+
+  const toolRegistry = C.createToolRegistry({
+    get settings() { return S; },
+    webSearch: async (a) => {
+      const q = (a && (a.query || a.q)) || '';
+      if (!q) return C.toolResult(false, null, 'query required');
+      const news = await Live.news(q, L.ENGLISH);
+      const wiki = await Live.wiki(C.keywords(q) || q, 'en');
+      return C.toolResult(true, { news: news.items.slice(0, 5), wiki: wiki.slice(0, 3) }, 'live results');
+    },
+    memory: async (a) => {
+      if (a && a.action === 'add' && a.fact) { const id = await Store.addMemory(a.fact, a.category); return C.toolResult(!!id, { id }, id ? 'saved' : 'memory off or failed'); }
+      const rows = await Store.memoryRows();
+      return C.toolResult(true, rows, rows.length + ' memories');
+    },
+    image: async (a) => {
+      const prompt = (a && a.prompt) || '';
+      if (!prompt) return C.toolResult(false, null, 'prompt required');
+      const seed = (a && a.seed) || Date.now();
+      const res = await Live.image(prompt, seed);
+      if (res.error) return C.toolResult(false, null, res.error);
+      return C.toolResult(true, res, 'ok');
+    },
+    video: async () => C.toolResult(false, null, C.selectVideoProvider(S).reason || 'No video provider configured'),
+    device: async (a) => C.toolResult(false, a, 'Use Tools tab — device actions require user confirmation'),
+    files: async (a) => {
+      if (a && a.file) { const v = C.validateUpload(a.file); return C.toolResult(v.ok, v, v.ok ? 'ok' : v.reason); }
+      return C.toolResult(true, { limits: C.FILE_LIMITS }, 'File Center ready');
+    }
+  });
 
   let convId = parseInt(localStorage.getItem('noora.conv') || '0', 10) || 0;
   let msgs = [];
@@ -577,9 +646,21 @@
     }
     const override = refs.length ? text + '\n\n(Reference snippets from Wikipedia — use if relevant:\n' +
       refs.slice(0, 3).map((x) => `- ${x.source.title}: ${x.snippet}`).join('\n') + ')' : null;
-    const r = await AI.chat(await buildMessages(lang, medical, override));
+    // Live streaming into pending bubble when possible
+    let streamEl = null;
+    const onDelta = (delta, full) => {
+      const pending = list.querySelector('.bubble.pending');
+      if (!pending) return;
+      pending.classList.add('streaming');
+      let txt = pending.querySelector('.txt');
+      if (!txt) { pending.innerHTML = ''; txt = document.createElement('div'); txt.className = 'txt'; txt.dir = 'auto'; pending.appendChild(txt); }
+      txt.textContent = full;
+      streamEl = pending;
+      scrollEnd();
+    };
+    const r = await AI.chat(await buildMessages(lang, medical, override), false, { stream: true, onDelta });
     const warn = medical ? C.medicalWarning(lang, emergency) + '\n\n' : '';
-    if (r.text) return reply((r.warning ? r.warning + '\n\n' : '') + warn + r.text, lang, { sources: refs.slice(0, 3).map((x) => x.source), meta: { via: r.via + (refs.length ? ' + Wikipedia' : '') } });
+    if (r.text) return reply((r.warning ? r.warning + '\n\n' : '') + warn + r.text, lang, { sources: refs.slice(0, 3).map((x) => x.source), meta: { via: r.via + (refs.length ? ' + Wikipedia' : '') + (r.streamed ? ' · stream' : '') } });
     const note = C.noAi(lang, short(r.failure));
     if (medical) return reply(warn + note, lang, { meta: { via: 'offline' } });
     const wiki = refs.length ? refs : (text.length > 6 ? await Live.wiki(C.keywords(text), wikiLang(lang)) : []);
@@ -1106,7 +1187,7 @@
     continuous = true; S.continuousVoice = true; saveS();
     toast('Voice conversation ON');
     refreshStatus(); updateVoiceBar();
-    unlockSpeech(); showTab('home'); startListening();
+    unlockSpeech(); showTab('chat'); startListening();
   };
   $('btnStartVoice').onclick = () => {
     continuous = true; S.continuousVoice = true; saveS();
@@ -1142,14 +1223,21 @@
   $('hintClose').onclick = () => { $('installHint').hidden = true; localStorage.setItem('noora.hint', '1'); };
 
   function showTab(name) {
-    ['home', 'chats', 'ai', 'files', 'settings'].forEach((t) => { const el = $('tab-' + t); if (el) el.hidden = t !== name; });
-    document.querySelectorAll('#bottomNav button').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
+    const tabs = ['home', 'chat', 'chats', 'create', 'files', 'tools', 'memory', 'settings'];
+    // legacy alias: old "home" chat callers → chat
+    if (name === 'ai') name = 'settings';
+    tabs.forEach((t) => { const el = $('tab-' + t); if (el) el.hidden = t !== name; });
+    document.querySelectorAll('#bottomNav button').forEach((b) => b.classList.toggle('on', b.dataset.tab === name || (name === 'chats' && b.dataset.tab === 'chat')));
+    if (name === 'home') openHomeDash();
     if (name === 'chats') openChats();
-    if (name === 'ai') openAiTab();
+    if (name === 'create') openCreate();
     if (name === 'files') openFiles();
-    if (name === 'settings') openSettings();
+    if (name === 'tools') openTools();
+    if (name === 'memory') openMemoryTab();
+    if (name === 'settings') { openSettings(); openAiTab(); }
   }
   document.querySelectorAll('#bottomNav button').forEach((b) => { b.onclick = () => showTab(b.dataset.tab); });
+  if ($('btnChatsList')) $('btnChatsList').onclick = () => showTab('chats');
 
   async function openChats() {
     const q = ($('chatSearch').value || '').toLowerCase();
@@ -1164,14 +1252,23 @@
       return true;
     });
     if (!filtered.length) box.innerHTML = '<p class="note" style="text-align:center;padding:32px">No chats yet.</p>';
-    filtered.forEach((c) => {
+    const searched = C.searchConversations(filtered, q);
+    searched.forEach((c) => {
       const d = document.createElement('div'); d.className = 'conv';
-      d.innerHTML = '<div class="t" dir="auto"></div><div class="s"></div><button class="del" aria-label="Delete">✕</button>';
+      d.innerHTML = '<div class="t" dir="auto"></div><div class="s"></div><button class="ren" aria-label="Rename">✎</button><button class="del" aria-label="Delete">✕</button>';
       d.querySelector('.t').textContent = (c.id === convId ? '● ' : '') + (c.title || 'Chat');
       const fold = folders.find((f) => f.id === c.folderId);
       d.querySelector('.s').textContent = `${c.count} messages · ${new Date(c.updated).toLocaleString()}` + (fold ? ' · 📁 ' + fold.name : '');
-      d.onclick = async () => { await loadConversation(c.id); showTab('home'); };
-      d.querySelector('.del').onclick = (e) => { e.stopPropagation(); modal('Delete this chat?', '', [{ label: 'Delete', go: true, fn: async () => { await Store.deleteConversation(c.id); if (c.id === convId) await loadConversation(0); openChats(); } }, { label: 'Cancel' }]); };
+      d.onclick = async () => { await loadConversation(c.id); showTab('chat'); };
+      d.querySelector('.ren').onclick = (e) => {
+        e.stopPropagation();
+        const neu = prompt('Rename chat', c.title || '');
+        if (neu == null) return;
+        const rec = C.renameConversationRecord(c, neu);
+        if (!rec) { toast('Title required'); return; }
+        Store.putConversation(rec).then(() => { openChats(); openHomeDash(); toast('Renamed'); });
+      };
+      d.querySelector('.del').onclick = (e) => { e.stopPropagation(); modal('Delete this chat?', '', [{ label: 'Delete', go: true, fn: async () => { await Store.deleteConversation(c.id); if (c.id === convId) await loadConversation(0); openChats(); openHomeDash(); } }, { label: 'Cancel' }]); };
       box.appendChild(d);
     });
   }
@@ -1193,6 +1290,7 @@
     $('sProvider').innerHTML = Object.keys(C.PRESETS).map((p) => `<option${p === S.provider ? ' selected' : ''}>${p}</option>`).join('');
     $('sBase').value = S.baseUrl; $('sKey').value = S.apiKey; $('sModel').value = S.chatModel; $('sVision').value = S.visionModel;
     $('sWeb').checked = S.webSearchOn !== false;
+    if ($('sServerUrl')) $('sServerUrl').value = S.serverUrl || '';
     $('sAiName').value = S.aiName || 'Noora';
     $('sTone').innerHTML = C.tones.map((t) => `<option${t === S.tone ? ' selected' : ''}>${t}</option>`).join('');
     $('sMode').innerHTML = C.modes.map((t) => `<option${t === S.mode ? ' selected' : ''}>${t}</option>`).join('');
@@ -1255,9 +1353,10 @@
     S.webSearchOn = $('sWeb').checked; S.aiName = $('sAiName').value.trim() || 'Noora';
     S.tone = $('sTone').value; S.mode = $('sMode').value; S.formality = $('sFormality').value;
     S.gender = $('sGender').value; S.voiceLang = $('sPrefLang').value || null;
+    if ($('sServerUrl')) S.serverUrl = ($('sServerUrl').value || '').trim().replace(/\/+$/, '');
     saveS(); updateEmpty(); refreshStatus();
   }
-  ['sBase', 'sKey', 'sModel', 'sVision', 'sWeb', 'sAiName', 'sTone', 'sMode', 'sFormality', 'sGender', 'sPrefLang'].forEach((id) => {
+  ['sBase', 'sKey', 'sModel', 'sVision', 'sWeb', 'sAiName', 'sTone', 'sMode', 'sFormality', 'sGender', 'sPrefLang', 'sServerUrl'].forEach((id) => {
     const el = $(id); if (el) el.addEventListener('change', saveAiFields);
   });
   $('sProvider').addEventListener('change', () => {
@@ -1292,9 +1391,9 @@
       d.querySelector('.t').textContent = it.title; d.querySelector('.s').textContent = it.sub;
       d.onclick = () => {
         if (it.type === 'file' && it.f.dataUrl) openImage(it.f.dataUrl);
-        else if (it.type === 'file' && it.f.text) modal(it.f.name, it.f.text.slice(0, 4000), [{ label: 'Use in chat', go: true, fn: () => { showTab('home'); send('Please analyze this file:\n' + it.f.text.slice(0, 8000)); } }, { label: 'Close' }]);
-        else if (it.type === 'note') modal(it.n.title || 'Note', it.n.text || '', [{ label: 'Insert into chat', go: true, fn: () => { showTab('home'); input.value = it.n.text || ''; autoGrow(); updateMicIcon(); } }, { label: 'Close' }]);
-        else if (it.type === 'prompt') { showTab('home'); input.value = it.p.text || ''; autoGrow(); updateMicIcon(); }
+        else if (it.type === 'file' && it.f.text) modal(it.f.name, it.f.text.slice(0, 4000), [{ label: 'Use in chat', go: true, fn: () => { showTab('chat'); send('Please analyze this file:\n' + it.f.text.slice(0, 8000)); } }, { label: 'Close' }]);
+        else if (it.type === 'note') modal(it.n.title || 'Note', it.n.text || '', [{ label: 'Insert into chat', go: true, fn: () => { showTab('chat'); input.value = it.n.text || ''; autoGrow(); updateMicIcon(); } }, { label: 'Close' }]);
+        else if (it.type === 'prompt') { showTab('chat'); input.value = it.p.text || ''; autoGrow(); updateMicIcon(); }
       };
       d.querySelector('.del').onclick = (e) => {
         e.stopPropagation();
@@ -1498,6 +1597,295 @@
     });
   }
 
+
+  // -------- Command-center tabs (2.1.0) --------
+  let fcPending = [];
+  let lastStudioImages = [];
+
+  async function openHomeDash() {
+    if ($('homeGreeting')) $('homeGreeting').textContent = (S.userName ? ('Hi, ' + S.userName) : ('Hi — ' + aiName()));
+    if ($('homeStatus')) {
+      const base = hasOwnKey() ? (S.provider + ' · ' + (S.chatModel || '')) : (S.serverUrl ? 'Server proxy' : 'Free Pollinations');
+      $('homeStatus').textContent = base;
+    }
+    if ($('homeDot')) $('homeDot').classList.toggle('off', !navigator.onLine);
+    const box = $('homeRecent');
+    if (box) {
+      box.innerHTML = '';
+      const cs = (await Store.conversations()).slice(0, 6);
+      if (!cs.length) box.innerHTML = '<p class="note">No conversations yet — start chatting.</p>';
+      cs.forEach((c) => {
+        const d = document.createElement('div'); d.className = 'conv';
+        d.innerHTML = '<div class="t" dir="auto"></div><div class="s"></div>';
+        d.querySelector('.t').textContent = c.title || 'Chat';
+        d.querySelector('.s').textContent = new Date(c.updated).toLocaleString();
+        d.onclick = async () => { await loadConversation(c.id); showTab('chat'); };
+        box.appendChild(d);
+      });
+    }
+  }
+  if ($('homeVoiceBtn')) $('homeVoiceBtn').onclick = () => { showTab('chat'); unlockSpeech(); if ($('btnStartVoice')) $('btnStartVoice').click(); else if ($('btnVoiceMode')) $('btnVoiceMode').click(); };
+  if ($('homeQuickGo')) $('homeQuickGo').onclick = () => {
+    const q = ($('homeQuick').value || '').trim();
+    if (!q) return;
+    $('homeQuick').value = '';
+    showTab('chat');
+    send(q);
+  };
+  if ($('homeQuick')) $('homeQuick').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('homeQuickGo').click(); } });
+  document.querySelectorAll('[data-home-act]').forEach((b) => {
+    b.onclick = () => {
+      const a = b.dataset.homeAct;
+      if (a === 'chat') showTab('chat');
+      else if (a === 'image') { showTab('create'); setCreatePane('image'); }
+      else if (a === 'video') { showTab('create'); setCreatePane('video'); }
+      else if (a === 'file') showTab('files');
+      else if (a === 'phone') showTab('tools');
+      else if (a === 'web') { showTab('chat'); input.value = 'Search the web for: '; autoGrow(); updateMicIcon(); input.focus(); }
+    };
+  });
+
+  function setCreatePane(which) {
+    document.querySelectorAll('[data-create-pane]').forEach((c) => c.classList.toggle('sel', c.dataset.createPane === which));
+    if ($('createImagePane')) $('createImagePane').hidden = which !== 'image';
+    if ($('createVideoPane')) $('createVideoPane').hidden = which !== 'video';
+  }
+  document.querySelectorAll('[data-create-pane]').forEach((c) => { c.onclick = () => setCreatePane(c.dataset.createPane); });
+
+  function openCreate() {
+    setCreatePane(($('createVideoPane') && !$('createVideoPane').hidden) ? 'video' : 'image');
+    if ($('vidBase')) $('vidBase').value = S.videoBaseUrl || '';
+    if ($('vidKey')) $('vidKey').value = S.videoApiKey || '';
+    const vp = C.selectVideoProvider(S);
+    if ($('vidStatus')) $('vidStatus').textContent = vp.ready ? ('Provider ready: ' + vp.label) : (vp.reason || 'No video provider configured');
+    if ($('btnVidGen')) $('btnVidGen').disabled = !vp.ready;
+    ['btnImg2Img', 'btnImgEdit', 'btnImgBg', 'btnImgUpscale'].forEach((id) => {
+      const el = $(id); if (!el) return;
+      el.disabled = true;
+      el.onclick = () => toast(el.title || 'Unavailable — no provider configured');
+    });
+  }
+  if ($('btnVidSave')) $('btnVidSave').onclick = () => {
+    S.videoBaseUrl = ($('vidBase').value || '').trim().replace(/\/+$/, '');
+    S.videoApiKey = ($('vidKey').value || '').trim();
+    S.videoProvider = (S.videoBaseUrl && S.videoApiKey) ? 'custom' : '';
+    saveS();
+    openCreate();
+    toast(S.videoProvider ? 'Video provider saved' : 'Cleared — still no provider');
+  };
+  if ($('btnVidGen')) $('btnVidGen').onclick = async () => {
+    const vp = C.selectVideoProvider(S);
+    if (!vp.ready) { toast(vp.reason || 'No video provider'); return; }
+    toast('Video generation runner not wired for this provider yet — no fake output.');
+  };
+  if ($('btnImgGen')) $('btnImgGen').onclick = async () => {
+    const prompt = ($('imgPrompt').value || '').trim();
+    if (!prompt) { toast('Enter a prompt'); return; }
+    const n = Math.min(4, Math.max(1, parseInt($('imgCount').value, 10) || 1));
+    $('imgGenStatus').textContent = 'Generating ' + n + '…';
+    const box = $('imgResults'); box.innerHTML = '';
+    lastStudioImages = [];
+    for (let i = 0; i < n; i++) {
+      const seed = Date.now() + i * 17;
+      const res = await Live.image(prompt, seed);
+      if (res.error) { $('imgGenStatus').textContent = 'Error: ' + res.error; continue; }
+      lastStudioImages.push({ dataUrl: res.dataUrl, prompt, seed });
+      await Store.addFile({ name: 'studio-' + seed + '.jpg', mime: 'image/jpeg', kind: 'image', ts: Date.now(), dataUrl: res.dataUrl, text: prompt });
+      const shot = document.createElement('div'); shot.className = 'shot';
+      shot.innerHTML = '<img alt=""><div class="row"><button type="button" class="dl">Download</button><button type="button" class="sh">Share</button></div>';
+      shot.querySelector('img').src = res.dataUrl;
+      shot.querySelector('img').onclick = () => openImage(res.dataUrl);
+      shot.querySelector('.dl').onclick = () => {
+        const a = document.createElement('a'); a.href = res.dataUrl; a.download = 'noora-' + seed + '.jpg'; a.click();
+      };
+      shot.querySelector('.sh').onclick = async () => {
+        try {
+          if (navigator.share) {
+            const blob = await (await fetch(res.dataUrl)).blob();
+            await navigator.share({ files: [new File([blob], 'noora.jpg', { type: 'image/jpeg' })], title: 'NOORA image' });
+          } else { await navigator.clipboard.writeText(prompt); toast('Share unavailable — prompt copied'); }
+        } catch (e) { toast('Share cancelled or failed'); }
+      };
+      box.appendChild(shot);
+    }
+    $('imgGenStatus').textContent = lastStudioImages.length ? ('Done · ' + lastStudioImages.length + ' image(s). img2img/edit still need a provider.') : 'No images generated';
+  };
+
+  function renderFcPending() {
+    const box = $('fcPending'); if (!box) return;
+    box.innerHTML = '';
+    fcPending.forEach((item, idx) => {
+      const d = document.createElement('div'); d.className = 'fcItem';
+      const meta = C.fileMetadata(item.file);
+      let preview = '';
+      if (item.preview && (item.file.type || '').startsWith('image/')) preview = '<img alt="">';
+      else if (item.preview && (item.file.type || '').startsWith('video/')) preview = '<video muted></video>';
+      d.innerHTML = preview + '<div class="meta"><b></b><span></span></div><button type="button" class="del">✕</button>';
+      d.querySelector('b').textContent = meta.name;
+      d.querySelector('span').textContent = (meta.valid ? '' : '⚠ ' + meta.reason + ' · ') + Math.round(meta.size / 1024) + ' KB · ' + (meta.mime || 'unknown');
+      if (preview.startsWith('<img')) d.querySelector('img').src = item.preview;
+      if (preview.startsWith('<video')) d.querySelector('video').src = item.preview;
+      d.querySelector('.del').onclick = () => { fcPending.splice(idx, 1); renderFcPending(); };
+      box.appendChild(d);
+    });
+    if ($('btnFcSend')) $('btnFcSend').hidden = !fcPending.length;
+  }
+  async function addFcFiles(fileList) {
+    for (const file of Array.from(fileList || [])) {
+      const v = C.validateUpload(file);
+      if (!v.ok) { toast(v.reason); continue; }
+      const preview = await new Promise((res) => {
+        if (!file.type || (!file.type.startsWith('image/') && !file.type.startsWith('video/'))) return res('');
+        const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => res(''); fr.readAsDataURL(file);
+      });
+      fcPending.push({ file, preview });
+    }
+    renderFcPending();
+  }
+  function wireFc(btnId, inputId) {
+    const btn = $(btnId), inp = $(inputId);
+    if (!btn || !inp) return;
+    btn.onclick = () => inp.click();
+    inp.onchange = () => { addFcFiles(inp.files); inp.value = ''; };
+  }
+  wireFc('btnPickFile', 'fcPicker');
+  wireFc('btnCamera', 'fcCamera');
+  wireFc('btnGallery', 'fcGallery');
+  wireFc('btnAudioCap', 'fcAudio');
+  wireFc('btnVideoCap', 'fcVideo');
+  if ($('btnUploadFile')) $('btnUploadFile').onclick = () => { if ($('fcPicker')) $('fcPicker').click(); else $('file').click(); };
+  const drop = $('fileDropZone');
+  if (drop) {
+    drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('drag'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
+    drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('drag'); addFcFiles(e.dataTransfer.files); });
+  }
+  if ($('btnFcSend')) $('btnFcSend').onclick = async () => {
+    if (!fcPending.length) return;
+    showTab('chat');
+    for (const item of fcPending.slice()) {
+      try {
+        const file = item.file;
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        const fin = $('file');
+        if (fin) { fin.files = dt.files; fin.dispatchEvent(new Event('change')); }
+      } catch (e) { toast('Could not attach ' + item.file.name); }
+    }
+    fcPending = []; renderFcPending();
+  };
+
+  function openTools() {
+    if ($('toolsPlatformNote')) {
+      $('toolsPlatformNote').textContent = PLATFORM === 'android'
+        ? 'Android: native bridge for call/SMS/maps/alarm/timer/torch/open-app after confirm. Bluetooth opens Settings only (does not toggle).'
+        : 'Web/iOS: deep links (tel, sms, mailto, maps, WhatsApp, Shortcuts). Alarm/torch/open-app are not available here — no fake success.';
+    }
+    const tl = $('toolsList');
+    if (tl) {
+      tl.innerHTML = '';
+      toolRegistry.list().forEach((t) => {
+        const d = document.createElement('div'); d.className = 'toolRow';
+        d.innerHTML = '<div class="t"></div><div class="s"></div>';
+        d.querySelector('.t').textContent = t.name + (t.disabled ? ' (disabled)' : '');
+        d.querySelector('.s').textContent = t.description || t.id;
+        tl.appendChild(d);
+      });
+    }
+    const pa = $('phoneActions');
+    if (pa) {
+      pa.innerHTML = '';
+      C.listDeviceActions(PLATFORM).forEach((act) => {
+        const d = document.createElement('div'); d.className = 'phoneRow';
+        d.innerHTML = '<div class="t"></div><div class="s"></div><button type="button"></button>';
+        d.querySelector('.t').textContent = act.label;
+        d.querySelector('.s').textContent = (act.honest || '') + (act.confirm ? ' · requires confirmation' : '') + (act.android && PLATFORM !== 'android' ? ' · Android only' : '');
+        const btn = d.querySelector('button');
+        btn.textContent = 'Run ' + act.label;
+        btn.onclick = () => runPhoneAction(act);
+        pa.appendChild(d);
+      });
+    }
+  }
+  function runPhoneAction(act) {
+    const go = () => {
+      if (act.id === 'bluetooth-settings') {
+        if (PLATFORM === 'android' && window.NooraNative) {
+          try {
+            const res = window.NooraNative.action(JSON.stringify({ type: 'openApp', name: 'bluetooth' }));
+            toast(res || 'Requested Bluetooth settings — may open Settings, does not toggle.');
+          } catch (e) { toast('Could not open Bluetooth settings'); }
+        } else toast('Bluetooth settings only on Android — opens Settings, does not toggle.');
+        return;
+      }
+      if (act.android && PLATFORM === 'android' && window.NooraNative) {
+        let payload = { type: act.id === 'open-app' ? 'openApp' : act.id };
+        if (act.id === 'call') { const n = prompt('Number to call?'); if (!n) return; payload.number = n; }
+        if (act.id === 'sms') { const n = prompt('Number?'); if (!n) return; payload.number = n; payload.body = prompt('Message?') || ''; }
+        if (act.id === 'maps') { const q = prompt('Place?'); if (!q) return; payload.query = q; }
+        if (act.id === 'alarm') { payload.hour = parseInt(prompt('Hour (0-23)?', '7'), 10); payload.minute = parseInt(prompt('Minute?', '0'), 10) || 0; }
+        if (act.id === 'timer') { payload.seconds = parseInt(prompt('Seconds?', '60'), 10) || 60; }
+        if (act.id === 'torch') { payload.on = true; }
+        if (act.id === 'open-app') { const n = prompt('App name?'); if (!n) return; payload.name = n; }
+        try { toast(window.NooraNative.action(JSON.stringify(payload)) || 'Done'); }
+        catch (e) { toast('Native failed: ' + e.message); }
+        return;
+      }
+      let href = '';
+      if (act.id === 'call') { const n = prompt('Number?'); if (!n) return; href = 'tel:' + n; }
+      else if (act.id === 'sms') { const n = prompt('Number?'); if (!n) return; const body = prompt('Message?') || ''; href = 'sms:' + n + (body ? (IS_IOS ? '&body=' : '?body=') + encodeURIComponent(body) : ''); }
+      else if (act.id === 'mailto') { const a = prompt('Email?'); if (!a) return; href = 'mailto:' + a; }
+      else if (act.id === 'whatsapp') { const n = prompt('Phone with country code?'); if (!n) return; href = 'whatsapp://send?phone=' + encodeURIComponent(n); }
+      else if (act.id === 'maps') { const q = prompt('Place?'); if (!q) return; href = IS_IOS ? ('https://maps.apple.com/?q=' + encodeURIComponent(q)) : ('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q)); }
+      else if (act.id === 'shortcut') { const n = prompt('Shortcut name?'); if (!n) return; href = 'shortcuts://run-shortcut?name=' + encodeURIComponent(n); }
+      else { toast(act.label + ' not available on this platform — no fake success.'); return; }
+      if (href) {
+        if (act.confirm) confirmLink('Open ' + act.label + '?', href, 'Open');
+        else { location.href = href; }
+      }
+    };
+    if (act.confirm) modal(act.label, act.honest || 'Confirm this device action.', [{ label: 'Continue', go: true, fn: go }, { label: 'Cancel' }]);
+    else go();
+  }
+  if ($('btnToolCalc')) $('btnToolCalc').onclick = () => {
+    const r = C.toolCalculator($('toolCalcIn').value);
+    $('toolCalcOut').textContent = r.ok ? ('= ' + r.message) : ('Error: ' + r.message);
+  };
+  if ($('btnToolTime')) $('btnToolTime').onclick = () => {
+    const r = C.toolDateTime();
+    $('toolTimeOut').textContent = r.message;
+  };
+
+  async function openMemoryTab() {
+    if ($('sMemOnTab')) $('sMemOnTab').checked = S.memoryOn !== false;
+    const cat = ($('memCatFilter') && $('memCatFilter').value) || '';
+    const rows = await Store.memoryRows();
+    const box = $('memTabList'); if (!box) return;
+    box.innerHTML = '';
+    const filtered = rows.filter((m) => !cat || m.category === cat || (!m.category && cat === 'facts'));
+    if (!filtered.length) box.innerHTML = '<p class="note" style="text-align:center;padding:24px">No memories yet.</p>';
+    filtered.sort((a, b) => (b.ts || 0) - (a.ts || 0)).forEach((m) => {
+      const d = document.createElement('div'); d.className = 'memRow';
+      d.innerHTML = '<div class="t" dir="auto"></div><div class="s"></div><button class="del">✕</button>';
+      d.querySelector('.t').textContent = m.fact;
+      d.querySelector('.s').textContent = (m.category || 'facts') + ' · ' + new Date(m.ts || Date.now()).toLocaleString();
+      d.onclick = () => { const neu = prompt('Edit memory', m.fact); if (neu != null && neu.trim()) Store.updateMemory(m.id, neu.trim()).then(openMemoryTab); };
+      d.querySelector('.del').onclick = (e) => { e.stopPropagation(); Store.deleteMemory(m.id).then(openMemoryTab); };
+      box.appendChild(d);
+    });
+  }
+  if ($('sMemOnTab')) $('sMemOnTab').onchange = () => { S.memoryOn = $('sMemOnTab').checked; if ($('sMemOn')) $('sMemOn').checked = S.memoryOn; saveS(); };
+  if ($('memCatFilter')) $('memCatFilter').onchange = () => openMemoryTab();
+  if ($('btnAddMemory')) $('btnAddMemory').onclick = async () => {
+    const fact = prompt('Memory text?');
+    if (!fact || !fact.trim()) return;
+    const category = prompt('Category: preferences / facts / projects / context / user', 'facts') || 'facts';
+    await Store.addMemory(fact.trim(), category.trim());
+    openMemoryTab();
+  };
+  if ($('btnOpenMemory')) $('btnOpenMemory').onclick = () => showTab('memory');
+
+
   (async () => {
     const ok = await Store.open();
     if (!ok) toast('IndexedDB unavailable — using localStorage.');
@@ -1505,9 +1893,10 @@
     await loadConversation(convId);
     continuous = !!S.continuousVoice;
     refreshStatus(); updateEmpty(); updateVoiceBar();
+    openHomeDash();
     if ('serviceWorker' in navigator && document.querySelector('link[data-pwa]') && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
       navigator.serviceWorker.register('./sw.js').catch(() => {});
     }
-    window.__noora = { send, Store, S, route: C.route, msgs: () => msgs, showTab, AI, Live, VERSION: C.VERSION, speak, stopVoiceMode, replayLast, updateVoiceBar, continuous: () => continuous };
+    window.__noora = { send, Store, S, route: C.route, msgs: () => msgs, showTab, AI, Live, VERSION: C.VERSION, speak, stopVoiceMode, replayLast, updateVoiceBar, continuous: () => continuous, tools: toolRegistry };
   })();
 })();

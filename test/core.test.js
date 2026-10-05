@@ -143,7 +143,7 @@ test('parsers with real captured payloads', () => {
 });
 
 test('version and arabic + model map', () => {
-  assert.equal(C.VERSION, '2.0.0');
+  assert.equal(C.VERSION, '2.0.1');
   assert.ok(C.Lang.ARABIC);
   assert.equal(C.detect('مرحبا كيف حالك', C.Lang.ARABIC), C.Lang.ARABIC);
   assert.ok(C.MODEL_MAP['Google Gemini']['Fast'][0].includes('gemini'));
@@ -154,6 +154,80 @@ test('version and arabic + model map', () => {
   assert.ok(sp.includes('Ayesha'));
   assert.ok(sp.includes('likes tea'));
   assert.ok(sp.includes('NOT end-to-end') || sp.includes('never invent') || sp.includes('HONESTY'));
+  assert.ok(sp.includes('CONVERSATION STYLE') || sp.includes('warm'));
+  assert.ok(sp.includes('HARD LIMITS') || sp.includes('child'));
+  assert.ok(/never claim you have no restrictions|Never claim you have/i.test(sp));
+  assert.ok(/can be bypassed/i.test(sp)); // instructs model NOT to claim bypass
   const legacy = C.systemPromptLegacy('Ayesha', 'Warm & caring', C.Lang.ENGLISH, [], false, []);
   assert.ok(legacy.includes('Ayesha'));
+});
+
+
+test('voice settings persistence helpers + provider config without keys in repo', () => {
+  assert.equal(C.VERSION, '2.0.1');
+  assert.ok(Array.isArray(C.TTS_PROVIDERS));
+  assert.ok(C.TTS_PROVIDERS.some((p) => p.id === 'browser' && !p.needsKey));
+  assert.ok(C.TTS_PROVIDERS.some((p) => p.id === 'openai' && p.needsKey));
+  const merged = C.mergeVoiceSettings({ rate: 1.2, ttsProvider: 'openai', ttsVoiceId: 'shimmer' });
+  assert.equal(merged.rate, 1.2);
+  assert.equal(merged.ttsProvider, 'openai');
+  assert.equal(merged.ttsVoiceId, 'shimmer');
+  assert.equal(merged.volume, 1.0);
+  assert.equal(merged.ttsApiKey, ''); // never invent keys
+  const badProv = C.mergeVoiceSettings({ ttsProvider: 'fake-cloud' });
+  assert.equal(badProv.ttsProvider, 'browser');
+  const readyBrowser = C.ttsProviderReady({ ttsProvider: 'browser' });
+  assert.equal(readyBrowser.ok, true);
+  const missingKey = C.ttsProviderReady({ ttsProvider: 'openai', ttsBaseUrl: 'https://api.openai.com/v1', ttsVoiceId: 'nova' });
+  assert.equal(missingKey.ok, false);
+  assert.ok(missingKey.reason.toLowerCase().includes('key'));
+  const readyOpen = C.ttsProviderReady({ ttsProvider: 'openai', ttsBaseUrl: 'https://api.openai.com/v1', ttsApiKey: 'user-supplied', ttsVoiceId: 'nova' });
+  assert.equal(readyOpen.ok, true);
+  // Repo sources must not contain hard-coded provider secrets
+  const fs = require('node:fs');
+  const root = __dirname + '/..';
+  for (const f of ['app.js', 'core.js', 'index.html', 'sw.js']) {
+    const src = fs.readFileSync(root + '/' + f, 'utf8');
+    assert.ok(C.assertNoHardcodedSecrets(src), f + ' must not hard-code API keys');
+    assert.ok(!/sk-[A-Za-z0-9]{20,}/.test(src), f + ' no sk- keys');
+  }
+});
+
+test('speech-refusal clear status still works', () => {
+  assert.ok(C.speechErrorMessage('not-allowed').includes('not allowed'));
+  assert.ok(C.speechErrorMessage('service-not-allowed').includes('Home Screen') || C.speechErrorMessage('service-not-allowed').includes('blocked'));
+  assert.equal(C.speechErrorMessage('aborted'), null);
+  assert.ok(C.speechErrorMessage('stt-unavailable').includes('not supported') || C.speechErrorMessage('stt-unavailable').includes('dictation'));
+  assert.ok(C.speechErrorMessage('tts-fail').toLowerCase().includes('tts'));
+  assert.ok(C.speechErrorMessage('language-not-supported', 'ur-PK').includes('ur-PK'));
+  // Listening banner must not stay stuck: empty/null message means UI clears error path
+  assert.equal(C.speechErrorMessage('aborted'), null);
+});
+
+test('device voice scoring prefers warm feminine when available', () => {
+  const voices = [
+    { name: 'Google UK English Male', lang: 'en-GB', voiceURI: 'm1' },
+    { name: 'Microsoft Zira - English (United States)', lang: 'en-US', voiceURI: 'f1' },
+    { name: 'Alex', lang: 'en-US', voiceURI: 'a1' }
+  ];
+  const best = C.pickBestDeviceVoice(voices, { gender: 'female', langPrefs: ['en-US', 'en-GB', 'en'] });
+  assert.equal(best.voiceURI, 'f1');
+  const desc = C.describeDefaultVoice(voices, { gender: 'female' });
+  assert.ok(desc.voice);
+  assert.ok(desc.label.includes('Zira') || desc.label.includes('warm') || desc.label.includes('Best'));
+  assert.equal(C.cleanSpeakText('Hello **world** https://x.test [1] 😀').includes('http'), false);
+  assert.ok(C.cleanSpeakText('Hello **world**').includes('Hello'));
+});
+
+
+test('conversation style avoids repetitive filter talk', () => {
+  const sp = C.systemPrompt({ userName: 'Ayesha', tone: 'Warm & caring', languagePrompt: 'English', platform: 'web', gender: 'female' });
+  assert.ok(/warm|affectionate|playful|companion/i.test(sp));
+  assert.ok(/CONVERSATION STYLE|romantic|emotional/i.test(sp));
+  assert.ok(/HARD LIMITS|child sexual exploitation|violent crimes/i.test(sp));
+  assert.ok(/do not mention filters|Do not mention filters/i.test(sp));
+  assert.ok(/never claim you have no restrictions/i.test(sp));
+  assert.ok(sp.includes('voice and text') || sp.includes('conversational'));
+  // Must not instruct the model to repeatedly advertise policies
+  assert.ok(!/always remind|constantly warn|mention your restrictions every/i.test(sp));
 });

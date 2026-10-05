@@ -594,16 +594,17 @@
     const formality = o.formality || 'balanced';
     const gender = o.gender || 'female';
     const platform = o.platform || 'web';
-    let s = `You are ${name}, a personal AI assistant. Personality: ${gender}, ${tone}, mode=${mode}, formality=${formality}. Be respectful, honest, and adapt to the user's writing style. `;
+    let s = `You are ${name}, a personal companion AI. Personality: ${gender}, ${tone}, mode=${mode}, formality=${formality}. Be warm, affectionate, playful when it fits, emotionally present, and natural — like a close caring friend. Adapt to the user's writing style and energy. `;
     if (o.assistant && o.assistant.instructions) s += `Custom assistant "${o.assistant.name || 'Custom'}": ${o.assistant.instructions} Style: ${o.assistant.style || ''}. `;
     if (o.userName && o.userName.trim()) s += `The user's name is ${o.userName.trim()}. `;
     s += `Today is ${date}. LANGUAGE RULE: reply ONLY in ${o.languagePrompt || 'English'}, matching the user's script (including mixed-language when they mix). `;
-    s += 'Keep replies natural; use 2-6 sentences for casual chat, longer when they ask for detail or code. Prefer clear structure for code (fenced blocks). Avoid unnecessary repetition. ';
+    s += 'Keep replies natural and conversational (voice and text use the same style); use 2-6 sentences for casual chat, longer when they ask for detail or code. Prefer clear structure for code (fenced blocks). Avoid unnecessary repetition. ';
+    s += "CONVERSATION STYLE: engage normally with romantic, emotional, playful, personal, flirty, and adult conversations without lecturing, moralizing, or repeatedly warning the user. Do not mention filters, policies, restrictions, safety systems, or 'I cannot go beyond this' during ordinary chat. Never claim you have no restrictions or that safety systems can be bypassed — simply respond as freely and naturally as the underlying AI service allows. ";
     s += 'HONESTY: never invent facts, prices, numbers, contacts, news, quotes, or search results. If unsure or outdated, say so and suggest a live search. When live sources are provided, use ONLY them for numbers/prices and cite them. ';
-    s += 'SAFETY: refuse clearly illegal harmful requests (e.g. real weapons manufacturing, cybercrime help, child exploitation, violent crime). For harmless legal requests, help fully. Prefer explaining limits briefly over generic refusals. ';
-    if (platform === 'ios-web' || platform === 'web') s += 'Phone links (call, SMS, maps, websites) are handled by the app. Wake-word / lock-screen listening is NOT possible in an iPhone web app — say so honestly if asked. Alarms, torch and opening other apps are not available on iPhone web; suggest Siri. ';
+    s += 'HARD LIMITS ONLY: refuse clearly illegal harmful requests (real weapons manufacturing, cybercrime assistance, child sexual exploitation, or violent crimes against people). If you must decline, do it once, briefly and naturally — do not discuss filters or policies, and do not keep bringing it up later. Everything else that is legal and permitted by the AI provider: help fully. ';
+    if (platform === 'ios-web' || platform === 'web') s += 'Phone links (call, SMS, maps, websites) are handled by the app. Wake-word / lock-screen listening is not possible in an iPhone web app — say so briefly only if asked. Alarms, torch and opening other apps are not available on iPhone web; suggest Siri when relevant. ';
     if (platform === 'android') s += 'On Android, native bridges may handle call/SMS/maps/alarm/timer/torch/open-app after user confirmation. ';
-    if (o.medical) s += "MEDICAL: a 'not a real doctor' warning is shown. Give only general safe information; no diagnosis or prescription doses; encourage a doctor / ER for serious symptoms. ";
+    if (o.medical) s += "MEDICAL: a brief 'not a real doctor' note is shown by the app. Give only general safe information; no diagnosis or prescription doses; encourage a doctor / ER for serious symptoms. Do not repeat medical disclaimers every turn. ";
     if (o.memories && o.memories.length) s += 'Remembered (user-approved memory): ' + o.memories.join('; ') + '. ';
     if (o.summary) s += 'Rolling conversation summary: ' + o.summary + '. ';
     if (o.earlierTopics && o.earlierTopics.length) s += 'Earlier chat topics (continuity only): ' + o.earlierTopics.join('; ') + '. ';
@@ -634,11 +635,130 @@
   };
   const PROVIDER_FREE = 'Free (Pollinations, no key)';
 
+
+  // ---------------- Voice / TTS helpers (shared, unit-testable) ----------------
+  const VERSION = '2.0.1';
+  const TTS_PROVIDERS = [
+    { id: 'browser', label: 'Browser (Web Speech API)', needsKey: false },
+    { id: 'openai', label: 'OpenAI-compatible TTS', needsKey: true }
+  ];
+  const DEFAULT_VOICE_SETTINGS = {
+    ttsOn: true, muted: false, rate: 1.0, pitch: 1.0, volume: 1.0,
+    voiceURI: '', voiceLang: null, gender: 'female',
+    ttsProvider: 'browser', ttsBaseUrl: 'https://api.openai.com/v1',
+    ttsApiKey: '', ttsModel: 'tts-1', ttsVoiceId: 'nova'
+  };
+  /** Strip markdown/URLs/emoji for speech. */
+  function cleanSpeakText(text, maxLen) {
+    const lim = maxLen || 3500;
+    return String(text || '')
+      .replace(/https?:\/\/\S+/g, '')
+      .replace(/\[\d+]/g, '')
+      .replace(/```[\s\S]*?```/g, ' code block ')
+      .replace(/[*#`_>|~]/g, '')
+      .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, lim);
+  }
+  /** Score device voices: prefer warm feminine conversational defaults when gender=female. */
+  function scoreDeviceVoice(v, opts) {
+    const o = opts || {};
+    const gender = o.gender || 'female';
+    const name = (v && v.name) || '';
+    const lang = ((v && v.lang) || '').replace('_', '-').toLowerCase();
+    let score = 0;
+    const wantLangs = o.langPrefs || ['en-us', 'en-gb', 'en'];
+    for (let i = 0; i < wantLangs.length; i++) {
+      const w = wantLangs[i].toLowerCase();
+      if (lang === w || (w.length === 2 && lang.startsWith(w + '-'))) { score += 40 - i * 3; break; }
+    }
+    const female = /female|woman|zira|samantha|karen|moira|veena|meera|nicky|fiona|tessa|victoria|susan|serena|flo|google uk english female|google us english|microsoft jenny|microsoft aria|microsoft sara|neural.*female|en-us-neural2-f|en-gb-neural2-f/i;
+    const male = /male|man|david|daniel|ravi|fred|alex(?!a)|google uk english male|microsoft guy|microsoft davis|neural.*male/i;
+    if (gender === 'female') {
+      if (female.test(name)) score += 30;
+      if (male.test(name) && !female.test(name)) score -= 20;
+    } else if (gender === 'male') {
+      if (male.test(name)) score += 30;
+      if (female.test(name) && !male.test(name)) score -= 20;
+    }
+    if (/natural|neural|premium|enhanced|wavenet|studio/i.test(name)) score += 8;
+    if (/compact|eloquence/i.test(name)) score -= 5;
+    return score;
+  }
+  function pickBestDeviceVoice(voices, opts) {
+    const list = Array.isArray(voices) ? voices.slice() : [];
+    if (!list.length) return null;
+    const o = opts || {};
+    if (o.voiceURI) {
+      const exact = list.find((x) => x.voiceURI === o.voiceURI);
+      if (exact) return exact;
+    }
+    list.sort((a, b) => scoreDeviceVoice(b, o) - scoreDeviceVoice(a, o));
+    return list[0] || null;
+  }
+  function describeDefaultVoice(voices, opts) {
+    const v = pickBestDeviceVoice(voices, opts);
+    if (!v) return { voice: null, label: 'No speechSynthesis voices on this device.', honest: true };
+    const gender = (opts && opts.gender) || 'female';
+    const warm = scoreDeviceVoice(v, opts) >= 50;
+    const label = warm
+      ? `Default: ${v.name} (${v.lang}) — warm/conversational match for ${gender}.`
+      : `Best available: ${v.name} (${v.lang}). No strong warm feminine match on this browser — label is honest.`;
+    return { voice: v, label, honest: !warm };
+  }
+  /** Merge persisted settings with defaults; never invent keys. Provider keys stay user-supplied. */
+  function mergeVoiceSettings(saved) {
+    const out = Object.assign({}, DEFAULT_VOICE_SETTINGS);
+    if (!saved || typeof saved !== 'object') return out;
+    Object.keys(DEFAULT_VOICE_SETTINGS).forEach((k) => {
+      if (saved[k] !== undefined && saved[k] !== null) out[k] = saved[k];
+    });
+    if (!TTS_PROVIDERS.some((p) => p.id === out.ttsProvider)) out.ttsProvider = 'browser';
+    out.rate = Math.min(1.6, Math.max(0.5, Number(out.rate) || 1));
+    out.pitch = Math.min(1.8, Math.max(0.5, Number(out.pitch) || 1));
+    out.volume = Math.min(1, Math.max(0, Number(out.volume) || 1));
+    return out;
+  }
+  /** Validate OpenAI-compatible TTS config without embedding secrets. */
+  function ttsProviderReady(cfg) {
+    const c = cfg || {};
+    if (!c.ttsProvider || c.ttsProvider === 'browser') return { ok: true, provider: 'browser' };
+    if (c.ttsProvider === 'openai') {
+      if (!c.ttsApiKey || !String(c.ttsApiKey).trim()) return { ok: false, provider: 'openai', reason: 'Add TTS API key in Settings → Voice (keys stay on this device only).' };
+      if (!c.ttsBaseUrl || !String(c.ttsBaseUrl).trim()) return { ok: false, provider: 'openai', reason: 'Set TTS Base URL (e.g. https://api.openai.com/v1).' };
+      if (!c.ttsVoiceId || !String(c.ttsVoiceId).trim()) return { ok: false, provider: 'openai', reason: 'Set a TTS voice ID (e.g. nova, shimmer, alloy).' };
+      return { ok: true, provider: 'openai' };
+    }
+    return { ok: false, provider: c.ttsProvider, reason: 'Unknown TTS provider.' };
+  }
+  /** Clear status messages for speech refusal / mic errors (UI copy). */
+  function speechErrorMessage(code, langHint) {
+    const map = {
+      'not-allowed': 'Mic/speech not allowed. Use keyboard 🎤 dictation instead.',
+      'service-not-allowed': 'Speech recognition blocked in this mode (common on iPhone Home Screen). Use keyboard 🎤 dictation.',
+      'no-speech': "Didn't catch that. Try again or use keyboard 🎤.",
+      'network': 'Speech recognition needs internet.',
+      'audio-capture': 'No microphone available.',
+      'language-not-supported': 'Speech language not supported here' + (langHint ? ' (' + langHint + ')' : '') + '. Pick another language or use keyboard 🎤.',
+      'aborted': null,
+      'tts-fail': 'Could not speak reply (TTS failed). Check Voice settings / provider key.',
+      'stt-unavailable': 'Voice input not supported here. Use keyboard 🎤 dictation.'
+    };
+    return Object.prototype.hasOwnProperty.call(map, code) ? map[code] : ('Speech error: ' + code);
+  }
+  function assertNoHardcodedSecrets(sourceText) {
+    const s = String(sourceText || '');
+    const bad = /sk-[A-Za-z0-9]{20,}|AIza[Sy][A-Za-z0-9_\-]{20,}|ghp_[A-Za-z0-9]{20,}/;
+    return !bad.test(s);
+  }
+
   const api = {
     Lang, G, detect, tokens, norm, greeting, isMedical, isEmergency, route, parseClock, parseDurationSeconds, parseCurrency, extractPlace,
     keywords, questionRx, wikiLang, greetingReply, medicalWarning, noAi, visionNeedsKey, remembered, memoryList, forgot, help, word, notOnIphone, t4,
     money, perTola, perGram, fxText, metalText, cryptoText, weatherCode, weatherText, askPlace, failed,
-    parseRss2Json, parseWikiSearch, parseChatCompletion, cleanAi, tones, modes, modelPresets, MODEL_MAP, systemPrompt, systemPromptLegacy, recent, searchPrompt, PRESETS, PROVIDER_FREE, VERSION: '2.0.0'
+    parseRss2Json, parseWikiSearch, parseChatCompletion, cleanAi, tones, modes, modelPresets, MODEL_MAP, systemPrompt, systemPromptLegacy, recent, searchPrompt, PRESETS, PROVIDER_FREE,
+    VERSION, TTS_PROVIDERS, DEFAULT_VOICE_SETTINGS, cleanSpeakText, scoreDeviceVoice, pickBestDeviceVoice, describeDefaultVoice, mergeVoiceSettings, ttsProviderReady, speechErrorMessage, assertNoHardcodedSecrets
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.NooraCore = api;
 })(typeof self !== 'undefined' ? self : this);

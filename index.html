@@ -56,6 +56,12 @@
       <div id="suggestions"></div>
     </section>
     <div id="listening" hidden>🎤 Listening… tap ■ to stop</div>
+    <div id="voiceBar" hidden>
+      <button type="button" id="btnVoiceMute" class="vbtn" title="Mute / unmute TTS">🔇 Mute</button>
+      <button type="button" id="btnVoiceStop" class="vbtn danger" title="Stop voice mode">⏹ Stop</button>
+      <button type="button" id="btnVoiceReplay" class="vbtn" title="Replay last reply">↻ Replay</button>
+      <button type="button" id="btnVoiceMic" class="vbtn" title="Mic on/off">🎤 Mic</button>
+    </div>
     <footer id="bar">
       <div class="field">
         <button class="icon" id="btnAttach" aria-label="Attach file"></button>
@@ -138,11 +144,24 @@
       <h3>Voice</h3>
       <div class="card">
         <label class="row">Speak replies aloud<input type="checkbox" id="sTts" class="switch"></label>
-        <label>Speech speed<input type="range" id="sRate" min="0.5" max="1.6" step="0.1"></label>
+        <label>TTS provider<select id="sTtsProvider">
+          <option value="browser">Browser (Web Speech API) — no key</option>
+          <option value="openai">OpenAI-compatible TTS</option>
+        </select></label>
+        <div id="ttsProviderFields" hidden>
+          <label>TTS Base URL<input id="sTtsBase" placeholder="https://api.openai.com/v1" inputmode="url" autocapitalize="off" autocorrect="off"></label>
+          <label>TTS API key<input id="sTtsKey" type="password" placeholder="paste TTS key (stored only on this device)" autocapitalize="off" autocorrect="off" autocomplete="off"></label>
+          <label>TTS model<input id="sTtsModel" placeholder="tts-1" autocapitalize="off" autocorrect="off"></label>
+          <label>TTS voice ID<input id="sTtsVoiceId" placeholder="nova / shimmer / alloy / …" autocapitalize="off" autocorrect="off"></label>
+          <p class="note">Keys are saved in local Settings only — never baked into the app. Works with OpenAI TTS or any OpenAI-compatible <code>/audio/speech</code> endpoint.</p>
+        </div>
+        <label>Device voice (Browser provider)<select id="sVoice"></select></label>
+        <label>Speaking speed<input type="range" id="sRate" min="0.5" max="1.6" step="0.1"></label>
         <label>Pitch<input type="range" id="sPitch" min="0.5" max="1.8" step="0.1"></label>
-        <label>Voice<select id="sVoice"></select></label>
+        <label>Volume<input type="range" id="sVolume" min="0" max="1" step="0.05"></label>
         <p class="note" id="voiceInfo"></p>
-        <p class="note">Wake word / lock-screen listening is <b>not possible</b> in an iPhone web app. On Android, the OS may allow mic while the app is open; there is no fake always-on wake word.</p>
+        <button type="button" class="outline" id="sVoiceTest">▶ Voice Test (current settings)</button>
+        <p class="note">Wake word / lock-screen listening is <b>not possible</b> in an iPhone web app. On Android, the OS may allow mic while the app is open; there is no fake always-on wake word. iPhone Safari / Home Screen often blocks web speech recognition — use keyboard 🎤 dictation if STT fails.</p>
       </div>
       <h3>Memory</h3>
       <div class="card">

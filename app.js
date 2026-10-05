@@ -1,4 +1,4 @@
-/* NOORA AI 2.0.0 web / PWA / Android WebView shell. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
+/* NOORA AI 2.0.1 web / PWA / Android WebView shell. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
 (function () {
   'use strict';
   const C = window.NooraCore, L = C.Lang;
@@ -22,13 +22,12 @@
   };
   const setIcon = (el, i) => { if (el) el.style.backgroundImage = ICON[i]; };
 
-  const DEF = {
-    userName: '', aiName: 'Noora', tone: 'Warm & caring', mode: 'caring', formality: 'balanced', gender: 'female',
-    ttsOn: true, rate: 1.0, pitch: 1.0, voiceURI: '', voiceLang: null,
+  const DEF = Object.assign({
+    userName: '', aiName: 'Noora', tone: 'Warm & caring', mode: 'caring', formality: 'balanced',
     provider: C.PROVIDER_FREE, baseUrl: '', apiKey: '', chatModel: '', visionModel: '',
     modelPreset: 'Fast', webSearchOn: true, memoryOn: true,
     pinOn: false, pinHash: '', continuousVoice: false, activeAssistantId: null
-  };
+  }, C.DEFAULT_VOICE_SETTINGS);
   let S = Object.assign({}, DEF);
   try { S = Object.assign(S, JSON.parse(localStorage.getItem('noora.settings') || '{}')); } catch (e) {}
   const saveS = () => { try { localStorage.setItem('noora.settings', JSON.stringify(S)); } catch (e) {} };
@@ -328,7 +327,7 @@
     $('dot').classList.toggle('off', !navigator.onLine);
     const base = !navigator.onLine ? 'Offline — greetings & saved chats only'
       : hasOwnKey() ? `AI: ${S.provider} · ${S.chatModel}` : 'AI: free Pollinations (no key, rate-limited)';
-    status(continuous ? '🎙 Voice conversation on · ' + base : base);
+    status(continuous ? ('🎙 Voice' + (S.muted ? ' (muted)' : '') + ' · ' + base) : base);
   }
   const fmtTime = (ts) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -414,9 +413,8 @@
     const m = { convId, role: 'assistant', text, image: opts.image || null, sources: opts.sources || [], meta, ts: Date.now() };
     m.id = await Store.addMessage(Object.assign({}, m)); append(m);
     maybeUpdateSummary();
-    if (opts.speak !== false && S.ttsOn) speak(opts.speakText || text, lang, () => { if (continuous) startListening(); });
-    else if (continuous && opts.speak !== false) setTimeout(() => startListening(), 400);
-    busy = false; refreshStatus();
+    if (opts.speak !== false) speak(opts.speakText || text, lang, () => { if (continuous) startListening(); });
+    busy = false; refreshStatus(); updateVoiceBar();
   }
 
   function extractProjectFiles(text) {
@@ -462,7 +460,7 @@
   }
   async function newChat() {
     if (!msgs.length) return toast('Already a new chat');
-    stopSpeaking(); continuous = false; await loadConversation(await Store.newConversation()); toast('New chat started');
+    stopSpeaking(); continuous = false; S.continuousVoice = false; saveS(); updateVoiceBar(); await loadConversation(await Store.newConversation()); toast('New chat started');
   }
 
   async function send(raw) {
@@ -783,47 +781,146 @@
   }
 
   let voices = [];
-  const loadVoices = () => { voices = 'speechSynthesis' in window ? speechSynthesis.getVoices() : []; fillVoiceSelect(); renderVoiceInfo(); };
+  let lastSpeakPayload = { text: '', lang: null };
+  let ttsAudio = null;
+  let speakToken = 0;
+  const loadVoices = () => { voices = 'speechSynthesis' in window ? speechSynthesis.getVoices() : []; fillVoiceSelect(); renderVoiceInfo(); maybeAutoPickDefaultVoice(); };
   if ('speechSynthesis' in window) { loadVoices(); speechSynthesis.onvoiceschanged = loadVoices; }
   const warnedVoice = {};
   let unlocked = false;
   function unlockSpeech() { if (unlocked || !('speechSynthesis' in window)) return; try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); unlocked = true; } catch (e) {} }
+  function maybeAutoPickDefaultVoice() {
+    if (S.voiceURI || !voices.length) return;
+    const d = C.describeDefaultVoice(voices, { gender: S.gender || 'female', langPrefs: ['en-US', 'en-GB', 'en'] });
+    if (d.voice) { S.voiceURI = d.voice.voiceURI; saveS(); fillVoiceSelect(); }
+  }
   function fillVoiceSelect() {
     const sel = $('sVoice'); if (!sel) return;
     const cur = S.voiceURI;
-    sel.innerHTML = '<option value="">Auto (match language)</option>' + voices.map((v) => `<option value="${v.voiceURI}"${v.voiceURI === cur ? ' selected' : ''}>${v.name} (${v.lang})</option>`).join('');
+    const ranked = voices.slice().sort((a, b) => C.scoreDeviceVoice(b, { gender: S.gender || 'female' }) - C.scoreDeviceVoice(a, { gender: S.gender || 'female' }));
+    sel.innerHTML = '<option value="">Auto (warm feminine / match language)</option>' + ranked.map((v) => `<option value="${v.voiceURI}"${v.voiceURI === cur ? ' selected' : ''}>${v.name} (${v.lang})</option>`).join('');
   }
   function pickVoice(lang) {
-    if (S.voiceURI) { const v = voices.find((x) => x.voiceURI === S.voiceURI); if (v) return v; }
-    const want = { ENGLISH: ['en-US', 'en-GB', 'en'], ARABIC: ['ar-SA', 'ar-EG', 'ar'], URDU: ['ur-PK', 'ur-IN', 'ur'], ROMAN_URDU: ['en-IN', 'en-US', 'en'], ROMAN_PUNJABI: ['en-IN', 'en-US', 'en'],
-      HINDI: ['hi-IN', 'hi'], PUNJABI_GURMUKHI: ['pa-IN', 'pa'], PUNJABI_SHAHMUKHI: ['pa-PK', 'ur-PK', 'ur'] }[lang.id];
-    const norm = (t) => t.replace('_', '-').toLowerCase();
-    const genderHint = S.gender === 'female' ? /female|woman|zira|samantha|karen|moira|meera|nicky/i : S.gender === 'male' ? /male|man|david|daniel|ravi/i : null;
-    for (const w of (want || ['en'])) {
-      const cands = voices.filter((x) => norm(x.lang) === w.toLowerCase() || (w.length === 2 && norm(x.lang).startsWith(w + '-')));
-      if (genderHint) { const g = cands.find((v) => genderHint.test(v.name)); if (g) return g; }
-      if (cands[0]) return cands[0];
-    }
-    return null;
+    const langPrefs = ({
+      ENGLISH: ['en-US', 'en-GB', 'en'], ARABIC: ['ar-SA', 'ar-EG', 'ar'], URDU: ['ur-PK', 'ur-IN', 'ur'],
+      ROMAN_URDU: ['en-IN', 'en-US', 'en'], ROMAN_PUNJABI: ['en-IN', 'en-US', 'en'],
+      HINDI: ['hi-IN', 'hi'], PUNJABI_GURMUKHI: ['pa-IN', 'pa'], PUNJABI_SHAHMUKHI: ['pa-PK', 'ur-PK', 'ur']
+    })[(lang && lang.id) || 'ENGLISH'] || ['en-US', 'en'];
+    return C.pickBestDeviceVoice(voices, { voiceURI: S.voiceURI, gender: S.gender || 'female', langPrefs });
   }
-  function speak(text, lang, onend) {
+  function stopSpeaking() {
+    speakToken++;
+    if ('speechSynthesis' in window) speechSynthesis.cancel();
+    if (ttsAudio) { try { ttsAudio.pause(); ttsAudio.src = ''; } catch (e) {} ttsAudio = null; }
+  }
+  function speakBrowser(clean, lang, onend) {
     if (!('speechSynthesis' in window)) { if (!warnedVoice.none) { warnedVoice.none = 1; toast('speechSynthesis not available.'); } if (onend) onend(); return; }
     if (!voices.length) voices = speechSynthesis.getVoices();
-    const v = pickVoice(lang);
-    if (!v) { if (!warnedVoice[lang.id]) { warnedVoice[lang.id] = 1; toast(`No ${lang.label} voice on this device.`, 6000); } if (onend) onend(); return; }
-    const clean = text.replace(/https?:\/\/\S+/g, '').replace(/\[\d+]/g, '').replace(/```[\s\S]*?```/g, ' code block ').replace(/[*#`_>|~]/g, '').replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '').slice(0, 3500);
+    const v = pickVoice(lang || L.ENGLISH);
+    if (!v) { if (!warnedVoice[(lang && lang.id) || 'x']) { warnedVoice[(lang && lang.id) || 'x'] = 1; toast(`No ${(lang && lang.label) || 'preferred'} voice on this device.`, 6000); } if (onend) onend(); return; }
     speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(clean); u.voice = v; u.lang = v.lang; u.rate = S.rate; u.pitch = S.pitch || 1;
+    const u = new SpeechSynthesisUtterance(clean);
+    try { u.voice = v; } catch (e) { /* some environments reject non-native SpeechSynthesisVoice objects */ }
+    u.lang = (v && v.lang) || (lang && lang.speech) || 'en-US';
+    u.rate = S.rate; u.pitch = S.pitch || 1; u.volume = S.volume == null ? 1 : S.volume;
     u.onend = () => { if (onend) onend(); }; u.onerror = () => { if (onend) onend(); };
-    speechSynthesis.speak(u);
+    try { speechSynthesis.speak(u); } catch (e) { toast('TTS failed: ' + e.message); if (onend) onend(); }
   }
-  function stopSpeaking() { if ('speechSynthesis' in window) speechSynthesis.cancel(); }
+  async function speakOpenAi(clean, onend) {
+    const ready = C.ttsProviderReady(S);
+    if (!ready.ok) { toast(ready.reason, 6000); status(ready.reason); if (onend) onend(); return; }
+    const token = speakToken;
+    try {
+      const base = String(S.ttsBaseUrl || '').replace(/\/+$/, '');
+      const speed = Math.min(4, Math.max(0.25, Number(S.rate) || 1));
+      const res = await fetch(base + '/audio/speech', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + S.ttsApiKey },
+        body: JSON.stringify({ model: S.ttsModel || 'tts-1', input: clean.slice(0, 4096), voice: S.ttsVoiceId || 'nova', speed })
+      });
+      if (token !== speakToken) return;
+      if (!res.ok) {
+        let detail = res.status + '';
+        try { const j = await res.json(); detail = (j.error && (j.error.message || j.error)) || detail; } catch (e) {}
+        const msg = C.speechErrorMessage('tts-fail') + ' (' + String(detail).slice(0, 80) + ')';
+        toast(msg, 6500); status(msg); if (onend) onend(); return;
+      }
+      const blob = await res.blob();
+      if (token !== speakToken) return;
+      const url = URL.createObjectURL(blob);
+      if (ttsAudio) { try { ttsAudio.pause(); } catch (e) {} }
+      ttsAudio = new Audio(url);
+      ttsAudio.volume = S.volume == null ? 1 : S.volume;
+      ttsAudio.onended = () => { URL.revokeObjectURL(url); if (token === speakToken && onend) onend(); };
+      ttsAudio.onerror = () => { URL.revokeObjectURL(url); toast(C.speechErrorMessage('tts-fail')); if (token === speakToken && onend) onend(); };
+      await ttsAudio.play();
+    } catch (e) {
+      if (token !== speakToken) return;
+      const msg = C.speechErrorMessage('tts-fail') + ' — ' + (e.message || 'network');
+      toast(msg, 6500); status(msg); if (onend) onend();
+    }
+  }
+  function speak(text, lang, onend, opts) {
+    const o = opts || {};
+    const clean = C.cleanSpeakText(text);
+    if (!clean) { if (onend) onend(); return; }
+    lastSpeakPayload = { text: clean, lang: lang || null };
+    if (!o.force && (S.muted || !S.ttsOn)) { if (onend) onend(); return; }
+    const provider = (o.provider != null ? o.provider : S.ttsProvider) || 'browser';
+    // cancel previous without bumping token twice awkwardly
+    if ('speechSynthesis' in window) speechSynthesis.cancel();
+    if (ttsAudio) { try { ttsAudio.pause(); ttsAudio.src = ''; } catch (e) {} ttsAudio = null; }
+    speakToken++;
+    if (provider === 'openai') speakOpenAi(clean, onend);
+    else speakBrowser(clean, lang, onend);
+  }
+  function replayLast() {
+    if (!lastSpeakPayload.text) {
+      const last = [...msgs].reverse().find((m) => m.role === 'assistant' && !m.pending && m.text);
+      if (!last) return toast('Nothing to replay yet');
+      const lang = C.detect(last.text, prefLang());
+      unlockSpeech(); speak(last.text, lang, null, { force: true });
+      return;
+    }
+    unlockSpeech(); speak(lastSpeakPayload.text, lastSpeakPayload.lang || prefLang() || L.ENGLISH, null, { force: true });
+  }
+  function updateVoiceBar() {
+    const bar = $('voiceBar'); if (!bar) return;
+    bar.hidden = !continuous;
+    $('btnVoiceMode').classList.toggle('on', !!continuous);
+    const muteBtn = $('btnVoiceMute');
+    if (muteBtn) { muteBtn.textContent = S.muted ? '🔊 Unmute' : '🔇 Mute'; muteBtn.classList.toggle('on', !!S.muted); }
+    const micBtn = $('btnVoiceMic');
+    if (micBtn) { micBtn.textContent = listening ? '⏹ Mic' : '🎤 Mic'; micBtn.classList.toggle('on', !!listening); }
+  }
+  function stopVoiceMode() {
+    continuous = false; S.continuousVoice = false; saveS();
+    stopSpeaking();
+    if (listening && rec) { try { if (rec.abort) rec.abort(); else rec.stop(); } catch (e) {} }
+    setListening(false);
+    updateVoiceBar(); refreshStatus();
+    toast('Voice conversation stopped');
+  }
   function renderVoiceInfo() {
     const el = $('voiceInfo'); if (!el) return;
-    if (!('speechSynthesis' in window)) { el.textContent = 'No speechSynthesis here.'; return; }
-    const has = (ids) => ids.some((p) => voices.some((v) => v.lang.replace('_', '-').toLowerCase().startsWith(p)));
-    el.textContent = 'Voices: ' + [['EN', ['en']], ['AR', ['ar']], ['UR', ['ur']], ['HI', ['hi']], ['PA', ['pa']]].map(([n, p]) => `${n}${has(p) ? '✓' : '✗'}`).join(' · ') +
-      (voices.length ? ` · ${voices.length} total` : ' (loading…)');
+    const parts = [];
+    parts.push('Provider: ' + (S.ttsProvider === 'openai' ? 'OpenAI-compatible TTS' : 'Browser'));
+    if ('speechSynthesis' in window) {
+      const has = (ids) => ids.some((p) => voices.some((v) => v.lang.replace('_', '-').toLowerCase().startsWith(p)));
+      parts.push('Device voices: ' + [['EN', ['en']], ['AR', ['ar']], ['UR', ['ur']], ['HI', ['hi']], ['PA', ['pa']]].map(([n, p]) => `${n}${has(p) ? '✓' : '✗'}`).join(' · ') +
+        (voices.length ? ` · ${voices.length} total` : ' (loading…)'));
+      const d = C.describeDefaultVoice(voices, { gender: S.gender || 'female', voiceURI: S.voiceURI, langPrefs: ['en-US', 'en-GB', 'en'] });
+      parts.push(d.label);
+    } else parts.push('No speechSynthesis here (browser TTS unavailable).');
+    if (S.ttsProvider === 'openai') {
+      const r = C.ttsProviderReady(S);
+      parts.push(r.ok ? 'OpenAI TTS ready (key stored on this device).' : r.reason);
+    }
+    el.textContent = parts.join('\n');
+  }
+  function syncTtsProviderFields() {
+    const show = ($('sTtsProvider') && $('sTtsProvider').value === 'openai');
+    const box = $('ttsProviderFields'); if (box) box.hidden = !show;
   }
 
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -842,13 +939,15 @@
       if (on) el.textContent = `🎤 Listening (${prefLang() ? prefLang().label : 'phone language'})… tap ■ to stop`;
     }
     $('btnMic').classList.toggle('live', on);
-    updateMicIcon(); if (!on && !errMsg) refreshStatus();
+    updateMicIcon(); updateVoiceBar(); if (!on && !errMsg) refreshStatus();
   }
   function startListening() {
     if (!SR) {
-      continuous = false;
-      return modal('Voice input not supported here', (IS_IOS ? 'Safari / home-screen mode often blocks web speech recognition.' : 'No speech recognition API.') +
-        '\n\nUse the keyboard 🎤 dictation key instead.', [{ label: 'OK' }]);
+      continuous = false; updateVoiceBar();
+      const detail = (IS_IOS ? 'Safari / home-screen mode often blocks web speech recognition.' : 'No speech recognition API.') +
+        '\n\nUse the keyboard 🎤 dictation key instead.';
+      status(C.speechErrorMessage('stt-unavailable'));
+      return modal('Voice input not supported here', detail, [{ label: 'OK' }]);
     }
     stopSpeaking();
     try {
@@ -864,15 +963,7 @@
       };
       rec.onerror = (e) => {
         errored = true;
-        const map = {
-          'not-allowed': 'Mic/speech not allowed. Use keyboard 🎤 dictation instead.',
-          'service-not-allowed': 'Speech recognition blocked in this mode (common on iPhone Home Screen). Use keyboard 🎤 dictation.',
-          'no-speech': "Didn't catch that. Try again or use keyboard 🎤.",
-          'network': 'Speech recognition needs internet.',
-          'audio-capture': 'No microphone available.',
-          'language-not-supported': `Speech doesn't support ${rec.lang} here. Pick another language or use keyboard 🎤.`
-        };
-        const msg = map[e.error] || ('Speech error: ' + e.error);
+        const msg = C.speechErrorMessage(e.error, rec && rec.lang);
         setListening(false, e.error === 'aborted' ? null : msg);
         if (e.error !== 'aborted') {
           status(msg);
@@ -916,15 +1007,36 @@
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(input.value); } });
   $('btnAttach').onclick = () => $('file').click();
   $('btnUploadFile').onclick = () => $('file').click();
-  $('btnTts').onclick = () => { S.ttsOn = !S.ttsOn; saveS(); if (!S.ttsOn) stopSpeaking(); else unlockSpeech(); setIcon($('btnTts'), S.ttsOn ? 'volOn' : 'volOff'); toast(S.ttsOn ? 'Voice replies ON' : 'Voice replies OFF'); };
-  $('btnVoiceMode').onclick = () => {
-    continuous = !continuous; S.continuousVoice = continuous; saveS();
-    toast(continuous ? 'Voice conversation ON' : 'Voice conversation OFF');
-    refreshStatus();
-    if (continuous) { unlockSpeech(); showTab('home'); startListening(); }
-    else if (listening) { try { rec.stop(); } catch (e) {} setListening(false); }
+  $('btnTts').onclick = () => {
+    S.ttsOn = !S.ttsOn; saveS();
+    if (!S.ttsOn) stopSpeaking(); else unlockSpeech();
+    setIcon($('btnTts'), S.ttsOn ? 'volOn' : 'volOff');
+    toast(S.ttsOn ? 'Voice replies ON' : 'Voice replies OFF');
   };
-  $('btnStartVoice').onclick = () => { continuous = true; S.continuousVoice = true; saveS(); unlockSpeech(); startListening(); refreshStatus(); };
+  $('btnVoiceMode').onclick = () => {
+    if (continuous) { stopVoiceMode(); return; }
+    continuous = true; S.continuousVoice = true; saveS();
+    toast('Voice conversation ON');
+    refreshStatus(); updateVoiceBar();
+    unlockSpeech(); showTab('home'); startListening();
+  };
+  $('btnStartVoice').onclick = () => {
+    continuous = true; S.continuousVoice = true; saveS();
+    unlockSpeech(); updateVoiceBar(); startListening(); refreshStatus();
+  };
+  $('btnVoiceMute').onclick = () => {
+    S.muted = !S.muted; saveS();
+    if (S.muted) stopSpeaking();
+    updateVoiceBar();
+    toast(S.muted ? 'Muted — TTS silent' : 'Unmuted');
+  };
+  $('btnVoiceStop').onclick = () => stopVoiceMode();
+  $('btnVoiceReplay').onclick = () => { unlockSpeech(); replayLast(); };
+  $('btnVoiceMic').onclick = () => {
+    unlockSpeech();
+    if (listening) { try { rec.stop(); } catch (e) {} setListening(false); toast('Mic off'); }
+    else startListening();
+  };
   $('btnNew').onclick = newChat;
   window.addEventListener('online', refreshStatus); window.addEventListener('offline', refreshStatus);
 
@@ -1112,27 +1224,66 @@
   $('btnNewNote').onclick = async () => { const title = prompt('Note title?') || 'Note'; const text = prompt('Note text?') || ''; await Store.addNote({ title, text, ts: Date.now() }); openFiles(); };
   $('btnNewPrompt').onclick = async () => { const title = prompt('Prompt name?') || 'Prompt'; const text = prompt('Prompt text?') || ''; await Store.addPrompt({ title, text, ts: Date.now() }); openFiles(); };
 
+  function readVoiceForm() {
+    return {
+      ttsOn: $('sTts').checked,
+      rate: parseFloat($('sRate').value) || 1,
+      pitch: parseFloat($('sPitch').value) || 1,
+      volume: parseFloat($('sVolume').value),
+      voiceURI: $('sVoice').value || '',
+      ttsProvider: $('sTtsProvider').value || 'browser',
+      ttsBaseUrl: ($('sTtsBase').value || '').trim().replace(/\/+$/, ''),
+      ttsApiKey: ($('sTtsKey').value || '').trim(),
+      ttsModel: ($('sTtsModel').value || '').trim() || 'tts-1',
+      ttsVoiceId: ($('sTtsVoiceId').value || '').trim()
+    };
+  }
   function openSettings() {
     $('sName').value = S.userName;
-    $('sTts').checked = S.ttsOn; $('sRate').value = S.rate; $('sPitch').value = S.pitch || 1;
+    $('sTts').checked = S.ttsOn;
+    $('sTtsProvider').value = S.ttsProvider || 'browser';
+    $('sTtsBase').value = S.ttsBaseUrl || 'https://api.openai.com/v1';
+    $('sTtsKey').value = S.ttsApiKey || '';
+    $('sTtsModel').value = S.ttsModel || 'tts-1';
+    $('sTtsVoiceId').value = S.ttsVoiceId || 'nova';
+    $('sRate').value = S.rate; $('sPitch').value = S.pitch || 1; $('sVolume').value = S.volume == null ? 1 : S.volume;
     $('sMemOn').checked = S.memoryOn !== false; $('sPinOn').checked = !!S.pinOn; $('sPin').value = '';
-    fillVoiceSelect(); renderVoiceInfo();
-    $('privacyNote').textContent = 'All chats, memories, files, notes and settings stay on this device. Nothing is uploaded to NOORA servers (there are none). Messages go only to the AI provider you choose (or free Pollinations) and to live search APIs you trigger. No ads. This is NOT end-to-end encryption.';
+    syncTtsProviderFields(); fillVoiceSelect(); renderVoiceInfo();
+    $('privacyNote').textContent = 'All chats, memories, files, notes and settings stay on this device. Nothing is uploaded to NOORA servers (there are none). Messages go only to the AI provider you choose (or free Pollinations) and to live search APIs you trigger. TTS provider keys (if any) stay in local Settings only. No ads. This is NOT end-to-end encryption.';
     $('sIphone').textContent = (IS_ANDROID_WV
       ? 'Android: WebView + native bridges for call/SMS/maps/alarm/timer/torch/open-app.\n'
       : 'iPhone web: chat, live data, images, memory, call/SMS/Maps links (you confirm).\n') +
       'Wake word / lock-screen listening is NOT possible in an iPhone web app.\n' +
       `Voice input: ${SR ? 'available (may be refused by OS — then use keyboard 🎤)' : 'NOT available — use keyboard 🎤'}.\n` +
+      `TTS: Browser Web Speech always available where supported; OpenAI-compatible TTS needs your key in Voice settings.\n` +
       `Storage: ${Store.kind}. Installed: ${STANDALONE || IS_ANDROID_WV ? 'yes' : 'no'}.`;
     $('about').textContent = `NOORA AI ${C.VERSION}\nLive: rss2json, Wikipedia, open.er-api.com, gold-api.com, Coinbase, Open-Meteo, Pollinations`;
   }
   function saveSettings() {
-    S.userName = $('sName').value.trim(); S.ttsOn = $('sTts').checked;
-    S.rate = parseFloat($('sRate').value) || 1; S.pitch = parseFloat($('sPitch').value) || 1;
-    S.voiceURI = $('sVoice').value || ''; S.memoryOn = $('sMemOn').checked;
-    saveS(); setIcon($('btnTts'), S.ttsOn ? 'volOn' : 'volOff'); updateEmpty();
+    S.userName = $('sName').value.trim();
+    Object.assign(S, readVoiceForm());
+    if (Number.isNaN(S.volume)) S.volume = 1;
+    S.memoryOn = $('sMemOn').checked;
+    saveS(); setIcon($('btnTts'), S.ttsOn ? 'volOn' : 'volOff'); updateEmpty(); renderVoiceInfo(); syncTtsProviderFields();
   }
-  ['sName', 'sTts', 'sRate', 'sPitch', 'sVoice', 'sMemOn'].forEach((id) => $(id).addEventListener('change', saveSettings));
+  ['sName', 'sTts', 'sRate', 'sPitch', 'sVolume', 'sVoice', 'sMemOn', 'sTtsProvider', 'sTtsBase', 'sTtsKey', 'sTtsModel', 'sTtsVoiceId'].forEach((id) => {
+    const el = $(id); if (el) el.addEventListener('change', saveSettings);
+  });
+  $('sTtsProvider').addEventListener('change', () => { syncTtsProviderFields(); saveSettings(); });
+  $('sVoiceTest').onclick = () => {
+    const form = readVoiceForm();
+    const sample = 'Hi, I am ' + aiName() + '. This is a short voice test with your current settings.';
+    unlockSpeech();
+    // Test CURRENT form values without requiring a prior Save
+    const prev = {
+      ttsOn: S.ttsOn, muted: S.muted, rate: S.rate, pitch: S.pitch, volume: S.volume, voiceURI: S.voiceURI,
+      ttsProvider: S.ttsProvider, ttsBaseUrl: S.ttsBaseUrl, ttsApiKey: S.ttsApiKey, ttsModel: S.ttsModel, ttsVoiceId: S.ttsVoiceId
+    };
+    Object.assign(S, form, { ttsOn: true, muted: false });
+    if (Number.isNaN(S.volume)) S.volume = 1;
+    speak(sample, prefLang() || L.ENGLISH, () => { Object.assign(S, prev); }, { force: true, provider: form.ttsProvider });
+    toast('Playing Voice Test…');
+  };
   $('sPinOn').addEventListener('change', async () => {
     if ($('sPinOn').checked) {
       const pin = $('sPin').value.trim();
@@ -1202,10 +1353,11 @@
     if (!ok) toast('IndexedDB unavailable — using localStorage.');
     await checkLock();
     await loadConversation(convId);
-    refreshStatus(); updateEmpty();
+    continuous = !!S.continuousVoice;
+    refreshStatus(); updateEmpty(); updateVoiceBar();
     if ('serviceWorker' in navigator && document.querySelector('link[data-pwa]') && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
       navigator.serviceWorker.register('./sw.js').catch(() => {});
     }
-    window.__noora = { send, Store, S, route: C.route, msgs: () => msgs, showTab, AI, Live, VERSION: C.VERSION };
+    window.__noora = { send, Store, S, route: C.route, msgs: () => msgs, showTab, AI, Live, VERSION: C.VERSION, speak, stopVoiceMode, replayLast, updateVoiceBar, continuous: () => continuous };
   })();
 })();

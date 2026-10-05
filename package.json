@@ -1,0 +1,9 @@
+{
+  "name": "noora-ai-web",
+  "version": "2.0.1",
+  "private": true,
+  "scripts": {
+    "test": "node --test test/core.test.js",
+    "test:e2e": "node test/e2e/voice-smoke.mjs"
+  }
+}

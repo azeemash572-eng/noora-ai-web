@@ -1,4 +1,4 @@
-/* NOORA AI web - core logic (pure JS, no DOM). Ported 1:1 from the Android 1.0.0-proto core/ (Lang, Router, LocalReplies, LiveText, Parsers, Prompt, Keywords).
+/* NOORA AI web - core logic (pure JS, no DOM). Shared core for NOORA AI 2.0.0 (web + Android WebView). Evolved from Android 1.0.0-proto core/ (Lang, Router, LocalReplies, LiveText, Parsers, Prompt, Keywords).
    Runs in Safari and in Node (for tests). */
 (function (root) {
   'use strict';
@@ -6,6 +6,7 @@
   // ---------------- Languages ----------------
   const Lang = {
     ENGLISH:           { id: 'ENGLISH', label: 'English', speech: 'en-US', prompt: 'English', rtl: false },
+    ARABIC:            { id: 'ARABIC', label: 'العربية Arabic', speech: 'ar-SA', prompt: 'Modern Standard Arabic (العربية الفصحى)', rtl: true },
     URDU:              { id: 'URDU', label: 'اردو Urdu', speech: 'ur-PK', prompt: 'Urdu written in Urdu (Nastaliq/Arabic) script', rtl: true },
     ROMAN_URDU:        { id: 'ROMAN_URDU', label: 'Roman Urdu', speech: 'ur-PK', prompt: "Roman Urdu (Urdu written in Latin letters, casual, e.g. 'Main theek hoon. Aap kaise ho?')", rtl: false },
     HINDI:             { id: 'HINDI', label: 'हिन्दी Hindi', speech: 'hi-IN', prompt: 'Hindi written in Devanagari script', rtl: false },
@@ -46,7 +47,13 @@
     if (arabic === max) {
       const padded = ' ' + text + ' ';
       if (shahmukhiMarkers.some((m) => padded.includes(m))) return Lang.PUNJABI_SHAHMUKHI;
-      return preferred === Lang.PUNJABI_SHAHMUKHI ? Lang.PUNJABI_SHAHMUKHI : Lang.URDU;
+      if (preferred === Lang.PUNJABI_SHAHMUKHI) return Lang.PUNJABI_SHAHMUKHI;
+      if (preferred === Lang.ARABIC) return Lang.ARABIC;
+      // Light Arabic vs Urdu heuristic: MSA particles / common Arabic words without common Urdu-only markers
+      const arabicHint = /(^|[\s])(ما|هل|ماذا|كيف|أين|متى|لماذا|هذا|هذه|التي|الذي|شكرا|مرحبا|من فضلك)([\s؟!]|$)/;
+      const urduHint = /(ہے|ہیں|کا|کی|کے|میں|آپ|تم|ہوں|نہیں|کہ|اور|سے)/;
+      if (arabicHint.test(text) && !urduHint.test(text)) return Lang.ARABIC;
+      return preferred === Lang.ARABIC ? Lang.ARABIC : Lang.URDU;
     }
     const toks = tokens(text);
     const pa = toks.filter((t) => strongPunjabiRoman.has(t)).length;
@@ -522,20 +529,89 @@
   }
 
   // ---------------- Prompt ----------------
-  const tones = ['Warm & caring', 'Professional', 'Friendly & playful', 'Short & direct'];
-  function systemPrompt(userName, tone, l, memories, medical, earlierTopics, now) {
-    const date = (now || new Date()).toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-    let s = `You are Noora (نورا), a personal AI assistant inside an iPhone web app. Personality: female, ${tone.toLowerCase()}, respectful, honest. `;
-    if (userName && userName.trim()) s += `The user's name is ${userName.trim()}. `;
-    s += `Today is ${date}. LANGUAGE RULE: reply ONLY in ${l.prompt}, matching the user's script exactly. `;
-    s += 'Keep replies concise and natural for voice (2-6 sentences unless the user asks for detail). Avoid heavy markdown. ';
-    s += 'HONESTY RULES: never invent facts, prices, numbers, contacts, news or quotes. If you are not sure or the info may be outdated, say so plainly and suggest asking Noora to search live. ';
-    s += 'You cannot browse by yourself; when live search results are provided, use only them and do not add numbers that are not in them. ';
-    s += "Phone links (call, SMS, maps, websites) are handled by the app itself, not by you. On iPhone the web app cannot set alarms, use the torch or open other apps; suggest Siri for those. ";
-    if (medical) s += "MEDICAL: the app already shows a 'not a real doctor' warning. Give only general, safe information, no diagnosis, no prescription doses; encourage seeing a doctor and going to the ER for anything serious. ";
-    if (memories && memories.length) s += 'Things the user asked you to remember: ' + memories.join('; ') + '. ';
-    if (earlierTopics && earlierTopics.length) s += "Topics from the user's earlier chats (for continuity only): " + earlierTopics.join('; ') + '. ';
+  const tones = ['Warm & caring', 'Professional', 'Friendly & playful', 'Short & direct', 'Humorous', 'Formal', 'Casual'];
+  const modes = ['friendly', 'professional', 'humorous', 'caring', 'custom'];
+  const modelPresets = ['Fast', 'Advanced reasoning', 'Creative', 'Coding', 'Local/private'];
+  /** Real model IDs per provider + preset. Free Pollinations anonymous tier currently lists only openai-fast (alias openai) — checked live. */
+  const MODEL_MAP = {
+    'Free (Pollinations, no key)': {
+      Fast: ['openai', 'openai'],
+      'Advanced reasoning': ['openai', 'openai'],
+      Creative: ['openai', 'openai'],
+      Coding: ['openai', 'openai'],
+      'Local/private': ['', '']
+    },
+    'Google Gemini': {
+      Fast: ['gemini-2.5-flash', 'gemini-2.5-flash'],
+      'Advanced reasoning': ['gemini-2.5-pro', 'gemini-2.5-pro'],
+      Creative: ['gemini-2.5-flash', 'gemini-2.5-flash'],
+      Coding: ['gemini-2.5-flash', 'gemini-2.5-flash'],
+      'Local/private': ['', '']
+    },
+    'OpenAI': {
+      Fast: ['gpt-4o-mini', 'gpt-4o-mini'],
+      'Advanced reasoning': ['gpt-4o', 'gpt-4o'],
+      Creative: ['gpt-4o', 'gpt-4o'],
+      Coding: ['gpt-4o', 'gpt-4o'],
+      'Local/private': ['', '']
+    },
+    'Groq': {
+      Fast: ['llama-3.3-70b-versatile', 'meta-llama/llama-4-scout-17b-16e-instruct'],
+      'Advanced reasoning': ['llama-3.3-70b-versatile', 'meta-llama/llama-4-scout-17b-16e-instruct'],
+      Creative: ['llama-3.3-70b-versatile', 'meta-llama/llama-4-scout-17b-16e-instruct'],
+      Coding: ['llama-3.3-70b-versatile', 'meta-llama/llama-4-scout-17b-16e-instruct'],
+      'Local/private': ['', '']
+    },
+    'OpenRouter': {
+      Fast: ['openai/gpt-4o-mini', 'openai/gpt-4o-mini'],
+      'Advanced reasoning': ['openai/gpt-4o', 'openai/gpt-4o'],
+      Creative: ['openai/gpt-4o', 'openai/gpt-4o'],
+      Coding: ['openai/gpt-4o', 'openai/gpt-4o'],
+      'Local/private': ['', '']
+    },
+    'Pollinations (with key)': {
+      Fast: ['openai', 'openai'],
+      'Advanced reasoning': ['deepseek', 'openai'],
+      Creative: ['openai', 'openai'],
+      Coding: ['qwen-coder', 'openai'],
+      'Local/private': ['', '']
+    },
+    'Custom (OpenAI-compatible)': {
+      Fast: ['', ''],
+      'Advanced reasoning': ['', ''],
+      Creative: ['', ''],
+      Coding: ['', ''],
+      'Local/private': ['', '']
+    }
+  };
+  function systemPrompt(opts) {
+    // opts: { userName, aiName, tone, mode, formality, gender, languagePrompt, memories, medical, earlierTopics, summary, assistant, now, platform }
+    const o = opts || {};
+    const date = (o.now || new Date()).toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const name = (o.aiName && o.aiName.trim()) || 'Noora';
+    const tone = (o.tone || 'Warm & caring').toLowerCase();
+    const mode = o.mode || 'caring';
+    const formality = o.formality || 'balanced';
+    const gender = o.gender || 'female';
+    const platform = o.platform || 'web';
+    let s = `You are ${name}, a personal AI assistant. Personality: ${gender}, ${tone}, mode=${mode}, formality=${formality}. Be respectful, honest, and adapt to the user's writing style. `;
+    if (o.assistant && o.assistant.instructions) s += `Custom assistant "${o.assistant.name || 'Custom'}": ${o.assistant.instructions} Style: ${o.assistant.style || ''}. `;
+    if (o.userName && o.userName.trim()) s += `The user's name is ${o.userName.trim()}. `;
+    s += `Today is ${date}. LANGUAGE RULE: reply ONLY in ${o.languagePrompt || 'English'}, matching the user's script (including mixed-language when they mix). `;
+    s += 'Keep replies natural; use 2-6 sentences for casual chat, longer when they ask for detail or code. Prefer clear structure for code (fenced blocks). Avoid unnecessary repetition. ';
+    s += 'HONESTY: never invent facts, prices, numbers, contacts, news, quotes, or search results. If unsure or outdated, say so and suggest a live search. When live sources are provided, use ONLY them for numbers/prices and cite them. ';
+    s += 'SAFETY: refuse clearly illegal harmful requests (e.g. real weapons manufacturing, cybercrime help, child exploitation, violent crime). For harmless legal requests, help fully. Prefer explaining limits briefly over generic refusals. ';
+    if (platform === 'ios-web' || platform === 'web') s += 'Phone links (call, SMS, maps, websites) are handled by the app. Wake-word / lock-screen listening is NOT possible in an iPhone web app — say so honestly if asked. Alarms, torch and opening other apps are not available on iPhone web; suggest Siri. ';
+    if (platform === 'android') s += 'On Android, native bridges may handle call/SMS/maps/alarm/timer/torch/open-app after user confirmation. ';
+    if (o.medical) s += "MEDICAL: a 'not a real doctor' warning is shown. Give only general safe information; no diagnosis or prescription doses; encourage a doctor / ER for serious symptoms. ";
+    if (o.memories && o.memories.length) s += 'Remembered (user-approved memory): ' + o.memories.join('; ') + '. ';
+    if (o.summary) s += 'Rolling conversation summary: ' + o.summary + '. ';
+    if (o.earlierTopics && o.earlierTopics.length) s += 'Earlier chat topics (continuity only): ' + o.earlierTopics.join('; ') + '. ';
     return s.trim();
+  }
+  /** Back-compat wrapper used by older call sites / tests */
+  function systemPromptLegacy(userName, tone, l, memories, medical, earlierTopics, now) {
+    return systemPrompt({ userName, tone, languagePrompt: l && l.prompt, memories, medical, earlierTopics, now, platform: 'web', aiName: 'Noora' });
   }
   const recent = (turns, max = 12) => turns.filter((t) => t.text && t.text.trim()).slice(-max);
   function searchPrompt(question, results, snippets, l, numeric) {
@@ -562,7 +638,7 @@
     Lang, G, detect, tokens, norm, greeting, isMedical, isEmergency, route, parseClock, parseDurationSeconds, parseCurrency, extractPlace,
     keywords, questionRx, wikiLang, greetingReply, medicalWarning, noAi, visionNeedsKey, remembered, memoryList, forgot, help, word, notOnIphone, t4,
     money, perTola, perGram, fxText, metalText, cryptoText, weatherCode, weatherText, askPlace, failed,
-    parseRss2Json, parseWikiSearch, parseChatCompletion, cleanAi, tones, systemPrompt, recent, searchPrompt, PRESETS, PROVIDER_FREE, VERSION: '1.0.0-proto-web'
+    parseRss2Json, parseWikiSearch, parseChatCompletion, cleanAi, tones, modes, modelPresets, MODEL_MAP, systemPrompt, systemPromptLegacy, recent, searchPrompt, PRESETS, PROVIDER_FREE, VERSION: '2.0.0'
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.NooraCore = api;
 })(typeof self !== 'undefined' ? self : this);

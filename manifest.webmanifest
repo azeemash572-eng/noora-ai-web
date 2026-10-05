@@ -1,7 +1,7 @@
 {
   "name": "NOORA AI",
   "short_name": "NOORA AI",
-  "description": "Noora - personal AI assistant (Urdu, Roman Urdu, Hindi, Punjabi, English)",
+  "description": "Noora - personal AI assistant (English, Urdu, Arabic, Hindi, Punjabi and more)",
   "id": "./",
   "start_url": "./",
   "scope": "./",

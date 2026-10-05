@@ -138,6 +138,22 @@ test('parsers with real captured payloads', () => {
   const gold = JSON.parse(res('gold.json')); console.log(C.metalText(L.ENGLISH, gold.name, gold.price, gold.updatedAt, fx.rates.PKR, fx.rates.INR));
   const sp = C.searchPrompt('petrol price?', [{ title: 'Petrol up Rs2', publisher: 'Dawn', date: '' }], [], L.ENGLISH, true);
   assert.ok(sp.includes('Only state numbers'));
-  const sys = C.systemPrompt('Ayesha', 'Warm & caring', L.ROMAN_URDU, ['sister is Sara'], true, ['gold price']);
+  const sys = C.systemPromptLegacy('Ayesha', 'Warm & caring', L.ROMAN_URDU, ['sister is Sara'], true, ['gold price']);
   assert.ok(sys.includes('Roman Urdu') && sys.includes('Ayesha') && sys.includes('sister is Sara') && sys.includes('MEDICAL'));
+});
+
+test('version and arabic + model map', () => {
+  assert.equal(C.VERSION, '2.0.0');
+  assert.ok(C.Lang.ARABIC);
+  assert.equal(C.detect('مرحبا كيف حالك', C.Lang.ARABIC), C.Lang.ARABIC);
+  assert.ok(C.MODEL_MAP['Google Gemini']['Fast'][0].includes('gemini'));
+  assert.equal(C.MODEL_MAP['Free (Pollinations, no key)'].Fast[0], 'openai');
+  assert.equal(C.PRESETS['Google Gemini'][0], 'https://generativelanguage.googleapis.com/v1beta/openai');
+  assert.equal(C.PRESETS['Google Gemini'][1], 'gemini-2.5-flash');
+  const sp = C.systemPrompt({ userName: 'Ayesha', tone: 'Warm & caring', languagePrompt: 'English', memories: ['likes tea'], platform: 'web' });
+  assert.ok(sp.includes('Ayesha'));
+  assert.ok(sp.includes('likes tea'));
+  assert.ok(sp.includes('NOT end-to-end') || sp.includes('never invent') || sp.includes('HONESTY'));
+  const legacy = C.systemPromptLegacy('Ayesha', 'Warm & caring', C.Lang.ENGLISH, [], false, []);
+  assert.ok(legacy.includes('Ayesha'));
 });

@@ -1,52 +1,76 @@
-/* NOORA AI web app (iPhone PWA). UI + storage + network. Logic lives in core.js (same rules as Android 1.0.0-proto). */
+/* NOORA AI 2.0.0 web / PWA / Android WebView shell. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
 (function () {
   'use strict';
   const C = window.NooraCore, L = C.Lang;
   const $ = (id) => document.getElementById(id);
   const IS_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const STANDALONE = window.navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+  const IS_ANDROID_WV = !!(window.NooraNative && window.NooraNative.isAndroid);
+  const PLATFORM = IS_ANDROID_WV ? 'android' : (IS_IOS ? 'ios-web' : 'web');
 
-  // ---------- icons (same paths as the Android vectors) ----------
   const svg = (d) => `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='#fff'><path d='${d}'/></svg>`)}")`;
   const ICON = {
     mic: svg('M12,14c1.66,0 3,-1.34 3,-3V5c0,-1.66 -1.34,-3 -3,-3S9,3.34 9,5v6C9,12.66 10.34,14 12,14zM17.3,11c0,3 -2.54,5.1 -5.3,5.1S6.7,14 6.7,11H5c0,3.41 2.72,6.23 6,6.72V21h2v-3.28c3.28,-0.48 6,-3.3 6,-6.72H17.3z'),
     stop: svg('M6,6h12v12H6z'),
     send: svg('M2.01,21L23,12 2.01,3 2,10l15,2 -15,2z'),
     attach: svg('M16.5,6v11.5c0,2.21 -1.79,4 -4,4s-4,-1.79 -4,-4V5c0,-1.38 1.12,-2.5 2.5,-2.5s2.5,1.12 2.5,2.5v10.5c0,0.55 -0.45,1 -1,1s-1,-0.45 -1,-1V6H10v9.5c0,1.38 1.12,2.5 2.5,2.5s2.5,-1.12 2.5,-2.5V5c0,-2.21 -1.79,-4 -4,-4S7,2.79 7,5v12.5c0,3.04 2.46,5.5 5.5,5.5s5.5,-2.46 5.5,-5.5V6H16.5z'),
-    settings: svg('M19.14,12.94c0.04,-0.3 0.06,-0.61 0.06,-0.94c0,-0.32 -0.02,-0.64 -0.07,-0.94l2.03,-1.58c0.18,-0.14 0.23,-0.41 0.12,-0.61l-1.92,-3.32c-0.12,-0.22 -0.37,-0.29 -0.59,-0.22l-2.39,0.96c-0.5,-0.38 -1.03,-0.7 -1.62,-0.94L14.4,2.81c-0.04,-0.24 -0.24,-0.41 -0.48,-0.41h-3.84c-0.24,0 -0.43,0.17 -0.47,0.41L9.25,5.35C8.66,5.59 8.12,5.92 7.63,6.29L5.24,5.33c-0.22,-0.08 -0.47,0 -0.59,0.22L2.74,8.87C2.62,9.08 2.66,9.34 2.86,9.48l2.03,1.58C4.84,11.36 4.8,11.69 4.8,12s0.02,0.64 0.07,0.94l-2.03,1.58c-0.18,0.14 -0.23,0.41 -0.12,0.61l1.92,3.32c0.12,0.22 0.37,0.29 0.59,0.22l2.39,-0.96c0.5,0.38 1.03,0.7 1.62,0.94l0.36,2.54c0.05,0.24 0.24,0.41 0.48,0.41h3.84c0.24,0 0.44,-0.17 0.47,-0.41l0.36,-2.54c0.59,-0.24 1.13,-0.56 1.62,-0.94l2.39,0.96c0.22,0.08 0.47,0 0.59,-0.22l1.92,-3.32c0.12,-0.22 0.07,-0.47 -0.12,-0.61L19.14,12.94zM12,15.6c-1.98,0 -3.6,-1.62 -3.6,-3.6s1.62,-3.6 3.6,-3.6s3.6,1.62 3.6,3.6S13.98,15.6 12,15.6z'),
-    history: svg('M13,3c-4.97,0 -9,4.03 -9,9H1l3.89,3.89 0.07,0.14L9,12H6c0,-3.87 3.13,-7 7,-7s7,3.13 7,7 -3.13,7 -7,7c-1.93,0 -3.68,-0.79 -4.94,-2.06l-1.42,1.42C8.27,19.99 10.51,21 13,21c4.97,0 9,-4.03 9,-9s-4.03,-9 -9,-9zM12,8v5l4.28,2.54 0.72,-1.21 -3.5,-2.08V8H12z'),
     add: svg('M19,13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z'),
     volOn: svg('M3,9v6h4l5,5V4L7,9H3zM16.5,12c0,-1.77 -1.02,-3.29 -2.5,-4.03v8.05c1.48,-0.73 2.5,-2.25 2.5,-4.02zM14,3.23v2.06c2.89,0.86 5,3.54 5,6.71s-2.11,5.85 -5,6.71v2.06c4.01,-0.91 7,-4.49 7,-8.77s-2.99,-7.86 -7,-8.77z'),
     volOff: svg('M16.5,12c0,-1.77 -1.02,-3.29 -2.5,-4.03v2.21l2.45,2.45c0.03,-0.2 0.05,-0.41 0.05,-0.63zM19,12c0,0.94 -0.2,1.82 -0.54,2.64l1.51,1.51C20.63,14.91 21,13.5 21,12c0,-4.28 -2.99,-7.86 -7,-8.77v2.06c2.89,0.86 5,3.54 5,6.71zM4.27,3L3,4.27 7.73,9H3v6h4l5,5v-6.73l4.25,4.25c-0.67,0.52 -1.42,0.93 -2.25,1.18v2.06c1.38,-0.31 2.63,-0.95 3.69,-1.81L19.73,21 21,19.73l-9,-9L4.27,3zM12,4L9.91,6.09 12,8.18V4z'),
-    back: svg('M20,11H7.83l5.59,-5.59L12,4l-8,8 8,8 1.41,-1.41L7.83,13H20v-2z')
+    back: svg('M20,11H7.83l5.59,-5.59L12,4l-8,8 8,8 1.41,-1.41L7.83,13H20v-2z'),
+    voice: svg('M12,1c-1.1,0 -2,0.9 -2,2v10c0,1.1 0.9,2 2,2s2,-0.9 2,-2V3c0,-1.1 -0.9,-2 -2,-2zM19,11c0,3.53 -2.61,6.43 -6,6.92V21h-2v-3.08c-3.39,-0.49 -6,-3.39 -6,-6.92h2c0,2.76 2.24,5 5,5s5,-2.24 5,-5H19z')
   };
-  const setIcon = (el, i) => { el.style.backgroundImage = ICON[i]; };
+  const setIcon = (el, i) => { if (el) el.style.backgroundImage = ICON[i]; };
 
-  // ---------- settings ----------
-  const DEF = { userName: '', tone: 'Warm & caring', ttsOn: true, rate: 1.0, voiceLang: null, provider: C.PROVIDER_FREE, baseUrl: '', apiKey: '', chatModel: '', visionModel: '' };
+  const DEF = {
+    userName: '', aiName: 'Noora', tone: 'Warm & caring', mode: 'caring', formality: 'balanced', gender: 'female',
+    ttsOn: true, rate: 1.0, pitch: 1.0, voiceURI: '', voiceLang: null,
+    provider: C.PROVIDER_FREE, baseUrl: '', apiKey: '', chatModel: '', visionModel: '',
+    modelPreset: 'Fast', webSearchOn: true, memoryOn: true,
+    pinOn: false, pinHash: '', continuousVoice: false, activeAssistantId: null
+  };
   let S = Object.assign({}, DEF);
   try { S = Object.assign(S, JSON.parse(localStorage.getItem('noora.settings') || '{}')); } catch (e) {}
   const saveS = () => { try { localStorage.setItem('noora.settings', JSON.stringify(S)); } catch (e) {} };
   const hasOwnKey = () => S.provider !== C.PROVIDER_FREE && S.apiKey && S.baseUrl && S.chatModel;
   const prefLang = () => (S.voiceLang ? L[S.voiceLang] : null);
+  const aiName = () => (S.aiName && S.aiName.trim()) || 'Noora';
 
-  // ---------- storage (IndexedDB, falls back to localStorage) ----------
+  async function sha256(text) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+
   const Store = (() => {
     let db = null, mem = null;
     const LS = 'noora.fallbackdb';
-    function lsLoad() { try { mem = JSON.parse(localStorage.getItem(LS)) || null; } catch (e) {} if (!mem) mem = { seq: 1, conversations: [], messages: [], memories: [] }; }
-    function lsSave() { try { localStorage.setItem(LS, JSON.stringify(mem)); } catch (e) { toast('Storage full - history may not be saved.'); } }
+    function emptyMem() {
+      return { seq: 1, conversations: [], messages: [], memories: [], files: [], notes: [], prompts: [], assistants: [], folders: [], summaries: {} };
+    }
+    function lsLoad() {
+      try { mem = JSON.parse(localStorage.getItem(LS)) || null; } catch (e) {}
+      if (!mem) mem = emptyMem();
+      ['files', 'notes', 'prompts', 'assistants', 'folders'].forEach((k) => { if (!mem[k]) mem[k] = []; });
+      if (!mem.summaries) mem.summaries = {};
+    }
+    function lsSave() { try { localStorage.setItem(LS, JSON.stringify(mem)); } catch (e) { toast('Storage full — some data may not be saved.'); } }
     function open() {
       return new Promise((resolve) => {
         if (!('indexedDB' in window)) { lsLoad(); return resolve(false); }
         let req;
-        try { req = indexedDB.open('noora-ai', 1); } catch (e) { lsLoad(); return resolve(false); }
+        try { req = indexedDB.open('noora-ai', 2); } catch (e) { lsLoad(); return resolve(false); }
         req.onupgradeneeded = () => {
           const d = req.result;
-          d.createObjectStore('conversations', { keyPath: 'id', autoIncrement: true });
-          const m = d.createObjectStore('messages', { keyPath: 'id', autoIncrement: true });
-          m.createIndex('conv', 'convId');
-          d.createObjectStore('memories', { keyPath: 'id', autoIncrement: true });
+          if (!d.objectStoreNames.contains('conversations')) d.createObjectStore('conversations', { keyPath: 'id', autoIncrement: true });
+          if (!d.objectStoreNames.contains('messages')) {
+            const m = d.createObjectStore('messages', { keyPath: 'id', autoIncrement: true });
+            m.createIndex('conv', 'convId');
+          }
+          if (!d.objectStoreNames.contains('memories')) d.createObjectStore('memories', { keyPath: 'id', autoIncrement: true });
+          ['files', 'notes', 'prompts', 'assistants', 'folders'].forEach((n) => {
+            if (!d.objectStoreNames.contains(n)) d.createObjectStore(n, { keyPath: 'id', autoIncrement: true });
+          });
+          if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', { keyPath: 'key' });
         };
         req.onsuccess = () => { db = req.result; resolve(true); };
         req.onerror = () => { lsLoad(); resolve(false); };
@@ -58,24 +82,26 @@
       t.oncomplete = () => res(out); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
     });
     const all = (store, idx, key) => tx(store, 'readonly', (s) => (idx ? s.index(idx).getAll(key) : s.getAll()));
+    const putLS = (arrName, obj) => { if (!obj.id) obj.id = mem.seq++; const i = mem[arrName].findIndex((x) => x.id === obj.id); if (i >= 0) mem[arrName][i] = obj; else mem[arrName].push(obj); lsSave(); return obj.id; };
     return {
       open,
-      async newConversation() {
-        const c = { title: '', created: Date.now(), updated: Date.now() };
+      async newConversation(extra = {}) {
+        const c = Object.assign({ title: '', created: Date.now(), updated: Date.now(), folderId: null, assistantId: S.activeAssistantId || null, project: '' }, extra);
         if (!db) { c.id = mem.seq++; mem.conversations.push(c); lsSave(); return c.id; }
         return tx('conversations', 'readwrite', (s) => s.add(c));
       },
       async conversation(id) { if (!db) return mem.conversations.find((c) => c.id === id) || null; return (await tx('conversations', 'readonly', (s) => s.get(id))) || null; },
+      async putConversation(c) { if (!db) { const i = mem.conversations.findIndex((x) => x.id === c.id); if (i >= 0) mem.conversations[i] = c; lsSave(); return; } await tx('conversations', 'readwrite', (s) => s.put(c)); },
       async addMessage(m) {
         if (!db) {
           m.id = mem.seq++; mem.messages.push(m);
           const c = mem.conversations.find((x) => x.id === m.convId);
-          if (c) { c.updated = m.ts; if (m.role === 'user' && !c.title) c.title = (m.text || '📷 Photo').slice(0, 60); }
+          if (c) { c.updated = m.ts; if (m.role === 'user' && !c.title) c.title = (m.text || '📎 File').slice(0, 60); }
           lsSave(); return m.id;
         }
         const id = await tx('messages', 'readwrite', (s) => s.add(m));
         const c = await this.conversation(m.convId);
-        if (c) { c.updated = m.ts; if (m.role === 'user' && !c.title) c.title = (m.text || '📷 Photo').slice(0, 60); await tx('conversations', 'readwrite', (s) => s.put(c)); }
+        if (c) { c.updated = m.ts; if (m.role === 'user' && !c.title) c.title = (m.text || '📎 File').slice(0, 60); await tx('conversations', 'readwrite', (s) => s.put(c)); }
         return id;
       },
       async messages(convId) { if (!db) return mem.messages.filter((m) => m.convId === convId); return (await all('messages', 'conv', convId)).sort((a, b) => a.id - b.id); },
@@ -86,20 +112,94 @@
         return cs.filter((c) => count[c.id]).map((c) => Object.assign({}, c, { count: count[c.id] })).sort((a, b) => b.updated - a.updated);
       },
       async deleteConversation(id) {
-        if (!db) { mem.messages = mem.messages.filter((m) => m.convId !== id); mem.conversations = mem.conversations.filter((c) => c.id !== id); lsSave(); return; }
+        if (!db) { mem.messages = mem.messages.filter((m) => m.convId !== id); mem.conversations = mem.conversations.filter((c) => c.id !== id); delete mem.summaries[id]; lsSave(); return; }
         const ms = await all('messages', 'conv', id);
         await tx('messages', 'readwrite', (s) => { ms.forEach((m) => s.delete(m.id)); });
         await tx('conversations', 'readwrite', (s) => s.delete(id));
+        await tx('meta', 'readwrite', (s) => s.delete('summary:' + id));
       },
-      async clearChats() { if (!db) { mem.messages = []; mem.conversations = []; lsSave(); return; } await tx('messages', 'readwrite', (s) => s.clear()); await tx('conversations', 'readwrite', (s) => s.clear()); },
-      async addMemory(fact) { const m = { fact, ts: Date.now() }; if (!db) { m.id = mem.seq++; mem.memories.push(m); lsSave(); return; } await tx('memories', 'readwrite', (s) => s.add(m)); },
-      async memories() { return (db ? await all('memories') : mem.memories).map((m) => m.fact); },
+      async clearChats() {
+        if (!db) { mem.messages = []; mem.conversations = []; mem.summaries = {}; lsSave(); return; }
+        await tx('messages', 'readwrite', (s) => s.clear()); await tx('conversations', 'readwrite', (s) => s.clear());
+      },
+      async addMemory(fact) {
+        if (!S.memoryOn) return null;
+        const m = { fact, ts: Date.now() };
+        if (!db) { m.id = mem.seq++; mem.memories.push(m); lsSave(); return m.id; }
+        return tx('memories', 'readwrite', (s) => s.add(m));
+      },
+      async updateMemory(id, fact) {
+        if (!db) { const m = mem.memories.find((x) => x.id === id); if (m) { m.fact = fact; lsSave(); } return; }
+        const m = await tx('memories', 'readonly', (s) => s.get(id)); if (m) { m.fact = fact; await tx('memories', 'readwrite', (s) => s.put(m)); }
+      },
+      async deleteMemory(id) {
+        if (!db) { mem.memories = mem.memories.filter((x) => x.id !== id); lsSave(); return; }
+        await tx('memories', 'readwrite', (s) => s.delete(id));
+      },
+      async memoryRows() { return db ? await all('memories') : mem.memories.slice(); },
+      async memories() { return (await this.memoryRows()).map((m) => m.fact); },
       async clearMemories() { if (!db) { mem.memories = []; lsSave(); return; } await tx('memories', 'readwrite', (s) => s.clear()); },
+      async addFile(f) { if (!db) return putLS('files', f); return tx('files', 'readwrite', (s) => s.add(f)); },
+      async files() { return db ? await all('files') : mem.files.slice(); },
+      async deleteFile(id) { if (!db) { mem.files = mem.files.filter((x) => x.id !== id); lsSave(); return; } await tx('files', 'readwrite', (s) => s.delete(id)); },
+      async addNote(n) { if (!db) return putLS('notes', n); return tx('notes', 'readwrite', (s) => s.add(n)); },
+      async putNote(n) { if (!db) return putLS('notes', n); await tx('notes', 'readwrite', (s) => s.put(n)); },
+      async notes() { return db ? await all('notes') : mem.notes.slice(); },
+      async deleteNote(id) { if (!db) { mem.notes = mem.notes.filter((x) => x.id !== id); lsSave(); return; } await tx('notes', 'readwrite', (s) => s.delete(id)); },
+      async addPrompt(p) { if (!db) return putLS('prompts', p); return tx('prompts', 'readwrite', (s) => s.add(p)); },
+      async prompts() { return db ? await all('prompts') : mem.prompts.slice(); },
+      async deletePrompt(id) { if (!db) { mem.prompts = mem.prompts.filter((x) => x.id !== id); lsSave(); return; } await tx('prompts', 'readwrite', (s) => s.delete(id)); },
+      async addAssistant(a) { if (!db) return putLS('assistants', a); return tx('assistants', 'readwrite', (s) => s.add(a)); },
+      async putAssistant(a) { if (!db) return putLS('assistants', a); await tx('assistants', 'readwrite', (s) => s.put(a)); },
+      async assistants() { return db ? await all('assistants') : mem.assistants.slice(); },
+      async deleteAssistant(id) { if (!db) { mem.assistants = mem.assistants.filter((x) => x.id !== id); lsSave(); return; } await tx('assistants', 'readwrite', (s) => s.delete(id)); },
+      async addFolder(f) { if (!db) return putLS('folders', f); return tx('folders', 'readwrite', (s) => s.add(f)); },
+      async folders() { return db ? await all('folders') : mem.folders.slice(); },
+      async deleteFolder(id) { if (!db) { mem.folders = mem.folders.filter((x) => x.id !== id); lsSave(); return; } await tx('folders', 'readwrite', (s) => s.delete(id)); },
+      async getSummary(convId) {
+        if (!db) return mem.summaries[convId] || '';
+        const r = await tx('meta', 'readonly', (s) => s.get('summary:' + convId));
+        return (r && r.value) || '';
+      },
+      async setSummary(convId, value) {
+        if (!db) { mem.summaries[convId] = value; lsSave(); return; }
+        await tx('meta', 'readwrite', (s) => s.put({ key: 'summary:' + convId, value }));
+      },
+      async exportAll() {
+        return {
+          version: C.VERSION, exportedAt: new Date().toISOString(),
+          settings: Object.assign({}, S, { pinHash: S.pinHash ? '[redacted]' : '' }),
+          conversations: db ? await all('conversations') : mem.conversations,
+          messages: db ? await all('messages') : mem.messages,
+          memories: await this.memoryRows(),
+          files: (await this.files()).map((f) => ({ id: f.id, name: f.name, mime: f.mime, kind: f.kind, ts: f.ts, text: f.text, dataUrl: f.dataUrl && f.dataUrl.length < 500000 ? f.dataUrl : undefined })),
+          notes: await this.notes(), prompts: await this.prompts(), assistants: await this.assistants(), folders: await this.folders()
+        };
+      },
+      async importAll(data) {
+        if (!data || typeof data !== 'object') throw new Error('bad data');
+        for (const c of (data.conversations || [])) {
+          const copy = Object.assign({}, c); delete copy.id;
+          const nid = await this.newConversation(copy);
+          for (const m of (data.messages || []).filter((x) => x.convId === c.id)) {
+            const mm = Object.assign({}, m, { convId: nid }); delete mm.id;
+            await this.addMessage(mm);
+          }
+        }
+        for (const m of (data.memories || [])) if (m.fact) await this.addMemory(m.fact);
+        for (const n of (data.notes || [])) { const x = Object.assign({}, n); delete x.id; await this.addNote(x); }
+        for (const a of (data.assistants || [])) { const x = Object.assign({}, a); delete x.id; await this.addAssistant(x); }
+        for (const f of (data.folders || [])) { const x = Object.assign({}, f); delete x.id; await this.addFolder(x); }
+        for (const p of (data.prompts || [])) { const x = Object.assign({}, p); delete x.id; await this.addPrompt(x); }
+      },
+      async deleteAllData() {
+        if (!db) { mem = emptyMem(); lsSave(); return; }
+        for (const n of db.objectStoreNames) await tx(n, 'readwrite', (s) => s.clear());
+      },
       get kind() { return db ? 'IndexedDB' : 'localStorage'; }
     };
   })();
 
-  // ---------- network ----------
   async function http(url, opts = {}, timeoutMs = 20000) {
     const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), timeoutMs);
     try {
@@ -119,6 +219,7 @@
   const Live = {
     async news(query, lang) {
       const locs = lang === L.HINDI ? ['hl=hi&gl=IN&ceid=IN:hi', 'hl=en-IN&gl=IN&ceid=IN:en']
+        : lang === L.ARABIC ? ['hl=ar&gl=SA&ceid=SA:ar', 'hl=en-US&gl=US&ceid=US:en']
         : lang === L.PUNJABI_GURMUKHI ? ['hl=en-IN&gl=IN&ceid=IN:en', 'hl=en-PK&gl=PK&ceid=PK:en']
         : lang === L.ENGLISH ? ['hl=en-US&gl=US&ceid=US:en', 'hl=en-PK&gl=PK&ceid=PK:en']
         : ['hl=en-PK&gl=PK&ceid=PK:en', 'hl=en-US&gl=US&ceid=US:en'];
@@ -126,7 +227,7 @@
       for (const loc of locs) {
         const rss = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&${loc}`;
         const r = await getJson('https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(rss), 15000);
-        if (r.ok) { const items = C.parseRss2Json(r.json); if (items.length) return { items }; last = r.json.message || 'no items'; } else last = r.reason;
+        if (r.ok) { const items = C.parseRss2Json(r.json); if (items.length) return { items }; last = (r.json && r.json.message) || 'no items'; } else last = r.reason;
       }
       return { items: [], error: 'news via rss2json: ' + last };
     },
@@ -159,14 +260,21 @@
     }
   };
 
-  // ---------- AI ----------
+  function applyModelPreset() {
+    const map = C.MODEL_MAP[S.provider];
+    if (!map) return;
+    const pair = map[S.modelPreset];
+    if (!pair || S.modelPreset === 'Local/private') return;
+    if (pair[0]) { S.chatModel = pair[0]; S.visionModel = pair[1] || pair[0]; }
+  }
+
   const AI = {
     async openAi(url, model, messages, key) {
-      const body = { model, messages, temperature: 0.7 };
+      const body = { model, messages, temperature: S.modelPreset === 'Creative' ? 0.95 : S.modelPreset === 'Advanced reasoning' ? 0.4 : 0.7 };
       if (!key) body.referrer = 'noora-ai-web';
       const headers = { 'Content-Type': 'application/json' };
       if (key) headers.Authorization = 'Bearer ' + key;
-      const r = await http(url, { method: 'POST', headers, body: JSON.stringify(body) }, 60000);
+      const r = await http(url, { method: 'POST', headers, body: JSON.stringify(body) }, 90000);
       if (!r.ok) {
         let detail = '';
         if (r.res) { try { const j = await r.res.json(); const m = (j.error && (j.error.message || j.error)) || j.message; if (m && typeof m === 'string') detail = ' (' + m.slice(0, 90) + ')'; } catch (e) {} }
@@ -190,14 +298,15 @@
         if (r.text) return { text: C.cleanAi(r.text), via: `${S.provider} · ${model}` };
         reasons.push(`${S.provider}: ${r.failure}`);
       }
-      const warning = reasons.length ? `⚠️ Your ${S.provider} key/model failed (${reasons[0].split(': ').slice(1).join(': ').slice(0, 100)}). Answered with the free server instead - check Settings.` : null;
+      const warning = reasons.length ? `⚠️ Your ${S.provider} key/model failed (${reasons[0].split(': ').slice(1).join(': ').slice(0, 100)}). Answered with the free server instead — check AI tab.` : null;
       for (let attempt = 0; attempt < 2; attempt++) {
         if (attempt === 1) await new Promise((r) => setTimeout(r, 6000));
-        const a = await this.openAi('https://text.pollinations.ai/openai', 'openai', messages, null);
+        const freeModel = 'openai';
+        const a = await this.openAi('https://text.pollinations.ai/openai', freeModel, messages, null);
         if (a.text) return { text: C.cleanAi(a.text), via: 'Pollinations (free)', warning };
         const b = await this.plain(messages);
         if (b.text) return { text: C.cleanAi(b.text), via: 'Pollinations (free)', warning };
-        const c = await this.openAi('https://gen.pollinations.ai/v1/chat/completions', 'openai', messages, null);
+        const c = await this.openAi('https://gen.pollinations.ai/v1/chat/completions', freeModel, messages, null);
         if (c.text) return { text: C.cleanAi(c.text), via: 'Pollinations (free)', warning };
         if (attempt === 1 || vision) { reasons.push(`free AI: ${a.failure} / ${b.failure} / ${c.failure}`); break; }
       }
@@ -205,29 +314,60 @@
     }
   };
 
-  // ---------- state & rendering ----------
   let convId = parseInt(localStorage.getItem('noora.conv') || '0', 10) || 0;
   let msgs = [];
   let busy = false;
+  let continuous = false;
+  let fileFilter = 'all';
+  let editingAssistId = null;
   const list = $('list'), input = $('input');
 
   function toast(t, ms = 3200) { const el = $('toast'); el.textContent = t; el.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(() => { el.hidden = true; }, ms); }
   const status = (t) => { $('statusText').textContent = t; };
   function refreshStatus() {
     $('dot').classList.toggle('off', !navigator.onLine);
-    status(!navigator.onLine ? 'Offline - greetings & saved chats only' : hasOwnKey() ? `AI: ${S.provider} · ${S.chatModel}` : 'AI: free Pollinations (no key, rate-limited)');
+    const base = !navigator.onLine ? 'Offline — greetings & saved chats only'
+      : hasOwnKey() ? `AI: ${S.provider} · ${S.chatModel}` : 'AI: free Pollinations (no key, rate-limited)';
+    status(continuous ? '🎙 Voice conversation on · ' + base : base);
   }
   const fmtTime = (ts) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  function renderMarkdownish(text, container) {
+    const parts = String(text || '').split(/(```[\s\S]*?```)/g);
+    parts.forEach((part) => {
+      if (part.startsWith('```') && part.endsWith('```')) {
+        const inner = part.slice(3, -3);
+        const nl = inner.indexOf('\n');
+        const lang = nl > 0 ? inner.slice(0, nl).trim() : '';
+        const code = nl > 0 ? inner.slice(nl + 1) : inner;
+        const wrap = document.createElement('div'); wrap.className = 'codeblock';
+        const ch = document.createElement('div'); ch.className = 'ch';
+        const lab = document.createElement('span'); lab.textContent = lang || 'code';
+        const btn = document.createElement('button'); btn.className = 'copy'; btn.textContent = 'Copy';
+        btn.onclick = async () => { try { await navigator.clipboard.writeText(code); btn.textContent = 'Copied'; setTimeout(() => btn.textContent = 'Copy', 1200); } catch (e) { toast('Copy failed'); } };
+        ch.appendChild(lab); ch.appendChild(btn);
+        const pre = document.createElement('pre'); pre.textContent = code;
+        wrap.appendChild(ch); wrap.appendChild(pre); container.appendChild(wrap);
+      } else if (part) {
+        const t = document.createElement('div'); t.className = 'txt'; t.textContent = part; t.dir = 'auto'; container.appendChild(t);
+      }
+    });
+  }
 
   function renderMsg(m) {
     const row = document.createElement('div'); row.className = 'row-msg ' + (m.role === 'user' ? 'user' : 'bot');
     const b = document.createElement('div'); b.className = 'bubble' + (m.pending ? ' pending' : ''); b.dir = 'auto';
     if (m.image) { const img = document.createElement('img'); img.src = m.image; img.alt = 'image'; img.onclick = () => openImage(m.image); b.appendChild(img); }
-    if (m.text) { const t = document.createElement('div'); t.textContent = m.text; t.dir = 'auto'; b.appendChild(t); }
+    if (m.text) renderMarkdownish(m.text, b);
     if (m.sources && m.sources.length) {
       const s = document.createElement('div'); s.className = 'sources'; s.dir = 'ltr';
       const h = document.createElement('div'); h.className = 'h'; h.textContent = 'Sources'; s.appendChild(h);
-      m.sources.forEach((src, i) => { const a = document.createElement('a'); a.href = src.url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = `${i + 1}. ${src.title.slice(0, 90)}${src.publisher ? ' — ' + src.publisher : ''}`; s.appendChild(a); });
+      m.sources.forEach((src, i) => {
+        if (!src || !src.url) return;
+        const a = document.createElement('a'); a.href = src.url; a.target = '_blank'; a.rel = 'noopener';
+        a.textContent = `${i + 1}. ${(src.title || src.url).slice(0, 90)}${src.publisher ? ' — ' + src.publisher : ''}`;
+        s.appendChild(a);
+      });
       b.appendChild(s);
     }
     const meta = m.meta || {};
@@ -235,6 +375,14 @@
       const a = document.createElement('a'); a.className = 'act'; a.href = meta.action.href; a.textContent = meta.action.label;
       if (/^https?:/.test(meta.action.href)) { a.target = '_blank'; a.rel = 'noopener'; }
       if (meta.action.confirm) a.onclick = (e) => { e.preventDefault(); confirmLink(meta.action.confirm, meta.action.href, meta.action.label); };
+      if (meta.action.native && IS_ANDROID_WV) {
+        a.onclick = (e) => { e.preventDefault(); window.NooraNative.action(JSON.stringify(meta.action.native)); };
+      }
+      b.appendChild(a);
+    }
+    if (meta.downloadZip) {
+      const a = document.createElement('button'); a.className = 'act'; a.textContent = 'Download project (.zip)';
+      a.onclick = () => downloadZip(meta.downloadZip);
       b.appendChild(a);
     }
     row.appendChild(b);
@@ -246,7 +394,9 @@
   const scrollEnd = () => requestAnimationFrame(() => { list.scrollTop = list.scrollHeight; });
   function updateEmpty() {
     $('empty').hidden = msgs.length > 0; list.hidden = msgs.length === 0;
-    $('welcome').textContent = S.userName ? `Hi ${S.userName}, I'm Noora` : "Hi, I'm Noora";
+    $('welcome').textContent = S.userName ? `Hi ${S.userName}, I'm ${aiName()}` : `Hi, I'm ${aiName()}`;
+    $('aiDisplayName').textContent = aiName();
+    input.placeholder = `Message ${aiName()}…`;
   }
   function showPending(text) { append({ role: 'assistant', text, pending: true, ts: Date.now() }); }
   function updatePending(text) { const i = msgs.findIndex((m) => m.pending); if (i >= 0) { msgs[i].text = text; list.children[i].replaceWith(renderMsg(msgs[i])); } }
@@ -258,10 +408,51 @@
   }
   async function reply(text, lang, opts = {}) {
     removePending();
-    const m = { convId, role: 'assistant', text, image: opts.image || null, sources: opts.sources || [], meta: opts.meta || {}, ts: Date.now() };
+    const files = extractProjectFiles(text);
+    const meta = Object.assign({}, opts.meta || {});
+    if (files.length >= 2) meta.downloadZip = files;
+    const m = { convId, role: 'assistant', text, image: opts.image || null, sources: opts.sources || [], meta, ts: Date.now() };
     m.id = await Store.addMessage(Object.assign({}, m)); append(m);
-    if (opts.speak !== false && S.ttsOn) speak(opts.speakText || text, lang);
+    maybeUpdateSummary();
+    if (opts.speak !== false && S.ttsOn) speak(opts.speakText || text, lang, () => { if (continuous) startListening(); });
+    else if (continuous && opts.speak !== false) setTimeout(() => startListening(), 400);
     busy = false; refreshStatus();
+  }
+
+  function extractProjectFiles(text) {
+    const out = [];
+    const re = /```([^\n`]*)\n([\s\S]*?)```/g;
+    let m;
+    while ((m = re.exec(text))) {
+      const header = (m[1] || '').trim();
+      const body = m[2] || '';
+      let name = null;
+      const pathLike = header.match(/(?:file(?:name)?\s*[:=]\s*)?([\w./-]+\.\w{1,8})/i) || body.slice(0, 80).match(/^\/\/\s*([\w./-]+\.\w{1,8})/);
+      if (pathLike) name = pathLike[1];
+      else if (/\.\w{1,8}$/.test(header.split(/\s+/).pop() || '')) name = header.split(/\s+/).pop();
+      if (name && body.trim()) out.push({ name: name.replace(/^\.\//, ''), content: body });
+    }
+    const seen = new Set();
+    return out.filter((f) => { if (seen.has(f.name)) return false; seen.add(f.name); return true; });
+  }
+
+  async function downloadZip(files) {
+    try {
+      await loadScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');
+      const zip = new JSZip();
+      files.forEach((f) => zip.file(f.name, f.content));
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'noora-project.zip'; a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    } catch (e) { toast('ZIP download failed: ' + e.message); }
+  }
+
+  async function maybeUpdateSummary() {
+    const turns = msgs.filter((m) => !m.pending && m.text);
+    if (turns.length < 16 || turns.length % 8 !== 0) return;
+    const older = turns.slice(0, -12).map((m) => `${m.role}: ${m.text.slice(0, 200)}`).join('\n').slice(0, 3000);
+    const r = await AI.chat([{ role: 'user', content: 'Summarize this conversation in 4 short bullet points for continuity. No invented facts:\n' + older }]);
+    if (r.text) await Store.setSummary(convId, r.text.slice(0, 1200));
   }
 
   async function loadConversation(id) {
@@ -271,14 +462,13 @@
   }
   async function newChat() {
     if (!msgs.length) return toast('Already a new chat');
-    stopSpeaking(); await loadConversation(await Store.newConversation()); toast('New chat started (old one is in History)');
+    stopSpeaking(); continuous = false; await loadConversation(await Store.newConversation()); toast('New chat started');
   }
 
-  // ---------- pipeline ----------
   async function send(raw) {
     const text = (raw || '').trim();
     if (!text) return;
-    if (busy) return toast('Noora is still answering…');
+    if (busy) return toast(aiName() + ' is still answering…');
     unlockSpeech();
     input.value = ''; autoGrow(); updateMicIcon(); stopSpeaking();
     await addUser(text);
@@ -294,38 +484,42 @@
     switch (r.type) {
       case 'Greeting': return reply(C.greetingReply(r.kind, lang, S.userName), lang, { meta: { via: 'instant' } });
       case 'Help': return reply(C.help(lang), lang, { speak: false, meta: { via: 'instant' } });
-      case 'Remember': return Store.addMemory(r.fact).then(() => reply(C.remembered(lang, r.fact), lang));
+      case 'Remember':
+        if (!S.memoryOn) return reply(t4('Memory is off in Settings — I won\'t save that.', 'Memory Settings میں بند ہے — محفوظ نہیں کروں گی۔', 'Memory Settings mein band hai — mehfooz nahi karungi.', 'Memory Settings में बंद है — सेव नहीं करूँगी।'), lang);
+        return Store.addMemory(r.fact).then(() => reply(C.remembered(lang, r.fact), lang));
       case 'RecallMemory': return Store.memories().then((f) => reply(C.memoryList(lang, f), lang));
       case 'ForgetMemory': return modal('Clear all saved memories?', '', [
         { label: 'Clear', go: true, fn: async () => { await Store.clearMemories(); reply(C.forgot(lang), lang); } },
-        { label: 'Cancel', fn: () => reply('OK, kept them.', lang) }]);
-      case 'Flashlight': return reply(C.notOnIphone(lang, 'torch'), lang);
-      case 'Alarm': return reply(C.notOnIphone(lang, 'alarm'), lang);
-      case 'Timer': return reply(C.notOnIphone(lang, 'timer'), lang);
-      case 'OpenApp': return reply(C.notOnIphone(lang, 'app'), lang);
+        { label: 'Cancel', fn: () => { busy = false; reply('OK, kept them.', lang); } }]);
+      case 'Flashlight':
+        if (IS_ANDROID_WV) return nativeAction({ type: 'torch', on: /on|open|چالو|آن/i.test(text) }, lang);
+        return reply(C.notOnIphone(lang, 'torch'), lang);
+      case 'Alarm':
+        if (IS_ANDROID_WV && r.hour != null) return nativeAction({ type: 'alarm', hour: r.hour, minute: r.minute || 0, label: 'NOORA' }, lang);
+        return reply(C.notOnIphone(lang, 'alarm'), lang);
+      case 'Timer':
+        if (IS_ANDROID_WV && r.seconds) return nativeAction({ type: 'timer', seconds: r.seconds }, lang);
+        return reply(C.notOnIphone(lang, 'timer'), lang);
+      case 'OpenApp':
+        if (IS_ANDROID_WV) return nativeAction({ type: 'openApp', name: r.name }, lang);
+        return reply(C.notOnIphone(lang, 'app'), lang);
       case 'Call': {
-        if (!r.number) return reply(t4(`A web app on iPhone can't read your contacts, so I can't look up "${r.who}". Say or type the number, e.g. "call 0300 1234567".`,
-          `آئی فون پر ویب ایپ آپ کے رابطے نہیں پڑھ سکتی، اس لیے "${r.who}" کا نمبر نہیں ڈھونڈ سکتی۔ نمبر بولیں یا لکھیں، مثلاً "call 0300 1234567"۔`,
-          `iPhone par web app aap ke contacts nahi parh sakti, is liye "${r.who}" ka number nahi dhoond sakti. Number bolein ya likhein, jaise "call 0300 1234567".`,
-          `iPhone पर वेब ऐप आपके कॉन्टैक्ट्स नहीं पढ़ सकता, इसलिए "${r.who}" का नंबर नहीं ढूँढ सकती। नंबर बोलें या लिखें, जैसे "call 0300 1234567"।`), lang);
+        if (!r.number) return reply(t4(`I can't look up "${r.who}" from contacts here. Say the number, e.g. "call 0300 1234567".`,
+          `"${r.who}" کا نمبر یہاں نہیں مل سکتا۔ نمبر بولیں۔`, `"${r.who}" ka number yahan nahi mil sakta.`, `"${r.who}" का नंबर यहाँ नहीं मिल सकता।`), lang);
         const href = 'tel:' + r.number;
-        return reply('📞 ' + t4(`Tap to call ${r.number} - you'll confirm before anything happens.`, `${r.number} پر کال کے لیے ٹیپ کریں - پہلے آپ سے تصدیق ہوگی۔`,
-          `${r.number} par call ke liye tap karein - pehle aap se confirm hoga.`, `${r.number} पर कॉल के लिए टैप करें - पहले आपसे पुष्टि होगी।`), lang,
-          { meta: { action: { href, label: 'Call ' + r.number, confirm: `Call ${r.number}?\nNoora only calls after you tap Call (iPhone will also ask).` } } });
+        return reply('📞 ' + t4(`Tap to call ${r.number} — you'll confirm.`, `${r.number} پر کال — تصدیق ہوگی۔`, `${r.number} par call — confirm hoga.`, `${r.number} पर कॉल — पुष्टि होगी।`), lang,
+          { meta: { action: { href, label: 'Call ' + r.number, native: IS_ANDROID_WV ? { type: 'call', number: r.number } : null, confirm: `Call ${r.number}?` } } });
       }
       case 'Sms': {
         const href = 'sms:' + (r.number || '') + (r.body ? (IS_IOS ? '&body=' : '?body=') + encodeURIComponent(r.body) : '');
         const who = r.number || r.who || '';
-        const note = r.number ? '' : t4(' (pick the contact in Messages - a web app can\'t read contacts)', ' (Messages میں رابطہ خود منتخب کریں)', ' (Messages mein contact khud select karein)', ' (Messages में कॉन्टैक्ट ख़ुद चुनें)');
-        return reply('✉️ ' + t4(`Tap to open Messages${who ? ' for ' + who : ''}${note}. Nothing is sent until YOU press Send there.`,
-          `Messages کھولنے کے لیے ٹیپ کریں${note}۔ بھیجنے کا بٹن آپ خود دبائیں گے۔`, `Messages kholne ke liye tap karein${note}. Send aap khud dabayenge.`,
-          `Messages खोलने के लिए टैप करें${note}। भेजें आप ख़ुद दबाएँगे।`), lang,
-          { meta: { action: { href, label: 'Open Messages', confirm: `SMS ${who ? 'to ' + who : ''}\n${r.body ? '"' + r.body + '"' : '(empty message)'}\n\nMessages will open with this text. Nothing is sent until you press Send there.` } } });
+        return reply('✉️ ' + t4(`Tap to open Messages${who ? ' for ' + who : ''}. Nothing is sent until YOU press Send.`,
+          `Messages کھولیں — بھیجنا آپ کریں گے۔`, `Messages kholein — send aap karenge.`, `Messages खोलें — भेजना आप करेंगे।`), lang,
+          { meta: { action: { href, label: 'Open Messages', confirm: `SMS ${who ? 'to ' + who : ''}\n${r.body ? '"' + r.body + '"' : '(empty)'}` } } });
       }
       case 'Maps': {
-        const href = 'https://maps.apple.com/?q=' + encodeURIComponent(r.query);
-        return reply('🗺 ' + t4('Tap to open Apple Maps for', 'Apple Maps میں کھولنے کے لیے ٹیپ کریں:', 'Apple Maps mein kholne ke liye tap karein:', 'Apple Maps में खोलने के लिए टैप करें:') + ' ' + r.query, lang,
-          { meta: { action: { href, label: 'Open in Maps' } } });
+        const href = IS_ANDROID_WV ? ('geo:0,0?q=' + encodeURIComponent(r.query)) : ('https://maps.apple.com/?q=' + encodeURIComponent(r.query));
+        return reply('🗺 Maps: ' + r.query, lang, { meta: { action: { href, label: 'Open in Maps', native: IS_ANDROID_WV ? { type: 'maps', query: r.query } : null } } });
       }
       case 'OpenUrl': return reply('🌐 ' + r.url, lang, { meta: { action: { href: r.url, label: 'Open website' } } });
       case 'ImageGen': return generateImage(r.prompt, lang, null, null);
@@ -334,37 +528,58 @@
       case 'Metal': return liveMetal(r.symbol, lang);
       case 'Crypto': return liveCrypto(r.symbol, lang);
       case 'Weather': return liveWeather(r.place, lang);
-      case 'LiveSearch': return liveSearch(r.query, text, r.numeric, lang);
+      case 'LiveSearch': return S.webSearchOn !== false ? liveSearch(r.query, text, r.numeric, lang) : chat(text, lang, false, false);
       default: return chat(text, lang, r.medical, r.emergency);
     }
   }
 
+  function nativeAction(payload, lang) {
+    try {
+      const res = window.NooraNative.action(JSON.stringify(payload));
+      return reply(res || 'Done.', lang, { meta: { via: 'Android native' } });
+    } catch (e) { return reply('Native action failed: ' + e.message, lang); }
+  }
+
+  async function activeAssistant() {
+    if (!S.activeAssistantId) return null;
+    const all = await Store.assistants();
+    return all.find((a) => a.id === S.activeAssistantId) || null;
+  }
+
   async function buildMessages(lang, medical, overrideLastUser) {
-    const [mems, convs] = await Promise.all([Store.memories(), Store.conversations()]);
+    const [mems, convs, summary, assist] = await Promise.all([
+      Store.memories(), Store.conversations(), Store.getSummary(convId), activeAssistant()
+    ]);
+    const useMem = !assist || assist.useMemory !== false;
     const topics = convs.filter((c) => c.id !== convId && c.title).slice(0, 5).map((c) => c.title);
-    const out = [{ role: 'system', content: C.systemPrompt(S.userName, S.tone, lang, mems, medical, topics) }];
-    const turns = C.recent(msgs.filter((m) => !m.pending).map((m) => ({ role: m.role, text: m.text })), 12);
+    const out = [{ role: 'system', content: C.systemPrompt({
+      userName: S.userName, aiName: aiName(), tone: S.tone, mode: S.mode, formality: S.formality, gender: S.gender,
+      languagePrompt: (assist && assist.language) || lang.prompt, memories: useMem ? mems : [], medical,
+      earlierTopics: topics, summary, assistant: assist, platform: PLATFORM
+    }) }];
+    const turns = C.recent(msgs.filter((m) => !m.pending).map((m) => ({ role: m.role, text: m.text })), 16);
     turns.forEach((t, i) => out.push({ role: t.role, content: i === turns.length - 1 && t.role === 'user' && overrideLastUser ? overrideLastUser : t.text }));
     return out;
   }
   const short = (f) => String(f || 'unknown').replace(/\s+/g, ' ').slice(0, 160);
+  function wikiLang(lang) { return lang === L.ARABIC ? 'ar' : C.wikiLang(lang); }
 
   async function chat(text, lang, medical, emergency) {
     showPending(C.word(lang, 'thinking')); status('Thinking…');
     let refs = [];
-    if (!medical && text.length > 8 && C.questionRx.test(text)) {
-      const kw = C.keywords(text), wl = C.wikiLang(lang);
+    if (S.webSearchOn !== false && !medical && text.length > 8 && C.questionRx.test(text)) {
+      const kw = C.keywords(text), wl = wikiLang(lang);
       if (kw) { refs = await Live.wiki(kw, wl); if (!refs.length && wl !== 'en') refs = await Live.wiki(kw); }
     }
-    const override = refs.length ? text + '\n\n(Reference snippets fetched live from Wikipedia - use them if relevant, ignore if not, never contradict them:\n' +
+    const override = refs.length ? text + '\n\n(Reference snippets from Wikipedia — use if relevant:\n' +
       refs.slice(0, 3).map((x) => `- ${x.source.title}: ${x.snippet}`).join('\n') + ')' : null;
     const r = await AI.chat(await buildMessages(lang, medical, override));
     const warn = medical ? C.medicalWarning(lang, emergency) + '\n\n' : '';
     if (r.text) return reply((r.warning ? r.warning + '\n\n' : '') + warn + r.text, lang, { sources: refs.slice(0, 3).map((x) => x.source), meta: { via: r.via + (refs.length ? ' + Wikipedia' : '') } });
     const note = C.noAi(lang, short(r.failure));
     if (medical) return reply(warn + note, lang, { meta: { via: 'offline' } });
-    const wiki = refs.length ? refs : (text.length > 6 ? await Live.wiki(C.keywords(text), C.wikiLang(lang)) : []);
-    if (wiki.length) return reply(note + '\n\nWikipedia matches (live):\n' + wiki.slice(0, 3).map((x) => `• ${x.source.title}: ${x.snippet}`).join('\n'), lang,
+    const wiki = refs.length ? refs : (text.length > 6 ? await Live.wiki(C.keywords(text), wikiLang(lang)) : []);
+    if (wiki.length) return reply(note + '\n\nWikipedia (live):\n' + wiki.slice(0, 3).map((x) => `• ${x.source.title}: ${x.snippet}`).join('\n'), lang,
       { sources: wiki.slice(0, 3).map((x) => x.source), meta: { via: 'Wikipedia' }, speakText: note });
     return reply(note, lang, { meta: { via: 'offline' } });
   }
@@ -372,8 +587,8 @@
   async function liveSearch(query, original, numeric, lang) {
     showPending(C.word(lang, 'searching')); status('Searching…');
     const news = await Live.news(query, lang);
-    const newsy = /(news|khabar|خبر|समाचार|ख़बर|खबर|ਖ਼ਬਰ|latest|headlines|today|aaj)/i.test(query);
-    const wiki = !newsy && !numeric ? await Live.wiki(C.keywords(query) || query, C.wikiLang(lang)) : [];
+    const newsy = /(news|khabar|خبر|समाचार|latest|headlines|today|aaj|أخبار)/i.test(query);
+    const wiki = !newsy && !numeric ? await Live.wiki(C.keywords(query) || query, wikiLang(lang)) : [];
     const sources = news.items.slice(0, 5).concat(wiki.slice(0, 2).map((x) => x.source));
     if (!sources.length) return reply(C.word(lang, 'nothing_found') + (news.error ? `\n(${news.error})` : ''), lang);
     status('Summarizing…');
@@ -382,85 +597,156 @@
     if (r.text) return reply((r.warning ? r.warning + '\n\n' : '') + r.text, lang, { sources, meta: { via: r.via + ' + live search' } });
     const listTxt = sources.map((s, i) => `${i + 1}. ${s.title}` + (s.date ? ` (${s.date.slice(0, 16)})` : '')).join('\n');
     reply(C.word(lang, 'headlines') + '\n' + listTxt + `\n\n(AI summary unavailable: ${short(r.failure).slice(0, 80)})`, lang,
-      { sources, meta: { via: 'live search' }, speakText: C.word(lang, 'headlines') + ' ' + sources.slice(0, 3).map((s) => s.title).join('. ') });
+      { sources, meta: { via: 'live search' }, speakText: C.word(lang, 'headlines') });
   }
 
   async function liveCurrency(r, lang) {
     showPending('💱 …');
     const fx = await Live.fx(r.from); const rate = fx && fx.rates[r.to];
     if (!fx || !rate) return reply(C.failed(lang, 'exchange rate', fx ? 'no ' + r.to + ' rate' : 'open.er-api.com unreachable'), lang);
-    reply(C.fxText(lang, r.amount, r.from, r.to, rate, fx.time_last_update_utc), lang, { sources: [{ title: 'ExchangeRate-API open access (open.er-api.com)', url: 'https://www.exchangerate-api.com/docs/free', publisher: '' }], meta: { via: 'live API' } });
+    reply(C.fxText(lang, r.amount, r.from, r.to, rate, fx.time_last_update_utc), lang, { sources: [{ title: 'ExchangeRate-API (open.er-api.com)', url: 'https://www.exchangerate-api.com/docs/free', publisher: '' }], meta: { via: 'live API' } });
   }
   async function liveMetal(sym, lang) {
     showPending('🪙 …');
     const [m, fx] = await Promise.all([Live.metal(sym), Live.fx('USD')]);
     if (!m) return reply(C.failed(lang, sym === 'XAU' ? 'gold price' : 'silver price', 'gold-api.com unreachable'), lang);
     reply(C.metalText(lang, m.name, m.price, m.updatedAt, fx && fx.rates.PKR, fx && fx.rates.INR), lang,
-      { sources: [{ title: 'gold-api.com live spot price', url: 'https://gold-api.com', publisher: '' }, { title: 'open.er-api.com exchange rates', url: 'https://www.exchangerate-api.com/docs/free', publisher: '' }], meta: { via: 'live API' } });
+      { sources: [{ title: 'gold-api.com', url: 'https://gold-api.com', publisher: '' }, { title: 'open.er-api.com', url: 'https://www.exchangerate-api.com/docs/free', publisher: '' }], meta: { via: 'live API' } });
   }
   async function liveCrypto(sym, lang) {
     showPending('₿ …');
     const [usd, fx] = await Promise.all([Live.crypto(sym), Live.fx('USD')]);
     if (usd === null) return reply(C.failed(lang, sym + ' price', 'Coinbase API unreachable'), lang);
-    reply(C.cryptoText(lang, sym, usd, fx && fx.rates.PKR), lang, { sources: [{ title: 'Coinbase spot price', url: 'https://www.coinbase.com/price', publisher: '' }], meta: { via: 'live API' } });
+    reply(C.cryptoText(lang, sym, usd, fx && fx.rates.PKR), lang, { sources: [{ title: 'Coinbase spot', url: 'https://www.coinbase.com/price', publisher: '' }], meta: { via: 'live API' } });
   }
   async function liveWeather(place, lang) {
     if (!place) return reply(C.askPlace(lang), lang);
     showPending('🌡 …');
     const w = await Live.weather(place);
     if (!w) return reply(C.failed(lang, 'weather for ' + place, 'place not found or Open-Meteo unreachable'), lang);
-    reply(C.weatherText(lang, w), lang, { sources: [{ title: 'Open-Meteo forecast API', url: 'https://open-meteo.com', publisher: '' }], meta: { via: 'live API' } });
+    reply(C.weatherText(lang, w), lang, { sources: [{ title: 'Open-Meteo', url: 'https://open-meteo.com', publisher: '' }], meta: { via: 'live API' } });
   }
 
   async function generateImage(promptRaw, lang, seedIn, change) {
     showPending(C.word(lang, 'drawing')); status('Generating image…');
     let prompt = promptRaw;
     if (hasOwnKey() && /[\u0600-\u0A7F]/.test(prompt)) {
-      const tr = await AI.chat([{ role: 'user', content: 'Translate this image description to a short English image-generation prompt. Output only the prompt: ' + prompt }]);
+      const tr = await AI.chat([{ role: 'user', content: 'Translate to a short English image prompt only: ' + prompt }]);
       if (tr.text) prompt = tr.text.split('\n').find((x) => x.trim()).trim().replace(/^"|"$/g, '');
     }
     const seed = seedIn || Math.floor(Math.random() * 999998) + 1;
     let res = await Live.image(prompt, seed);
     for (const wait of [12, 25]) {
       if (res.dataUrl || !/^HTTP 4(02|29)/.test(res.error || '')) break;
-      updatePending(`${C.word(lang, 'drawing')}\n(free image server busy - retrying in ${wait}s)`);
+      updatePending(`${C.word(lang, 'drawing')}\n(retrying in ${wait}s)`);
       await new Promise((r) => setTimeout(r, wait * 1000));
       res = await Live.image(prompt, seed);
     }
     const t4 = (en, ur, ru, hi) => C.t4(lang, en, ur, ru, hi);
-    if (!res.dataUrl) return reply(t4(`Image generation failed right now (${res.error}). Please try again.`, `ابھی تصویر نہیں بن سکی (${res.error})۔ دوبارہ کوشش کریں۔`,
-      `Abhi tasveer nahi ban saki (${res.error}). Dobara try karein.`, `अभी तस्वीर नहीं बन सकी (${res.error})। फिर कोशिश करें।`), lang);
+    if (!res.dataUrl) return reply(t4(`Image generation failed (${res.error}).`, `تصویر نہیں بنی (${res.error})۔`, `Tasveer nahi bani (${res.error}).`, `तस्वीर नहीं बनी (${res.error})।`), lang);
     const caption = change
-      ? t4(`Here's the new version with "${change}". (Generated again from the updated prompt with the same seed - the free server can't repaint an existing photo pixel-by-pixel.)`,
-        `یہ "${change}" کے ساتھ نیا ورژن ہے۔ (اسی seed سے نئے prompt پر دوبارہ بنایا گیا؛ مفت سرور پرانی تصویر کو براہِ راست ایڈٹ نہیں کرتا۔)`,
-        `Yeh "${change}" ke saath naya version hai. (Same seed se naye prompt par dobara banaya; free server purani tasveer ko seedha edit nahi karta.)`,
-        `यह "${change}" के साथ नया वर्ज़न है। (उसी seed से नए prompt पर दोबारा बनाया; मुफ़्त सर्वर पुरानी तस्वीर को सीधे एडिट नहीं करता।)`)
-      : t4(`Here's your image: "${prompt}". Say e.g. "make it night time" to change it.`, `یہ رہی آپ کی تصویر: "${prompt}"۔ بدلنے کے لیے کہیں مثلاً "make it night time"۔`,
-        `Yeh rahi aap ki tasveer: "${prompt}". Badalne ke liye kaho jaise "make it night time".`, `यह रही आपकी तस्वीर: "${prompt}"। बदलने के लिए कहें जैसे "make it night time"।`);
-    reply(caption, lang, { image: res.dataUrl, sources: [{ title: 'Generated by Pollinations.ai (image.pollinations.ai)', url: 'https://pollinations.ai', publisher: '' }],
+      ? t4(`New version with "${change}" (regenerated; free server can't edit old pixels).`, `نیا ورژن "${change}" کے ساتھ۔`, `Naya version "${change}" ke saath.`, `नया वर्ज़न "${change}" के साथ।`)
+      : t4(`Image: "${prompt}". Say e.g. "make it night time" to change.`, `تصویر: "${prompt}"۔`, `Tasveer: "${prompt}".`, `तस्वीर: "${prompt}"।`);
+    await Store.addFile({ name: 'generated-' + seed + '.jpg', mime: 'image/jpeg', kind: 'image', ts: Date.now(), dataUrl: res.dataUrl, text: prompt });
+    reply(caption, lang, { image: res.dataUrl, sources: [{ title: 'Pollinations.ai image', url: 'https://pollinations.ai', publisher: '' }],
       meta: { genPrompt: prompt, seed, via: 'Pollinations image' }, speak: false });
   }
 
-  // ---------- photos ----------
-  $('file').addEventListener('change', async (e) => {
-    const f = e.target.files && e.target.files[0]; e.target.value = '';
-    if (!f) return;
-    if (busy) return toast('Noora is still answering…');
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      if ([...document.scripts].some((s) => s.src === src)) return resolve();
+      const s = document.createElement('script'); s.src = src; s.onload = resolve; s.onerror = () => reject(new Error('load ' + src)); document.head.appendChild(s);
+    });
+  }
+  async function parsePdf(file) {
+    await loadScript('https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js');
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+    const buf = await file.arrayBuffer();
+    const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
+    let text = '';
+    const max = Math.min(pdf.numPages, 20);
+    for (let i = 1; i <= max; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      text += content.items.map((it) => it.str).join(' ') + '\n';
+    }
+    if (pdf.numPages > max) text += `\n… (${pdf.numPages - max} more pages not extracted)`;
+    return text.trim();
+  }
+  async function parseSheet(file) {
+    await loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+    return wb.SheetNames.map((n) => '## Sheet: ' + n + '\n' + XLSX.utils.sheet_to_csv(wb.Sheets[n]).split('\n').slice(0, 80).join('\n')).join('\n\n').slice(0, 20000);
+  }
+  async function parseDocx(file) {
+    await loadScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');
+    const zip = await JSZip.loadAsync(await file.arrayBuffer());
+    const xml = await zip.file('word/document.xml').async('string');
+    return xml.replace(/<w:p[^>]*>/g, '\n').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\n{3,}/g, '\n\n').trim().slice(0, 20000);
+  }
+  function enhanceImageCanvas(dataUrl) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.naturalWidth * 1.5); c.height = Math.round(img.naturalHeight * 1.5);
+        const ctx = c.getContext('2d');
+        ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        const id = ctx.getImageData(0, 0, c.width, c.height); const d = id.data;
+        for (let i = 0; i < d.length; i += 4) {
+          d[i] = Math.min(255, d[i] * 1.08 + 6);
+          d[i + 1] = Math.min(255, d[i + 1] * 1.08 + 6);
+          d[i + 2] = Math.min(255, d[i + 2] * 1.08 + 6);
+        }
+        ctx.putImageData(id, 0, 0);
+        resolve(c.toDataURL('image/jpeg', 0.9));
+      };
+      img.src = dataUrl;
+    });
+  }
+
+  async function handleFile(f) {
+    if (!f || busy) return toast(busy ? aiName() + ' is still answering…' : 'No file');
     unlockSpeech();
-    const question = input.value.trim() || 'What is in this image? Describe it.';
+    const question = input.value.trim();
     input.value = ''; autoGrow(); updateMicIcon();
-    let dataUrl;
-    try { dataUrl = await scaleImage(f, 1024); } catch (err) { return toast("Couldn't read that image."); }
-    await addUser(question, dataUrl);
-    const lang = C.detect(question, prefLang());
-    busy = true; showPending(C.word(lang, 'thinking')); status('Looking at the photo…');
-    const mems = await Store.memories();
-    const messages = [{ role: 'system', content: C.systemPrompt(S.userName, S.tone, lang, mems, false) },
-      { role: 'user', content: [{ type: 'text', text: question }, { type: 'image_url', image_url: { url: dataUrl } }] }];
-    const r = await AI.chat(messages, true);
-    if (r.text) return reply(r.text, lang, { meta: { via: r.via } });
-    reply((hasOwnKey() ? `⚠️ Your ${S.provider} vision model failed.\n` : '') + C.visionNeedsKey(lang) + `\n(${short(r.failure)})`, lang, { meta: { via: 'offline' } });
-  });
+    const mime = f.type || '';
+    const name = f.name || 'file';
+    try {
+      if (mime.startsWith('image/') || /\.(png|jpe?g|gif|webp)$/i.test(name)) {
+        const dataUrl = await scaleImage(f, 1024);
+        const q = question || 'What is in this image? Describe it. If there is text, extract it (OCR).';
+        await addUser(q, dataUrl);
+        await Store.addFile({ name, mime: mime || 'image/jpeg', kind: 'image', ts: Date.now(), dataUrl });
+        const lang = C.detect(q, prefLang());
+        busy = true; showPending(C.word(lang, 'thinking')); status('Looking at the photo…');
+        const mems = await Store.memories();
+        const messages = [{ role: 'system', content: C.systemPrompt({ userName: S.userName, aiName: aiName(), tone: S.tone, mode: S.mode, formality: S.formality, gender: S.gender, languagePrompt: lang.prompt, memories: mems, platform: PLATFORM }) },
+          { role: 'user', content: [{ type: 'text', text: q }, { type: 'image_url', image_url: { url: dataUrl } }] }];
+        const r = await AI.chat(messages, true);
+        if (r.text) return reply(r.text, lang, { meta: { via: r.via } });
+        const enhanced = await enhanceImageCanvas(dataUrl);
+        await Store.addFile({ name: 'enhanced-' + name, mime: 'image/jpeg', kind: 'image', ts: Date.now(), dataUrl: enhanced });
+        return reply((hasOwnKey() ? `⚠️ Your ${S.provider} vision model failed.\n` : '') + C.visionNeedsKey(lang) + `\n(${short(r.failure)})\n\nSaved a simple canvas enhance (brightness/upscale) in Files — not AI vision.`, lang, { image: enhanced, meta: { via: 'offline + canvas enhance' } });
+      }
+      let extracted = '', kind = 'doc';
+      if (mime === 'application/pdf' || /\.pdf$/i.test(name)) extracted = await parsePdf(f);
+      else if (/sheet|excel|csv|\.xlsx?$|\.csv$/i.test(mime + name)) extracted = await parseSheet(f);
+      else if (/wordprocessingml|\.docx$/i.test(mime + name)) extracted = await parseDocx(f);
+      else extracted = await f.text();
+      if (!extracted) return toast('Could not extract text from that file.');
+      await Store.addFile({ name, mime: mime || 'text/plain', kind, ts: Date.now(), text: extracted.slice(0, 100000) });
+      const q = question || (`Please read and summarize this file (${name}). Highlight key points.`);
+      await addUser(q + '\n\n---\nFile: ' + name + '\n' + extracted.slice(0, 12000));
+      const lang = C.detect(q, prefLang());
+      return chat(q + '\n\n[File content of ' + name + ']\n' + extracted.slice(0, 12000), lang, false, false);
+    } catch (e) { toast('File error: ' + e.message); busy = false; }
+  }
+
+  $('file').addEventListener('change', async (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) handleFile(f); });
+
   function scaleImage(file, max) {
     return new Promise((resolve, reject) => {
       const url = URL.createObjectURL(file); const img = new Image();
@@ -478,10 +764,9 @@
     modal('Image', '', [{ label: 'Close', fn: () => {} }]);
     const img = document.createElement('img'); img.src = src; img.style.cssText = 'width:100%;border-radius:12px;margin-top:4px';
     $('mBody').appendChild(img);
-    const p = document.createElement('p'); p.className = 'note'; p.textContent = 'To save: touch and hold the picture → Save to Photos (Add to Photos).'; $('mBody').appendChild(p);
+    const p = document.createElement('p'); p.className = 'note'; p.textContent = 'Touch and hold to save. Canvas enhance = brightness/upscale only.'; $('mBody').appendChild(p);
   }
 
-  // ---------- modal / confirm ----------
   function modal(title, body, buttons) {
     $('mTitle').textContent = title; $('mBody').textContent = body; const box = $('mBtns'); box.innerHTML = '';
     buttons.forEach((b) => {
@@ -497,51 +782,73 @@
     modal(title, rest.join('\n').trim(), [{ label, href, go: true }, { label: 'Cancel' }]);
   }
 
-  // ---------- voice output ----------
   let voices = [];
-  const loadVoices = () => { voices = 'speechSynthesis' in window ? speechSynthesis.getVoices() : []; renderVoiceInfo(); };
+  const loadVoices = () => { voices = 'speechSynthesis' in window ? speechSynthesis.getVoices() : []; fillVoiceSelect(); renderVoiceInfo(); };
   if ('speechSynthesis' in window) { loadVoices(); speechSynthesis.onvoiceschanged = loadVoices; }
   const warnedVoice = {};
   let unlocked = false;
   function unlockSpeech() { if (unlocked || !('speechSynthesis' in window)) return; try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); unlocked = true; } catch (e) {} }
+  function fillVoiceSelect() {
+    const sel = $('sVoice'); if (!sel) return;
+    const cur = S.voiceURI;
+    sel.innerHTML = '<option value="">Auto (match language)</option>' + voices.map((v) => `<option value="${v.voiceURI}"${v.voiceURI === cur ? ' selected' : ''}>${v.name} (${v.lang})</option>`).join('');
+  }
   function pickVoice(lang) {
-    const want = { ENGLISH: ['en-US', 'en-GB', 'en'], URDU: ['ur-PK', 'ur-IN', 'ur'], ROMAN_URDU: ['en-IN', 'en-US', 'en'], ROMAN_PUNJABI: ['en-IN', 'en-US', 'en'],
+    if (S.voiceURI) { const v = voices.find((x) => x.voiceURI === S.voiceURI); if (v) return v; }
+    const want = { ENGLISH: ['en-US', 'en-GB', 'en'], ARABIC: ['ar-SA', 'ar-EG', 'ar'], URDU: ['ur-PK', 'ur-IN', 'ur'], ROMAN_URDU: ['en-IN', 'en-US', 'en'], ROMAN_PUNJABI: ['en-IN', 'en-US', 'en'],
       HINDI: ['hi-IN', 'hi'], PUNJABI_GURMUKHI: ['pa-IN', 'pa'], PUNJABI_SHAHMUKHI: ['pa-PK', 'ur-PK', 'ur'] }[lang.id];
     const norm = (t) => t.replace('_', '-').toLowerCase();
-    for (const w of want) { const v = voices.find((x) => norm(x.lang) === w.toLowerCase()) || (w.length === 2 ? voices.find((x) => norm(x.lang).startsWith(w + '-')) : null); if (v) return v; }
+    const genderHint = S.gender === 'female' ? /female|woman|zira|samantha|karen|moira|meera|nicky/i : S.gender === 'male' ? /male|man|david|daniel|ravi/i : null;
+    for (const w of (want || ['en'])) {
+      const cands = voices.filter((x) => norm(x.lang) === w.toLowerCase() || (w.length === 2 && norm(x.lang).startsWith(w + '-')));
+      if (genderHint) { const g = cands.find((v) => genderHint.test(v.name)); if (g) return g; }
+      if (cands[0]) return cands[0];
+    }
     return null;
   }
-  function speak(text, lang) {
-    if (!('speechSynthesis' in window)) { if (!warnedVoice.none) { warnedVoice.none = 1; toast('Voice output (speechSynthesis) is not available in this browser.'); } return; }
+  function speak(text, lang, onend) {
+    if (!('speechSynthesis' in window)) { if (!warnedVoice.none) { warnedVoice.none = 1; toast('speechSynthesis not available.'); } if (onend) onend(); return; }
     if (!voices.length) voices = speechSynthesis.getVoices();
     const v = pickVoice(lang);
-    if (!v) { if (!warnedVoice[lang.id]) { warnedVoice[lang.id] = 1; toast(`No ${lang.label} voice on this device, so I won't read it aloud. iPhone: Settings → Accessibility → Spoken Content → Voices.`, 6000); } return; }
-    const clean = text.replace(/https?:\/\/\S+/g, '').replace(/\[\d+]/g, '').replace(/[*#`_>|~]/g, '').replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '').slice(0, 3500);
+    if (!v) { if (!warnedVoice[lang.id]) { warnedVoice[lang.id] = 1; toast(`No ${lang.label} voice on this device.`, 6000); } if (onend) onend(); return; }
+    const clean = text.replace(/https?:\/\/\S+/g, '').replace(/\[\d+]/g, '').replace(/```[\s\S]*?```/g, ' code block ').replace(/[*#`_>|~]/g, '').replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '').slice(0, 3500);
     speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(clean); u.voice = v; u.lang = v.lang; u.rate = S.rate;
+    const u = new SpeechSynthesisUtterance(clean); u.voice = v; u.lang = v.lang; u.rate = S.rate; u.pitch = S.pitch || 1;
+    u.onend = () => { if (onend) onend(); }; u.onerror = () => { if (onend) onend(); };
     speechSynthesis.speak(u);
   }
   function stopSpeaking() { if ('speechSynthesis' in window) speechSynthesis.cancel(); }
   function renderVoiceInfo() {
     const el = $('voiceInfo'); if (!el) return;
-    if (!('speechSynthesis' in window)) { el.textContent = 'This browser has no speechSynthesis - replies will not be spoken.'; return; }
+    if (!('speechSynthesis' in window)) { el.textContent = 'No speechSynthesis here.'; return; }
     const has = (ids) => ids.some((p) => voices.some((v) => v.lang.replace('_', '-').toLowerCase().startsWith(p)));
-    el.textContent = 'Voices on this device: ' + [['English', ['en']], ['Urdu', ['ur']], ['Hindi', ['hi']], ['Punjabi', ['pa']]].map(([n, p]) => `${n} ${has(p) ? '✓' : '✗'}`).join(' · ') +
-      (voices.length ? '' : ' (loading…)') + '\nMissing voices are skipped rather than read wrongly. iPhone: Settings → Accessibility → Spoken Content → Voices.';
+    el.textContent = 'Voices: ' + [['EN', ['en']], ['AR', ['ar']], ['UR', ['ur']], ['HI', ['hi']], ['PA', ['pa']]].map(([n, p]) => `${n}${has(p) ? '✓' : '✗'}`).join(' · ') +
+      (voices.length ? ` · ${voices.length} total` : ' (loading…)');
   }
 
-  // ---------- voice input ----------
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   let rec = null, listening = false;
-  function setListening(on) {
-    listening = on; $('listening').hidden = !on; $('btnMic').classList.toggle('live', on);
-    if (on) $('listening').textContent = `🎤 Listening (${prefLang() ? prefLang().label : 'phone language'})… tap ■ to stop`;
-    updateMicIcon(); if (!on) refreshStatus();
+  function setListening(on, errMsg) {
+    listening = on;
+    const el = $('listening');
+    if (!on && errMsg) {
+      el.hidden = false; el.classList.add('err');
+      el.textContent = errMsg;
+      clearTimeout(setListening._t);
+      setListening._t = setTimeout(() => { el.hidden = true; el.classList.remove('err'); refreshStatus(); }, 5000);
+    } else {
+      el.classList.remove('err');
+      el.hidden = !on;
+      if (on) el.textContent = `🎤 Listening (${prefLang() ? prefLang().label : 'phone language'})… tap ■ to stop`;
+    }
+    $('btnMic').classList.toggle('live', on);
+    updateMicIcon(); if (!on && !errMsg) refreshStatus();
   }
   function startListening() {
     if (!SR) {
-      return modal('Voice input not supported here', (IS_IOS ? 'This Safari / home-screen mode does not provide speech recognition to web pages.' : 'This browser has no speech recognition API.') +
-        '\n\nUse the keyboard\'s 🎤 dictation key instead: tap the message box, then the microphone on the iPhone keyboard (Settings → General → Keyboard → Enable Dictation).', [{ label: 'OK' }]);
+      continuous = false;
+      return modal('Voice input not supported here', (IS_IOS ? 'Safari / home-screen mode often blocks web speech recognition.' : 'No speech recognition API.') +
+        '\n\nUse the keyboard 🎤 dictation key instead.', [{ label: 'OK' }]);
     }
     stopSpeaking();
     try {
@@ -549,24 +856,45 @@
       rec.lang = prefLang() ? prefLang().speech : (navigator.language || 'en-US');
       rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
       let finalText = '';
+      let errored = false;
       rec.onresult = (e) => {
         let interim = '';
         for (let i = e.resultIndex; i < e.results.length; i++) { const t = e.results[i][0].transcript; if (e.results[i].isFinal) finalText += t; else interim += t; }
         input.value = (finalText + interim).trim(); autoGrow();
       };
       rec.onerror = (e) => {
-        const map = { 'not-allowed': 'Microphone or speech permission was denied. Allow it in Settings → Safari → Microphone (and Siri & Dictation must be on).',
-          'service-not-allowed': 'Speech recognition isn\'t allowed in this mode on iPhone (common for home-screen web apps). Use the keyboard 🎤 dictation key instead.',
-          'no-speech': "I didn't catch that. Please try again.", 'network': 'Speech recognition needs internet (network error).', 'audio-capture': 'No microphone available.',
-          'language-not-supported': `Speech recognition doesn't support ${rec.lang} here. Pick another language chip or use keyboard dictation.` };
-        if (e.error !== 'aborted') toast(map[e.error] || 'Speech recognition error: ' + e.error, 6000);
+        errored = true;
+        const map = {
+          'not-allowed': 'Mic/speech not allowed. Use keyboard 🎤 dictation instead.',
+          'service-not-allowed': 'Speech recognition blocked in this mode (common on iPhone Home Screen). Use keyboard 🎤 dictation.',
+          'no-speech': "Didn't catch that. Try again or use keyboard 🎤.",
+          'network': 'Speech recognition needs internet.',
+          'audio-capture': 'No microphone available.',
+          'language-not-supported': `Speech doesn't support ${rec.lang} here. Pick another language or use keyboard 🎤.`
+        };
+        const msg = map[e.error] || ('Speech error: ' + e.error);
+        setListening(false, e.error === 'aborted' ? null : msg);
+        if (e.error !== 'aborted') {
+          status(msg);
+          toast(msg, 6500);
+          if (['not-allowed', 'service-not-allowed'].includes(e.error)) continuous = false;
+        }
       };
-      rec.onend = () => { setListening(false); const t = input.value.trim(); if (finalText.trim() && t) send(t); };
+      rec.onend = () => {
+        if (listening) setListening(false);
+        if (errored) return;
+        const t = input.value.trim();
+        if (finalText.trim() && t) send(t);
+        else if (continuous) setTimeout(() => { if (continuous && !busy) startListening(); }, 500);
+      };
       rec.start(); setListening(true);
-    } catch (e) { setListening(false); toast('Could not start speech recognition: ' + e.message, 6000); }
+    } catch (e) {
+      setListening(false, 'Could not start speech: ' + e.message + ' — try keyboard 🎤 dictation.');
+      toast('Could not start speech recognition: ' + e.message, 6000);
+      continuous = false;
+    }
   }
 
-  // ---------- UI wiring ----------
   function updateMicIcon() {
     const b = $('btnMic'), i = ICON[listening ? 'stop' : input.value.trim() ? 'send' : 'mic'];
     b.style.backgroundImage = listening ? i : i + ', linear-gradient(135deg,#8B5CF6,#22D3EE)';
@@ -574,93 +902,310 @@
     b.setAttribute('aria-label', listening ? 'Stop listening' : input.value.trim() ? 'Send' : 'Speak');
   }
   function autoGrow() { input.style.height = 'auto'; input.style.height = Math.min(120, input.scrollHeight) + 'px'; }
-  setIcon($('btnTts'), S.ttsOn ? 'volOn' : 'volOff'); setIcon($('btnNew'), 'add'); setIcon($('btnHistory'), 'history'); setIcon($('btnSettings'), 'settings'); setIcon($('btnAttach'), 'attach');
+  setIcon($('btnTts'), S.ttsOn ? 'volOn' : 'volOff'); setIcon($('btnNew'), 'add'); setIcon($('btnAttach'), 'attach'); setIcon($('btnVoiceMode'), 'voice'); setIcon($('btnUploadFile'), 'attach');
   document.querySelectorAll('.back').forEach((b) => setIcon(b, 'back'));
   updateMicIcon();
 
-  $('btnMic').onclick = () => { unlockSpeech(); if (listening) { try { rec.stop(); } catch (e) {} setListening(false); } else if (input.value.trim()) send(input.value); else startListening(); };
+  $('btnMic').onclick = () => {
+    unlockSpeech();
+    if (listening) { try { rec.stop(); } catch (e) {} setListening(false); }
+    else if (input.value.trim()) send(input.value);
+    else startListening();
+  };
   input.addEventListener('input', () => { autoGrow(); if (!listening) updateMicIcon(); });
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(input.value); } });
   $('btnAttach').onclick = () => $('file').click();
+  $('btnUploadFile').onclick = () => $('file').click();
   $('btnTts').onclick = () => { S.ttsOn = !S.ttsOn; saveS(); if (!S.ttsOn) stopSpeaking(); else unlockSpeech(); setIcon($('btnTts'), S.ttsOn ? 'volOn' : 'volOff'); toast(S.ttsOn ? 'Voice replies ON' : 'Voice replies OFF'); };
+  $('btnVoiceMode').onclick = () => {
+    continuous = !continuous; S.continuousVoice = continuous; saveS();
+    toast(continuous ? 'Voice conversation ON' : 'Voice conversation OFF');
+    refreshStatus();
+    if (continuous) { unlockSpeech(); showTab('home'); startListening(); }
+    else if (listening) { try { rec.stop(); } catch (e) {} setListening(false); }
+  };
+  $('btnStartVoice').onclick = () => { continuous = true; S.continuousVoice = true; saveS(); unlockSpeech(); startListening(); refreshStatus(); };
   $('btnNew').onclick = newChat;
-  $('btnSettings').onclick = openSettings;
-  $('btnHistory').onclick = openHistory;
-  document.querySelectorAll('[data-close]').forEach((b) => { b.onclick = () => { b.closest('.panel').hidden = true; refreshStatus(); updateEmpty(); }; });
   window.addEventListener('online', refreshStatus); window.addEventListener('offline', refreshStatus);
 
-  const chips = [['Auto', null], ['English', 'ENGLISH'], ['اردو', 'URDU'], ['Roman Urdu', 'ROMAN_URDU'], ['हिन्दी', 'HINDI'], ['ਪੰਜਾਬੀ', 'PUNJABI_GURMUKHI'], ['پنجابی', 'PUNJABI_SHAHMUKHI']];
+  const chips = [['Auto', null], ['English', 'ENGLISH'], ['العربية', 'ARABIC'], ['اردو', 'URDU'], ['Roman Urdu', 'ROMAN_URDU'], ['हिन्दी', 'HINDI'], ['ਪੰਜਾਬੀ', 'PUNJABI_GURMUKHI'], ['پنجابی', 'PUNJABI_SHAHMUKHI']];
   chips.forEach(([label, id]) => {
     const b = document.createElement('button'); b.className = 'chip' + (S.voiceLang === id ? ' sel' : ''); b.textContent = label;
-    b.onclick = () => { S.voiceLang = id; saveS(); document.querySelectorAll('.chip').forEach((c) => c.classList.remove('sel')); b.classList.add('sel');
-      toast(id ? `Voice input: ${L[id].label}` : 'Voice input: phone language · replies follow what you type'); };
+    b.onclick = () => { S.voiceLang = id; saveS(); document.querySelectorAll('#langRow .chip').forEach((c) => c.classList.remove('sel')); b.classList.add('sel');
+      toast(id ? `Language: ${L[id].label}` : 'Language: auto'); };
     $('langRow').appendChild(b);
   });
-  ['kesi ho?', 'latest news Pakistan', 'dollar rate in PKR', 'gold price today', 'weather in Lahore', 'generate image of a sunset over Badshahi Mosque', 'call 03001234567', 'what can you do']
+  ['kesi ho?', 'مرحبا كيف حالك؟', 'latest news Pakistan', 'dollar rate in PKR', 'gold price today', 'weather in Lahore', 'generate image of a sunset over Badshahi Mosque', 'what can you do']
     .forEach((s) => { const b = document.createElement('button'); b.className = 'sugg'; b.textContent = s; b.onclick = () => send(s); $('suggestions').appendChild(b); });
 
   if (IS_IOS && !STANDALONE && !localStorage.getItem('noora.hint')) $('installHint').hidden = false;
   $('hintClose').onclick = () => { $('installHint').hidden = true; localStorage.setItem('noora.hint', '1'); };
 
-  // ---------- settings panel ----------
-  function openSettings() {
-    $('sName').value = S.userName;
-    $('sTone').innerHTML = C.tones.map((t) => `<option${t === S.tone ? ' selected' : ''}>${t}</option>`).join('');
-    $('sTts').checked = S.ttsOn; $('sRate').value = S.rate;
-    $('sProvider').innerHTML = Object.keys(C.PRESETS).map((p) => `<option${p === S.provider ? ' selected' : ''}>${p}</option>`).join('');
-    $('sBase').value = S.baseUrl; $('sKey').value = S.apiKey; $('sModel').value = S.chatModel; $('sVision').value = S.visionModel;
-    $('sTestResult').textContent = '';
-    renderVoiceInfo(); renderMemories();
-    $('sIphone').textContent = 'Works here: chat, live news/rates/gold/crypto/weather, images, memory & history (saved in this browser), call / SMS / Maps / website links (you confirm).\n' +
-      'Not possible from a web app on iPhone: alarms & timers, torch, opening other apps, reading contacts - use Siri for those.\n' +
-      `Voice input: ${SR ? 'available in this mode (may still be refused by iOS; then use keyboard dictation)' : 'NOT available in this mode - use the keyboard 🎤 dictation key'}.\n` +
-      `Storage: ${Store.kind}. Installed to Home Screen: ${STANDALONE ? 'yes' : 'no'}.` + (IS_IOS && !STANDALONE ? '\nTo install: Share → Add to Home Screen.' : '');
-    $('about').textContent = `NOORA AI ${C.VERSION} · same logic as Android 1.0.0-proto\nLive sources: rss2json (Google News), Wikipedia, open.er-api.com, gold-api.com, Coinbase, Open-Meteo, Pollinations`;
-    $('settings').hidden = false;
+  function showTab(name) {
+    ['home', 'chats', 'ai', 'files', 'settings'].forEach((t) => { const el = $('tab-' + t); if (el) el.hidden = t !== name; });
+    document.querySelectorAll('#bottomNav button').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
+    if (name === 'chats') openChats();
+    if (name === 'ai') openAiTab();
+    if (name === 'files') openFiles();
+    if (name === 'settings') openSettings();
   }
-  async function renderMemories() { const m = await Store.memories(); $('sMemories').textContent = m.length ? 'Saved memories:\n' + m.map((x) => '• ' + x).join('\n') : 'No saved memories. In chat say "remember that …".'; }
-  function saveSettings() {
-    S.userName = $('sName').value.trim(); S.tone = $('sTone').value; S.ttsOn = $('sTts').checked; S.rate = parseFloat($('sRate').value) || 1;
-    S.provider = $('sProvider').value; S.baseUrl = $('sBase').value.trim().replace(/\/+$/, ''); S.apiKey = $('sKey').value.trim(); S.chatModel = $('sModel').value.trim(); S.visionModel = $('sVision').value.trim();
-    saveS(); setIcon($('btnTts'), S.ttsOn ? 'volOn' : 'volOff');
-  }
-  ['sName', 'sTone', 'sTts', 'sRate', 'sBase', 'sKey', 'sModel', 'sVision'].forEach((id) => $(id).addEventListener('change', saveSettings));
-  $('sProvider').addEventListener('change', () => { const p = C.PRESETS[$('sProvider').value]; $('sBase').value = p[0]; $('sModel').value = p[1]; $('sVision').value = p[2]; saveSettings(); });
-  $('sTest').onclick = async () => {
-    saveSettings(); $('sTestResult').textContent = 'Testing…';
-    const r = await AI.chat([{ role: 'user', content: 'Reply with exactly: NOORA OK' }]);
-    $('sTestResult').textContent = r.text ? (r.warning ? r.warning + '\n' : '') + `✅ ${r.via}: ${r.text.slice(0, 80)}` : '❌ ' + r.failure;
-  };
-  $('sClearMem').onclick = () => modal('Delete all saved memories?', '', [{ label: 'Delete', go: true, fn: async () => { await Store.clearMemories(); renderMemories(); } }, { label: 'Cancel' }]);
-  $('sClearChats').onclick = () => modal('Delete ALL chat history?', 'This cannot be undone.', [{ label: 'Delete', go: true, fn: async () => { await Store.clearChats(); await loadConversation(0); toast('Chat history cleared'); } }, { label: 'Cancel' }]);
+  document.querySelectorAll('#bottomNav button').forEach((b) => { b.onclick = () => showTab(b.dataset.tab); });
 
-  // ---------- history panel ----------
-  async function openHistory() {
-    const cs = await Store.conversations(); const box = $('hList'); box.innerHTML = '';
-    if (!cs.length) box.innerHTML = '<p class="note" style="text-align:center;padding:32px">No saved chats yet.</p>';
-    cs.forEach((c) => {
+  async function openChats() {
+    const q = ($('chatSearch').value || '').toLowerCase();
+    const folder = $('folderFilter').value;
+    const folders = await Store.folders();
+    $('folderFilter').innerHTML = '<option value="">All folders</option>' + folders.map((f) => `<option value="${f.id}"${String(f.id) === folder ? ' selected' : ''}>${f.name}</option>`).join('');
+    const cs = await Store.conversations();
+    const box = $('hList'); box.innerHTML = '';
+    const filtered = cs.filter((c) => {
+      if (folder && String(c.folderId) !== folder) return false;
+      if (q && !(c.title || '').toLowerCase().includes(q)) return false;
+      return true;
+    });
+    if (!filtered.length) box.innerHTML = '<p class="note" style="text-align:center;padding:32px">No chats yet.</p>';
+    filtered.forEach((c) => {
       const d = document.createElement('div'); d.className = 'conv';
       d.innerHTML = '<div class="t" dir="auto"></div><div class="s"></div><button class="del" aria-label="Delete">✕</button>';
       d.querySelector('.t').textContent = (c.id === convId ? '● ' : '') + (c.title || 'Chat');
-      d.querySelector('.s').textContent = `${c.count} messages · ${new Date(c.updated).toLocaleString()}`;
-      d.onclick = async () => { await loadConversation(c.id); $('history').hidden = true; };
-      d.querySelector('.del').onclick = (e) => { e.stopPropagation(); modal('Delete this chat?', '', [{ label: 'Delete', go: true, fn: async () => { await Store.deleteConversation(c.id); if (c.id === convId) await loadConversation(0); openHistory(); } }, { label: 'Cancel' }]); };
+      const fold = folders.find((f) => f.id === c.folderId);
+      d.querySelector('.s').textContent = `${c.count} messages · ${new Date(c.updated).toLocaleString()}` + (fold ? ' · 📁 ' + fold.name : '');
+      d.onclick = async () => { await loadConversation(c.id); showTab('home'); };
+      d.querySelector('.del').onclick = (e) => { e.stopPropagation(); modal('Delete this chat?', '', [{ label: 'Delete', go: true, fn: async () => { await Store.deleteConversation(c.id); if (c.id === convId) await loadConversation(0); openChats(); } }, { label: 'Cancel' }]); };
       box.appendChild(d);
     });
-    $('history').hidden = false;
   }
-  $('hClear').onclick = () => modal('Delete ALL chat history?', '', [{ label: 'Delete', go: true, fn: async () => { await Store.clearChats(); await loadConversation(0); openHistory(); } }, { label: 'Cancel' }]);
+  $('chatSearch').oninput = () => openChats();
+  $('folderFilter').onchange = () => openChats();
+  $('hClear').onclick = () => modal('Delete ALL chat history?', 'This cannot be undone.', [{ label: 'Delete', go: true, fn: async () => { await Store.clearChats(); await loadConversation(0); openChats(); } }, { label: 'Cancel' }]);
+  $('btnNewProject').onclick = async () => {
+    const name = prompt('Folder / project name?');
+    if (!name) return;
+    const id = await Store.addFolder({ name: name.trim(), ts: Date.now() });
+    const c = await Store.conversation(convId);
+    if (c) { c.folderId = id; c.project = name.trim(); await Store.putConversation(c); }
+    toast('Folder created and linked to this chat');
+    showTab('chats');
+  };
 
-  // ---------- start ----------
+  function openAiTab() {
+    $('sPreset').innerHTML = C.modelPresets.map((p) => `<option${p === S.modelPreset ? ' selected' : ''}>${p}</option>`).join('');
+    $('sProvider').innerHTML = Object.keys(C.PRESETS).map((p) => `<option${p === S.provider ? ' selected' : ''}>${p}</option>`).join('');
+    $('sBase').value = S.baseUrl; $('sKey').value = S.apiKey; $('sModel').value = S.chatModel; $('sVision').value = S.visionModel;
+    $('sWeb').checked = S.webSearchOn !== false;
+    $('sAiName').value = S.aiName || 'Noora';
+    $('sTone').innerHTML = C.tones.map((t) => `<option${t === S.tone ? ' selected' : ''}>${t}</option>`).join('');
+    $('sMode').innerHTML = C.modes.map((t) => `<option${t === S.mode ? ' selected' : ''}>${t}</option>`).join('');
+    $('sFormality').value = S.formality || 'balanced';
+    $('sGender').value = S.gender || 'female';
+    $('sPrefLang').innerHTML = '<option value="">Auto from message</option>' + Object.values(L).map((l) => `<option value="${l.id}"${S.voiceLang === l.id ? ' selected' : ''}>${l.label}</option>`).join('');
+    $('sTestResult').textContent = '';
+    $('presetNote').textContent = S.modelPreset === 'Local/private'
+      ? 'Local/private: enter your own OpenAI-compatible base URL (e.g. Ollama http://127.0.0.1:11434/v1).'
+      : 'Presets map to real model IDs. Free Pollinations anonymous tier currently lists only openai-fast (alias openai).';
+    $('aiAbout').textContent = `NOORA AI ${C.VERSION}`;
+    renderAssistants();
+  }
+  async function renderAssistants() {
+    const listA = await Store.assistants();
+    const box = $('assistList'); box.innerHTML = '';
+    if (!listA.length) box.innerHTML = '<p class="note">No custom assistants yet.</p>';
+    listA.forEach((a) => {
+      const d = document.createElement('div'); d.className = 'assistRow';
+      d.innerHTML = '<div class="t"></div><div class="s"></div>';
+      d.querySelector('.t').textContent = (S.activeAssistantId === a.id ? '● ' : '') + a.name;
+      d.querySelector('.s').textContent = (a.personality || '') + (a.language ? ' · ' + a.language : '');
+      d.onclick = () => { S.activeAssistantId = S.activeAssistantId === a.id ? null : a.id; saveS(); toast(S.activeAssistantId ? 'Active: ' + a.name : 'Default ' + aiName()); renderAssistants(); };
+      const edit = document.createElement('button'); edit.className = 'del'; edit.textContent = '✎'; edit.onclick = (e) => { e.stopPropagation(); openAssistEditor(a); };
+      d.appendChild(edit); box.appendChild(d);
+    });
+  }
+  function openAssistEditor(a) {
+    editingAssistId = a ? a.id : null;
+    $('assistTitle').textContent = a ? 'Edit assistant' : 'New assistant';
+    $('assistDelete').hidden = !a;
+    $('aName').value = (a && a.name) || '';
+    $('aPersonality').value = (a && a.personality) || '';
+    $('aInstr').value = (a && a.instructions) || '';
+    $('aStyle').value = (a && a.style) || '';
+    $('aLang').value = (a && a.language) || '';
+    $('aMem').checked = !a || a.useMemory !== false;
+    $('aTools').value = (a && a.tools) || '';
+    $('assistPanel').hidden = false;
+  }
+  $('btnNewAssist').onclick = () => openAssistEditor(null);
+  $('aSave').onclick = async () => {
+    const a = { id: editingAssistId || undefined, name: $('aName').value.trim() || 'Assistant', personality: $('aPersonality').value.trim(),
+      instructions: $('aInstr').value.trim(), style: $('aStyle').value.trim(), language: $('aLang').value.trim(),
+      useMemory: $('aMem').checked, tools: $('aTools').value.trim(), ts: Date.now() };
+    if (editingAssistId) { a.id = editingAssistId; await Store.putAssistant(a); }
+    else { const id = await Store.addAssistant(a); S.activeAssistantId = id; saveS(); }
+    $('assistPanel').hidden = true; renderAssistants(); toast('Assistant saved');
+  };
+  $('assistDelete').onclick = () => modal('Delete this assistant?', '', [{ label: 'Delete', go: true, fn: async () => {
+    await Store.deleteAssistant(editingAssistId);
+    if (S.activeAssistantId === editingAssistId) { S.activeAssistantId = null; saveS(); }
+    $('assistPanel').hidden = true; renderAssistants();
+  } }, { label: 'Cancel' }]);
+
+  function saveAiFields() {
+    S.modelPreset = $('sPreset').value; S.provider = $('sProvider').value;
+    S.baseUrl = $('sBase').value.trim().replace(/\/+$/, ''); S.apiKey = $('sKey').value.trim();
+    S.chatModel = $('sModel').value.trim(); S.visionModel = $('sVision').value.trim();
+    S.webSearchOn = $('sWeb').checked; S.aiName = $('sAiName').value.trim() || 'Noora';
+    S.tone = $('sTone').value; S.mode = $('sMode').value; S.formality = $('sFormality').value;
+    S.gender = $('sGender').value; S.voiceLang = $('sPrefLang').value || null;
+    saveS(); updateEmpty(); refreshStatus();
+  }
+  ['sBase', 'sKey', 'sModel', 'sVision', 'sWeb', 'sAiName', 'sTone', 'sMode', 'sFormality', 'sGender', 'sPrefLang'].forEach((id) => {
+    const el = $(id); if (el) el.addEventListener('change', saveAiFields);
+  });
+  $('sProvider').addEventListener('change', () => {
+    const p = C.PRESETS[$('sProvider').value];
+    $('sBase').value = p[0]; $('sModel').value = p[1]; $('sVision').value = p[2];
+    S.provider = $('sProvider').value; S.baseUrl = p[0]; S.chatModel = p[1]; S.visionModel = p[2];
+    applyModelPreset(); $('sModel').value = S.chatModel; $('sVision').value = S.visionModel; saveS(); refreshStatus();
+  });
+  $('sPreset').addEventListener('change', () => {
+    S.modelPreset = $('sPreset').value; applyModelPreset();
+    $('sModel').value = S.chatModel; $('sVision').value = S.visionModel; saveS(); openAiTab();
+  });
+  $('sTest').onclick = async () => {
+    saveAiFields(); $('sTestResult').textContent = 'Testing…';
+    const r = await AI.chat([{ role: 'user', content: 'Reply with exactly: NOORA OK' }]);
+    $('sTestResult').textContent = r.text ? (r.warning ? r.warning + '\n' : '') + `✅ ${r.via}: ${r.text.slice(0, 80)}` : '❌ ' + r.failure;
+  };
+
+  async function openFiles() {
+    const box = $('filesList'); box.innerHTML = '';
+    const [files, notes, prompts] = await Promise.all([Store.files(), Store.notes(), Store.prompts()]);
+    const items = [];
+    files.forEach((f) => items.push({ kind: f.kind === 'image' ? 'image' : 'doc', title: f.name, sub: new Date(f.ts).toLocaleString(), f, type: 'file' }));
+    notes.forEach((n) => items.push({ kind: 'note', title: n.title || 'Note', sub: new Date(n.ts).toLocaleString(), n, type: 'note' }));
+    prompts.forEach((p) => items.push({ kind: 'note', title: '💡 ' + (p.title || 'Prompt'), sub: (p.text || '').slice(0, 80), p, type: 'prompt' }));
+    const filtered = items.filter((x) => fileFilter === 'all' || x.kind === fileFilter || (fileFilter === 'note' && x.type !== 'file'));
+    if (!filtered.length) box.innerHTML = '<p class="note" style="text-align:center;padding:32px">No files yet.</p>';
+    filtered.sort((a, b) => ((b.f || b.n || b.p).ts) - ((a.f || a.n || a.p).ts));
+    filtered.forEach((it) => {
+      const d = document.createElement('div'); d.className = 'fileRow';
+      d.innerHTML = '<div class="t" dir="auto"></div><div class="s"></div><button class="del">✕</button>';
+      d.querySelector('.t').textContent = it.title; d.querySelector('.s').textContent = it.sub;
+      d.onclick = () => {
+        if (it.type === 'file' && it.f.dataUrl) openImage(it.f.dataUrl);
+        else if (it.type === 'file' && it.f.text) modal(it.f.name, it.f.text.slice(0, 4000), [{ label: 'Use in chat', go: true, fn: () => { showTab('home'); send('Please analyze this file:\n' + it.f.text.slice(0, 8000)); } }, { label: 'Close' }]);
+        else if (it.type === 'note') modal(it.n.title || 'Note', it.n.text || '', [{ label: 'Insert into chat', go: true, fn: () => { showTab('home'); input.value = it.n.text || ''; autoGrow(); updateMicIcon(); } }, { label: 'Close' }]);
+        else if (it.type === 'prompt') { showTab('home'); input.value = it.p.text || ''; autoGrow(); updateMicIcon(); }
+      };
+      d.querySelector('.del').onclick = (e) => {
+        e.stopPropagation();
+        modal('Delete?', '', [{ label: 'Delete', go: true, fn: async () => {
+          if (it.type === 'file') await Store.deleteFile(it.f.id);
+          if (it.type === 'note') await Store.deleteNote(it.n.id);
+          if (it.type === 'prompt') await Store.deletePrompt(it.p.id);
+          openFiles();
+        } }, { label: 'Cancel' }]);
+      };
+      box.appendChild(d);
+    });
+  }
+  document.querySelectorAll('[data-ff]').forEach((b) => { b.onclick = () => { fileFilter = b.dataset.ff; document.querySelectorAll('[data-ff]').forEach((x) => x.classList.toggle('sel', x === b)); openFiles(); }; });
+  $('btnNewNote').onclick = async () => { const title = prompt('Note title?') || 'Note'; const text = prompt('Note text?') || ''; await Store.addNote({ title, text, ts: Date.now() }); openFiles(); };
+  $('btnNewPrompt').onclick = async () => { const title = prompt('Prompt name?') || 'Prompt'; const text = prompt('Prompt text?') || ''; await Store.addPrompt({ title, text, ts: Date.now() }); openFiles(); };
+
+  function openSettings() {
+    $('sName').value = S.userName;
+    $('sTts').checked = S.ttsOn; $('sRate').value = S.rate; $('sPitch').value = S.pitch || 1;
+    $('sMemOn').checked = S.memoryOn !== false; $('sPinOn').checked = !!S.pinOn; $('sPin').value = '';
+    fillVoiceSelect(); renderVoiceInfo();
+    $('privacyNote').textContent = 'All chats, memories, files, notes and settings stay on this device. Nothing is uploaded to NOORA servers (there are none). Messages go only to the AI provider you choose (or free Pollinations) and to live search APIs you trigger. No ads. This is NOT end-to-end encryption.';
+    $('sIphone').textContent = (IS_ANDROID_WV
+      ? 'Android: WebView + native bridges for call/SMS/maps/alarm/timer/torch/open-app.\n'
+      : 'iPhone web: chat, live data, images, memory, call/SMS/Maps links (you confirm).\n') +
+      'Wake word / lock-screen listening is NOT possible in an iPhone web app.\n' +
+      `Voice input: ${SR ? 'available (may be refused by OS — then use keyboard 🎤)' : 'NOT available — use keyboard 🎤'}.\n` +
+      `Storage: ${Store.kind}. Installed: ${STANDALONE || IS_ANDROID_WV ? 'yes' : 'no'}.`;
+    $('about').textContent = `NOORA AI ${C.VERSION}\nLive: rss2json, Wikipedia, open.er-api.com, gold-api.com, Coinbase, Open-Meteo, Pollinations`;
+  }
+  function saveSettings() {
+    S.userName = $('sName').value.trim(); S.ttsOn = $('sTts').checked;
+    S.rate = parseFloat($('sRate').value) || 1; S.pitch = parseFloat($('sPitch').value) || 1;
+    S.voiceURI = $('sVoice').value || ''; S.memoryOn = $('sMemOn').checked;
+    saveS(); setIcon($('btnTts'), S.ttsOn ? 'volOn' : 'volOff'); updateEmpty();
+  }
+  ['sName', 'sTts', 'sRate', 'sPitch', 'sVoice', 'sMemOn'].forEach((id) => $(id).addEventListener('change', saveSettings));
+  $('sPinOn').addEventListener('change', async () => {
+    if ($('sPinOn').checked) {
+      const pin = $('sPin').value.trim();
+      if (!/^\d{4,12}$/.test(pin)) { $('sPinOn').checked = false; toast('Set a 4–12 digit PIN first'); return; }
+      S.pinHash = await sha256('noora-pin:' + pin); S.pinOn = true; saveS(); toast('PIN lock enabled');
+    } else { S.pinOn = false; S.pinHash = ''; saveS(); toast('PIN lock disabled'); }
+  });
+  $('sPin').addEventListener('change', async () => {
+    const pin = $('sPin').value.trim(); if (!pin) return;
+    if (!/^\d{4,12}$/.test(pin)) return toast('PIN must be 4–12 digits');
+    S.pinHash = await sha256('noora-pin:' + pin); S.pinOn = true; $('sPinOn').checked = true; saveS(); toast('PIN saved');
+  });
+
+  $('btnOpenMemory').onclick = openMemoryPanel;
+  async function openMemoryPanel() {
+    const rows = await Store.memoryRows();
+    const box = $('memList'); box.innerHTML = '';
+    if (!rows.length) box.innerHTML = '<p class="note" style="text-align:center;padding:24px">No memories. Say “remember that …” when Memory is ON.</p>';
+    rows.forEach((m) => {
+      const d = document.createElement('div'); d.className = 'memRow';
+      d.innerHTML = '<div class="t" dir="auto"></div><div class="s"></div><button class="del">✕</button>';
+      d.querySelector('.t').textContent = m.fact; d.querySelector('.s').textContent = new Date(m.ts).toLocaleString();
+      d.onclick = () => { const neu = prompt('Edit memory', m.fact); if (neu != null && neu.trim()) Store.updateMemory(m.id, neu.trim()).then(openMemoryPanel); };
+      d.querySelector('.del').onclick = (e) => { e.stopPropagation(); Store.deleteMemory(m.id).then(openMemoryPanel); };
+      box.appendChild(d);
+    });
+    $('memoryPanel').hidden = false;
+  }
+  document.querySelectorAll('[data-close-panel]').forEach((b) => { b.onclick = () => { $(b.dataset.closePanel).hidden = true; }; });
+
+  $('sClearMem').onclick = () => modal('Delete all saved memories?', '', [{ label: 'Delete', go: true, fn: async () => { await Store.clearMemories(); toast('Memories cleared'); } }, { label: 'Cancel' }]);
+  $('sClearChats').onclick = () => modal('Delete ALL chat history?', '', [{ label: 'Delete', go: true, fn: async () => { await Store.clearChats(); await loadConversation(0); toast('Cleared'); } }, { label: 'Cancel' }]);
+  $('sExport').onclick = async () => {
+    const data = await Store.exportAll();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'noora-ai-export-' + Date.now() + '.json'; a.click();
+  };
+  $('sImport').onclick = () => $('importFile').click();
+  $('importFile').onchange = async (e) => {
+    const f = e.target.files && e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    try { await Store.importAll(JSON.parse(await f.text())); toast('Import finished (merged).'); }
+    catch (err) { toast('Import failed: ' + err.message); }
+  };
+  $('sDeleteAll').onclick = () => modal('Delete ALL local data?', 'Chats, memories, files, notes, assistants.', [
+    { label: 'Delete everything', go: true, fn: async () => {
+      await Store.deleteAllData(); S = Object.assign({}, DEF); saveS();
+      localStorage.removeItem('noora.conv'); await loadConversation(0); toast('All local data deleted');
+    } }, { label: 'Cancel' }]);
+
+  async function checkLock() {
+    if (!S.pinOn || !S.pinHash) return true;
+    $('lockGate').hidden = false;
+    return new Promise((resolve) => {
+      const tryUnlock = async () => {
+        const h = await sha256('noora-pin:' + $('lockPin').value.trim());
+        if (h === S.pinHash) { $('lockGate').hidden = true; $('lockMsg').textContent = ''; resolve(true); }
+        else $('lockMsg').textContent = 'Wrong PIN';
+      };
+      $('lockUnlock').onclick = tryUnlock;
+      $('lockPin').onkeydown = (e) => { if (e.key === 'Enter') tryUnlock(); };
+    });
+  }
+
   (async () => {
     const ok = await Store.open();
-    if (!ok) toast('IndexedDB unavailable - saving chats in localStorage instead.');
+    if (!ok) toast('IndexedDB unavailable — using localStorage.');
+    await checkLock();
     await loadConversation(convId);
-    refreshStatus();
-    const secure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-    if ('serviceWorker' in navigator && document.querySelector('link[data-pwa]') && secure) {
-      navigator.serviceWorker.register('sw.js').catch(() => {});
+    refreshStatus(); updateEmpty();
+    if ('serviceWorker' in navigator && document.querySelector('link[data-pwa]') && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
     }
-    window.__noora = { send, Store, S, route: C.route, msgs: () => msgs };   // test hook
+    window.__noora = { send, Store, S, route: C.route, msgs: () => msgs, showTab, AI, Live, VERSION: C.VERSION };
   })();
 })();

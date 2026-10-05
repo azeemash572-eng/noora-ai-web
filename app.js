@@ -5,7 +5,7 @@
   const $ = (id) => document.getElementById(id);
   const IS_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const STANDALONE = window.navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
-  const IS_ANDROID_WV = !!(window.NooraNative && window.NooraNative.isAndroid);
+  const IS_ANDROID_WV = !!(window.NooraNative && (typeof window.NooraNative.isAndroid === 'function' ? window.NooraNative.isAndroid() : window.NooraNative.isAndroid));
   const PLATFORM = IS_ANDROID_WV ? 'android' : (IS_IOS ? 'ios-web' : 'web');
 
   const svg = (d) => `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='#fff'><path d='${d}'/></svg>`)}")`;

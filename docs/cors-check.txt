@@ -1,0 +1,35 @@
+Origin: https://ayesha.github.io   Mon Oct  5 09:05:33 UTC 2026
+rss2json (Google News)     200 application/json;charset=utf-8  ACAO=*
+    sample: {"status":"ok","feed":{"url":"https://news.google.com/rss/search?ceid=PK:en&gl=PK&hl=en-PK&q=Pakistan","title":"\"Pakistan\" - Google News","link":"https://news.google.com/search?ceid=PK:en&amp;gl=PK&amp;hl=en-PK&amp;q=Pakistan","author":"","description":"Goog
+news.google.com direct     200 application/xml; charset=utf-8  ACAO=NONE
+    sample: <?xml version="1.0" encoding="UTF-8" standalone="yes"?><rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/"><channel><generator>NFE/5.0</generator><title>"Pakistan" - Google News</title><link>https://news.google.com/search?q=Pakistan&amp;hl=en-PK&amp
+Wikipedia en               200 application/json; charset=utf-8  ACAO=*
+    sample: {"batchcomplete":"","continue":{"sroffset":1,"continue":"-||"},"query":{"searchinfo":{"totalhits":16198},"search":[{"ns":0,"title":"Pakistan","pageid":23235,"size":372229,"wordcount":35340,"snippet":"display the Urdu text in this article correctly. <span class
+Wikipedia ur               200 application/json; charset=utf-8  ACAO=*
+    sample: {"batchcomplete":"","continue":{"sroffset":1,"continue":"-||"},"query":{"searchinfo":{"totalhits":14275},"search":[{"ns":0,"title":"\u0644\u0627\u06c1\u0648\u0631","pageid":2867,"size":314459,"wordcount":24127,"snippet":"<span class=\"searchmatch\">\u0644\u062
+open.er-api.com            200 application/json  ACAO=*
+    sample: {"result":"success","provider":"https://www.exchangerate-api.com","documentation":"https://www.exchangerate-api.com/docs/free","terms_of_use":"https://www.exchangerate-api.com/terms","time_last_update_unix":1791158551,"time_last_update_utc":"Mon, 05 Oct 2026 0
+gold-api.com XAU           200 application/json  ACAO=*
+    sample: {"currency":"USD","currencySymbol":"$","exchangeRate":1.0,"name":"Gold","price":4168.899902,"symbol":"XAU","updatedAt":"2026-10-05T09:05:07Z","updatedAtReadable":"a few seconds ago"}
+gold-api.com XAG           200 application/json  ACAO=*
+    sample: {"currency":"USD","currencySymbol":"$","exchangeRate":1.0,"name":"Silver","price":61.923,"symbol":"XAG","updatedAt":"2026-10-05T09:05:36Z","updatedAtReadable":"a few seconds ago"}
+Coinbase BTC               200 application/json  ACAO=*
+    sample: {"data":{"amount":"86151.005","base":"BTC","currency":"USD"}}
+Open-Meteo geocoding       200 application/json; charset=utf-8  ACAO=*
+    sample: {"results":[{"id":1172451,"name":"Lahore","latitude":31.558,"longitude":74.35071,"elevation":216.0,"feature_code":"PPLA","country_code":"PK","admin1_id":1167710,"admin2_id":1172449,"timezone":"Asia/Karachi","population":13004135,"country_id":1168579,"country":
+Open-Meteo forecast        200 application/json; charset=utf-8  ACAO=*
+    sample: {"latitude":31.599297,"longitude":74.371254,"generationtime_ms":0.08881092071533203,"utc_offset_seconds":18000,"timezone":"Asia/Karachi","timezone_abbreviation":"GMT+5","elevation":219.0,"current_units":{"time":"iso8601","interval":"seconds","temperature_2m":"
+text.pollinations /openai  402 application/json; charset=utf-8  ACAO=*
+    sample: {}
+text.pollinations POST /   402 application/json; charset=utf-8  ACAO=*
+    sample: {}
+gen.pollinations (no key)  401 application/json  ACAO=*
+    sample: {"success":false,"error":{"message":"A valid API key is required. Get one at https://enter.pollinations.ai/keys","code":"UNAUTHORIZED","timestamp":"2026-10-05T09:05:40.394Z"},"status":401}
+image.pollinations         200 image/jpeg  ACAO=*
+    sample: .....NExif..II*...............~.......................n...........v...(.......................i...............s...........H.......H.......sana..ASCII...{"prompt":"red rose","originalPrompt":"red rose","width":256,"height":256,"seed":7,"model":"sana","enhance":
+text.pollinations /openai  preflight 204  ACAO=*  allow-headers=content-type,authorization
+gen.pollinations           preflight 204  ACAO=*  allow-headers=content-type,authorization
+OpenAI (user key)          preflight 200  ACAO=https://ayesha.github.io  allow-headers=content-type,authorization
+Gemini (user key)          preflight 200  ACAO=https://ayesha.github.io  allow-headers=content-type,authorization
+Groq (user key)            preflight 204  ACAO=*  allow-headers=content-type,authorization
+OpenRouter (user key)      preflight 204  ACAO=*  allow-headers=Authorization,User-Agent,X-Api-Key,X-CSRF-Token,X-Requested-

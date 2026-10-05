@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<title>NOORA AI</title>
+<meta name="description" content="NOORA AI - personal assistant (iPhone web app prototype)">
+<meta name="theme-color" content="#0B0B12">
+<meta name="color-scheme" content="dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NOORA AI">
+<meta name="format-detection" content="telephone=no">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icons/icon-64.png">
+<link rel="manifest" href="manifest.webmanifest" data-pwa>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div id="app">
+  <header id="top">
+    <img id="avatar" src="icons/icon-192.png" alt="Noora">
+    <div class="who">
+      <div class="name">Noora</div>
+      <div class="status"><span id="dot"></span><span id="statusText">Ready</span></div>
+    </div>
+    <button class="icon" id="btnTts" aria-label="Voice replies on/off"></button>
+    <button class="icon" id="btnNew" aria-label="New chat"></button>
+    <button class="icon" id="btnHistory" aria-label="History"></button>
+    <button class="icon" id="btnSettings" aria-label="Settings"></button>
+  </header>
+  <nav id="langRow"></nav>
+  <div id="installHint" hidden>Install on iPhone: tap <b>Share</b> <span class="share"></span> → <b>Add to Home Screen</b>. <button id="hintClose" aria-label="Dismiss">✕</button></div>
+  <main id="list"></main>
+  <section id="empty">
+    <img src="icons/icon-192.png" alt="" class="hero">
+    <h1 id="welcome">Hi, I'm Noora</h1>
+    <p class="sub">Ask me anything · بولیں یا لکھیں · बोलिए या लिखिए · ਬੋਲੋ ਜਾਂ ਲਿਖੋ</p>
+    <div id="suggestions"></div>
+  </section>
+  <div id="listening" hidden>🎤 Listening… tap ■ to stop</div>
+  <footer id="bar">
+    <div class="field">
+      <button class="icon" id="btnAttach" aria-label="Photo"></button>
+      <textarea id="input" rows="1" placeholder="Message Noora…" enterkeyhint="send" dir="auto"></textarea>
+    </div>
+    <button id="btnMic" aria-label="Voice input / send"></button>
+  </footer>
+  <input type="file" id="file" accept="image/*" hidden>
+</div>
+
+<section class="panel" id="settings" hidden>
+  <header><button class="icon back" data-close aria-label="Back"></button><h2>Settings</h2></header>
+  <div class="scroll">
+    <h3>Personal</h3>
+    <div class="card">
+      <label>Your name (Noora will use it)<input id="sName" placeholder="e.g. Ayesha" autocomplete="given-name"></label>
+      <label>Noora's personality / tone<select id="sTone"></select></label>
+    </div>
+    <h3>Voice</h3>
+    <div class="card">
+      <label class="row">Speak replies aloud (speechSynthesis)<input type="checkbox" id="sTts" class="switch"></label>
+      <label>Speech speed<input type="range" id="sRate" min="0.5" max="1.6" step="0.1"></label>
+      <p class="note" id="voiceInfo"></p>
+    </div>
+    <h3>AI provider</h3>
+    <div class="card">
+      <p class="note">Free mode uses Pollinations without a key: it works but is rate-limited and cannot read photos. For reliable chat and photo understanding, choose a provider and paste your own API key. The key is stored only in this browser (localStorage) and is sent only to the provider you choose.</p>
+      <label>Provider<select id="sProvider"></select></label>
+      <label>Base URL (OpenAI-compatible)<input id="sBase" placeholder="https://api.openai.com/v1" inputmode="url" autocapitalize="off" autocorrect="off"></label>
+      <label>API key<input id="sKey" type="password" placeholder="paste your key" autocapitalize="off" autocorrect="off" autocomplete="off"></label>
+      <label>Chat model<input id="sModel" placeholder="gpt-4o-mini" autocapitalize="off" autocorrect="off"></label>
+      <label>Vision model (for photos)<input id="sVision" placeholder="gpt-4o-mini" autocapitalize="off" autocorrect="off"></label>
+      <button class="primary" id="sTest">Save &amp; test AI connection</button>
+      <p class="note" id="sTestResult"></p>
+    </div>
+    <h3>Memory &amp; data</h3>
+    <div class="card">
+      <p class="note" id="sMemories"></p>
+      <button class="outline" id="sClearMem">Clear saved memories</button>
+      <button class="outline" id="sClearChats">Clear all chat history</button>
+    </div>
+    <h3>On iPhone</h3>
+    <div class="card"><p class="note" id="sIphone"></p></div>
+    <p class="about" id="about"></p>
+  </div>
+</section>
+
+<section class="panel" id="history" hidden>
+  <header><button class="icon back" data-close aria-label="Back"></button><h2>Chat history</h2><button class="danger-link" id="hClear">Clear all</button></header>
+  <div class="scroll" id="hList"></div>
+</section>
+
+<div id="modal" hidden><div class="box"><div id="mTitle"></div><div id="mBody"></div><div id="mBtns"></div></div></div>
+<div id="toast" hidden></div>
+
+<script src="core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

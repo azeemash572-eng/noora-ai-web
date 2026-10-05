@@ -123,7 +123,7 @@ test('iPhone viewport Voice Mode + Voice Settings (mocked speech)', async () => 
 
   // VERSION
   const ver = await page.evaluate(() => window.__noora.VERSION);
-  expect(ver).toBe('2.0.1');
+  expect(ver).toBe('2.0.2');
 
   await browser.close();
   server.close();

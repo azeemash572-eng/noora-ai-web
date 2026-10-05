@@ -143,7 +143,7 @@ test('parsers with real captured payloads', () => {
 });
 
 test('version and arabic + model map', () => {
-  assert.equal(C.VERSION, '2.0.1');
+  assert.equal(C.VERSION, '2.0.2');
   assert.ok(C.Lang.ARABIC);
   assert.equal(C.detect('مرحبا كيف حالك', C.Lang.ARABIC), C.Lang.ARABIC);
   assert.ok(C.MODEL_MAP['Google Gemini']['Fast'][0].includes('gemini'));
@@ -164,7 +164,7 @@ test('version and arabic + model map', () => {
 
 
 test('voice settings persistence helpers + provider config without keys in repo', () => {
-  assert.equal(C.VERSION, '2.0.1');
+  assert.equal(C.VERSION, '2.0.2');
   assert.ok(Array.isArray(C.TTS_PROVIDERS));
   assert.ok(C.TTS_PROVIDERS.some((p) => p.id === 'browser' && !p.needsKey));
   assert.ok(C.TTS_PROVIDERS.some((p) => p.id === 'openai' && p.needsKey));
@@ -224,6 +224,9 @@ test('conversation style avoids repetitive filter talk', () => {
   const sp = C.systemPrompt({ userName: 'Ayesha', tone: 'Warm & caring', languagePrompt: 'English', platform: 'web', gender: 'female' });
   assert.ok(/warm|affectionate|playful|companion/i.test(sp));
   assert.ok(/CONVERSATION STYLE|romantic|emotional/i.test(sp));
+  assert.ok(/playful teasing|husband-wife banter|joking|sarcasm/i.test(sp));
+  assert.ok(/swear word|rude phrase|banter/i.test(sp));
+  assert.ok(/mild casual teasing|respond naturally and playfully/i.test(sp));
   assert.ok(/HARD LIMITS|child sexual exploitation|violent crimes/i.test(sp));
   assert.ok(/do not mention filters|Do not mention filters/i.test(sp));
   assert.ok(/never claim you have no restrictions/i.test(sp));

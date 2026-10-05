@@ -1,4 +1,4 @@
-/* NOORA AI 2.0.1 web / PWA / Android WebView shell. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
+/* NOORA AI 2.0.2 web / PWA / Android WebView shell. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
 (function () {
   'use strict';
   const C = window.NooraCore, L = C.Lang;

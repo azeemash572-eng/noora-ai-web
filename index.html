@@ -147,6 +147,7 @@
         <label>TTS provider<select id="sTtsProvider">
           <option value="browser">Browser (Web Speech API) — no key</option>
           <option value="openai">OpenAI-compatible TTS</option>
+          <option value="elevenlabs">ElevenLabs</option>
         </select></label>
         <div id="ttsProviderFields" hidden>
           <label>TTS Base URL<input id="sTtsBase" placeholder="https://api.openai.com/v1" inputmode="url" autocapitalize="off" autocorrect="off"></label>
@@ -154,6 +155,22 @@
           <label>TTS model<input id="sTtsModel" placeholder="tts-1" autocapitalize="off" autocorrect="off"></label>
           <label>TTS voice ID<input id="sTtsVoiceId" placeholder="nova / shimmer / alloy / …" autocapitalize="off" autocorrect="off"></label>
           <p class="note">Keys are saved in local Settings only — never baked into the app. Works with OpenAI TTS or any OpenAI-compatible <code>/audio/speech</code> endpoint.</p>
+        </div>
+        <div id="elevenProviderFields" hidden>
+          <label>ElevenLabs API key<input id="sElevenKey" type="password" placeholder="paste ElevenLabs xi-api-key (this device only)" autocapitalize="off" autocorrect="off" autocomplete="off"></label>
+          <label>Voice ID<input id="sElevenVoiceId" placeholder="e.g. 21m00Tcm4TlvDq8ikWAM" autocapitalize="off" autocorrect="off"></label>
+          <label>Or pick a loaded voice<select id="sElevenVoicePick"><option value="">— Load my voices first —</option></select></label>
+          <button type="button" class="outline" id="btnLoadElevenVoices">Load my voices</button>
+          <label>Model<input id="sElevenModel" placeholder="eleven_multilingual_v2" autocapitalize="off" autocorrect="off" list="elevenModelHints"></label>
+          <datalist id="elevenModelHints">
+            <option value="eleven_multilingual_v2"></option>
+            <option value="eleven_turbo_v2_5"></option>
+            <option value="eleven_flash_v2_5"></option>
+            <option value="eleven_monolingual_v1"></option>
+          </datalist>
+          <label>Stability <span id="sElevenStabVal">0.5</span><input type="range" id="sElevenStability" min="0" max="1" step="0.05" value="0.5"></label>
+          <label>Similarity <span id="sElevenSimVal">0.75</span><input type="range" id="sElevenSimilarity" min="0" max="1" step="0.05" value="0.75"></label>
+          <p class="note">Default model is <code>eleven_multilingual_v2</code> (not English-only). Speed uses <code>voice_settings.speed</code> from the Speaking speed slider. Keys stay in local Settings only — never hard-coded.</p>
         </div>
         <label>Device voice (Browser provider)<select id="sVoice"></select></label>
         <label>Speaking speed<input type="range" id="sRate" min="0.5" max="1.6" step="0.1"></label>

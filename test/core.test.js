@@ -143,7 +143,7 @@ test('parsers with real captured payloads', () => {
 });
 
 test('version and arabic + model map', () => {
-  assert.equal(C.VERSION, '2.0.2');
+  assert.equal(C.VERSION, '2.0.3');
   assert.ok(C.Lang.ARABIC);
   assert.equal(C.detect('مرحبا كيف حالك', C.Lang.ARABIC), C.Lang.ARABIC);
   assert.ok(C.MODEL_MAP['Google Gemini']['Fast'][0].includes('gemini'));
@@ -164,16 +164,28 @@ test('version and arabic + model map', () => {
 
 
 test('voice settings persistence helpers + provider config without keys in repo', () => {
-  assert.equal(C.VERSION, '2.0.2');
+  assert.equal(C.VERSION, '2.0.3');
   assert.ok(Array.isArray(C.TTS_PROVIDERS));
   assert.ok(C.TTS_PROVIDERS.some((p) => p.id === 'browser' && !p.needsKey));
   assert.ok(C.TTS_PROVIDERS.some((p) => p.id === 'openai' && p.needsKey));
+  assert.ok(C.TTS_PROVIDERS.some((p) => p.id === 'elevenlabs' && p.needsKey));
   const merged = C.mergeVoiceSettings({ rate: 1.2, ttsProvider: 'openai', ttsVoiceId: 'shimmer' });
   assert.equal(merged.rate, 1.2);
   assert.equal(merged.ttsProvider, 'openai');
   assert.equal(merged.ttsVoiceId, 'shimmer');
   assert.equal(merged.volume, 1.0);
   assert.equal(merged.ttsApiKey, ''); // never invent keys
+  assert.equal(merged.elevenApiKey, '');
+  assert.equal(merged.elevenModel, 'eleven_multilingual_v2');
+  const elMerged = C.mergeVoiceSettings({
+    ttsProvider: 'elevenlabs', elevenVoiceId: 'abc', elevenStability: 0.9, apiKey: 'keep-ai-key'
+  });
+  assert.equal(elMerged.ttsProvider, 'elevenlabs');
+  assert.equal(elMerged.elevenVoiceId, 'abc');
+  assert.equal(elMerged.elevenStability, 0.9);
+  assert.equal(elMerged.elevenSimilarity, 0.75);
+  // merging voice settings must not invent ElevenLabs keys
+  assert.equal(elMerged.elevenApiKey, '');
   const badProv = C.mergeVoiceSettings({ ttsProvider: 'fake-cloud' });
   assert.equal(badProv.ttsProvider, 'browser');
   const readyBrowser = C.ttsProviderReady({ ttsProvider: 'browser' });
@@ -183,6 +195,11 @@ test('voice settings persistence helpers + provider config without keys in repo'
   assert.ok(missingKey.reason.toLowerCase().includes('key'));
   const readyOpen = C.ttsProviderReady({ ttsProvider: 'openai', ttsBaseUrl: 'https://api.openai.com/v1', ttsApiKey: 'user-supplied', ttsVoiceId: 'nova' });
   assert.equal(readyOpen.ok, true);
+  const missEl = C.ttsProviderReady({ ttsProvider: 'elevenlabs', elevenVoiceId: 'v1' });
+  assert.equal(missEl.ok, false);
+  assert.ok(missEl.reason.toLowerCase().includes('key'));
+  const readyEl = C.ttsProviderReady({ ttsProvider: 'elevenlabs', elevenApiKey: 'user-key', elevenVoiceId: 'v1' });
+  assert.equal(readyEl.ok, true);
   // Repo sources must not contain hard-coded provider secrets
   const fs = require('node:fs');
   const root = __dirname + '/..';
@@ -190,7 +207,60 @@ test('voice settings persistence helpers + provider config without keys in repo'
     const src = fs.readFileSync(root + '/' + f, 'utf8');
     assert.ok(C.assertNoHardcodedSecrets(src), f + ' must not hard-code API keys');
     assert.ok(!/sk-[A-Za-z0-9]{20,}/.test(src), f + ' no sk- keys');
+    assert.ok(!/xi-api-key['"\s:=]+[A-Za-z0-9_]{24,}/i.test(src), f + ' no baked elevenlabs keys');
   }
+});
+
+test('ElevenLabs request building URL headers body + error mapping + chunking', async () => {
+  const cfg = {
+    elevenApiKey: 'test-key-not-real',
+    elevenVoiceId: 'VOICE123',
+    elevenModel: 'eleven_turbo_v2_5',
+    elevenStability: 0.4,
+    elevenSimilarity: 0.8,
+    rate: 1.1
+  };
+  const req = C.buildElevenLabsTtsRequest(cfg, 'Hello **world**');
+  assert.equal(req.url, C.ELEVENLABS_TTS_URL + '/VOICE123');
+  assert.equal(req.method, 'POST');
+  assert.equal(req.headers.Accept, 'audio/mpeg');
+  assert.equal(req.headers['Content-Type'], 'application/json');
+  assert.equal(req.headers['xi-api-key'], 'test-key-not-real');
+  assert.equal(req.body.model_id, 'eleven_turbo_v2_5');
+  assert.equal(req.body.text, 'Hello **world**');
+  assert.equal(req.body.voice_settings.stability, 0.4);
+  assert.equal(req.body.voice_settings.similarity_boost, 0.8);
+  assert.ok(req.body.voice_settings.speed >= 0.7 && req.body.voice_settings.speed <= 1.2);
+  // default model
+  const def = C.buildElevenLabsTtsRequest({ elevenApiKey: 'k', elevenVoiceId: 'v' }, 'Hi');
+  assert.equal(def.body.model_id, 'eleven_multilingual_v2');
+  assert.ok(C.mapElevenLabsError(401).toLowerCase().includes('invalid'));
+  assert.ok(C.mapElevenLabsError(404).toLowerCase().includes('voice'));
+  assert.ok(C.mapElevenLabsError(422).toLowerCase().includes('422'));
+  assert.ok(C.mapElevenLabsError(429).toLowerCase().includes('quota'));
+  assert.ok(C.mapElevenLabsError('network').toLowerCase().includes('cors') || C.mapElevenLabsError('network').toLowerCase().includes('network'));
+  assert.ok(C.mapElevenLabsError(401).toLowerCase().includes('browser'));
+  const voices = C.parseElevenLabsVoices({ voices: [{ voice_id: 'a', name: 'Rachel' }, { voice_id: 'b', name: 'Adam' }] });
+  assert.equal(voices.length, 2);
+  assert.equal(voices[0].name, 'Rachel');
+  // chunking
+  const long = 'Sentence one. '.repeat(300);
+  const chunks = C.chunkSpeakText(long, 2500);
+  assert.ok(chunks.length >= 2);
+  assert.ok(chunks.every((c) => c.length <= 2500));
+  // mocked fetch-shaped request (unit: build only — fetch not required for helpers)
+  const calls = [];
+  const fakeFetch = async (url, opts) => {
+    calls.push({ url, opts });
+    return { ok: true, status: 200, blob: async () => new Blob(['x']) };
+  };
+  const built = C.buildElevenLabsTtsRequest(cfg, 'Test speak');
+  await fakeFetch(built.url, { method: built.method, headers: built.headers, body: JSON.stringify(built.body) });
+  assert.equal(calls.length, 1);
+  assert.ok(calls[0].url.includes('/text-to-speech/VOICE123'));
+  const body = JSON.parse(calls[0].opts.body);
+  assert.equal(body.text, 'Test speak');
+  assert.equal(calls[0].opts.headers['xi-api-key'], 'test-key-not-real');
 });
 
 test('speech-refusal clear status still works', () => {

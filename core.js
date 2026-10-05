@@ -637,17 +637,23 @@
 
 
   // ---------------- Voice / TTS helpers (shared, unit-testable) ----------------
-  const VERSION = '2.0.2';
+  const VERSION = '2.0.3';
   const TTS_PROVIDERS = [
     { id: 'browser', label: 'Browser (Web Speech API)', needsKey: false },
-    { id: 'openai', label: 'OpenAI-compatible TTS', needsKey: true }
+    { id: 'openai', label: 'OpenAI-compatible TTS', needsKey: true },
+    { id: 'elevenlabs', label: 'ElevenLabs', needsKey: true }
   ];
   const DEFAULT_VOICE_SETTINGS = {
     ttsOn: true, muted: false, rate: 1.0, pitch: 1.0, volume: 1.0,
     voiceURI: '', voiceLang: null, gender: 'female',
     ttsProvider: 'browser', ttsBaseUrl: 'https://api.openai.com/v1',
-    ttsApiKey: '', ttsModel: 'tts-1', ttsVoiceId: 'nova'
+    ttsApiKey: '', ttsModel: 'tts-1', ttsVoiceId: 'nova',
+    elevenApiKey: '', elevenVoiceId: '', elevenModel: 'eleven_multilingual_v2',
+    elevenStability: 0.5, elevenSimilarity: 0.75
   };
+  const ELEVENLABS_TTS_URL = 'https://api.elevenlabs.io/v1/text-to-speech';
+  const ELEVENLABS_VOICES_URL = 'https://api.elevenlabs.io/v1/voices';
+  const ELEVENLABS_CHUNK = 2500;
   /** Strip markdown/URLs/emoji for speech. */
   function cleanSpeakText(text, maxLen) {
     const lim = maxLen || 3500;
@@ -660,6 +666,69 @@
       .replace(/\s+/g, ' ')
       .trim()
       .slice(0, lim);
+  }
+  /** Split cleaned speak text into ~chunkSize pieces on sentence/word boundaries (quota-friendly). */
+  function chunkSpeakText(text, chunkSize) {
+    const size = chunkSize || ELEVENLABS_CHUNK;
+    const clean = String(text || '').trim();
+    if (!clean) return [];
+    if (clean.length <= size) return [clean];
+    const out = [];
+    let rest = clean;
+    while (rest.length > size) {
+      let cut = rest.lastIndexOf('. ', size);
+      if (cut < size * 0.4) cut = rest.lastIndexOf(' ', size);
+      if (cut < size * 0.4) cut = size;
+      else if (rest[cut] === '.') cut += 1;
+      out.push(rest.slice(0, cut).trim());
+      rest = rest.slice(cut).trim();
+    }
+    if (rest) out.push(rest);
+    return out.filter(Boolean);
+  }
+  /** Build ElevenLabs TTS fetch args (no network). Never embeds a default key. */
+  function buildElevenLabsTtsRequest(cfg, text) {
+    const c = cfg || {};
+    const voiceId = String(c.elevenVoiceId || '').trim();
+    const key = String(c.elevenApiKey || '').trim();
+    const model = String(c.elevenModel || '').trim() || 'eleven_multilingual_v2';
+    const stability = Math.min(1, Math.max(0, Number(c.elevenStability != null ? c.elevenStability : 0.5)));
+    const similarity = Math.min(1, Math.max(0, Number(c.elevenSimilarity != null ? c.elevenSimilarity : 0.75)));
+    // ElevenLabs REST supports voice_settings.speed — map app rate slider (clamp ~0.7–1.2 for quality).
+    const speed = Math.min(1.2, Math.max(0.7, Number(c.rate) || 1));
+    const bodyText = String(text || '').slice(0, ELEVENLABS_CHUNK);
+    return {
+      url: ELEVENLABS_TTS_URL + '/' + encodeURIComponent(voiceId),
+      method: 'POST',
+      headers: {
+        Accept: 'audio/mpeg',
+        'Content-Type': 'application/json',
+        'xi-api-key': key
+      },
+      body: {
+        text: bodyText,
+        model_id: model,
+        voice_settings: { stability: stability, similarity_boost: similarity, speed: speed }
+      }
+    };
+  }
+  /** Map ElevenLabs HTTP errors to short honest UI copy. */
+  function mapElevenLabsError(status, detail) {
+    const d = String(detail || '').slice(0, 100);
+    if (status === 401 || status === 403) return 'ElevenLabs: invalid API key (401/403). Falling back to Browser TTS.';
+    if (status === 404 || status === 422) return 'ElevenLabs: bad Voice ID or request (' + status + '). Falling back to Browser TTS.';
+    if (status === 429) return 'ElevenLabs: quota / rate limit (429). Falling back to Browser TTS.';
+    if (status === 0 || status === 'network') return 'ElevenLabs: network/CORS failed. Falling back to Browser TTS.';
+    return 'ElevenLabs TTS failed (' + status + (d ? ': ' + d : '') + '). Falling back to Browser TTS.';
+  }
+  /** Parse GET /v1/voices JSON into {voice_id, name} list. */
+  function parseElevenLabsVoices(json) {
+    const list = (json && json.voices) || [];
+    if (!Array.isArray(list)) return [];
+    return list.map((v) => ({
+      voice_id: v.voice_id || v.voiceId || '',
+      name: v.name || v.voice_id || 'voice'
+    })).filter((v) => v.voice_id);
   }
   /** Score device voices: prefer warm feminine conversational defaults when gender=female. */
   function scoreDeviceVoice(v, opts) {
@@ -718,9 +787,12 @@
     out.rate = Math.min(1.6, Math.max(0.5, Number(out.rate) || 1));
     out.pitch = Math.min(1.8, Math.max(0.5, Number(out.pitch) || 1));
     out.volume = Math.min(1, Math.max(0, Number(out.volume) || 1));
+    out.elevenStability = Math.min(1, Math.max(0, Number(out.elevenStability != null ? out.elevenStability : 0.5)));
+    out.elevenSimilarity = Math.min(1, Math.max(0, Number(out.elevenSimilarity != null ? out.elevenSimilarity : 0.75)));
+    if (!out.elevenModel) out.elevenModel = 'eleven_multilingual_v2';
     return out;
   }
-  /** Validate OpenAI-compatible TTS config without embedding secrets. */
+  /** Validate TTS provider config without embedding secrets. */
   function ttsProviderReady(cfg) {
     const c = cfg || {};
     if (!c.ttsProvider || c.ttsProvider === 'browser') return { ok: true, provider: 'browser' };
@@ -729,6 +801,11 @@
       if (!c.ttsBaseUrl || !String(c.ttsBaseUrl).trim()) return { ok: false, provider: 'openai', reason: 'Set TTS Base URL (e.g. https://api.openai.com/v1).' };
       if (!c.ttsVoiceId || !String(c.ttsVoiceId).trim()) return { ok: false, provider: 'openai', reason: 'Set a TTS voice ID (e.g. nova, shimmer, alloy).' };
       return { ok: true, provider: 'openai' };
+    }
+    if (c.ttsProvider === 'elevenlabs') {
+      if (!c.elevenApiKey || !String(c.elevenApiKey).trim()) return { ok: false, provider: 'elevenlabs', reason: 'Add ElevenLabs API key in Settings → Voice (keys stay on this device only).' };
+      if (!c.elevenVoiceId || !String(c.elevenVoiceId).trim()) return { ok: false, provider: 'elevenlabs', reason: 'Set an ElevenLabs Voice ID (or Load my voices).' };
+      return { ok: true, provider: 'elevenlabs' };
     }
     return { ok: false, provider: c.ttsProvider, reason: 'Unknown TTS provider.' };
   }
@@ -758,7 +835,7 @@
     keywords, questionRx, wikiLang, greetingReply, medicalWarning, noAi, visionNeedsKey, remembered, memoryList, forgot, help, word, notOnIphone, t4,
     money, perTola, perGram, fxText, metalText, cryptoText, weatherCode, weatherText, askPlace, failed,
     parseRss2Json, parseWikiSearch, parseChatCompletion, cleanAi, tones, modes, modelPresets, MODEL_MAP, systemPrompt, systemPromptLegacy, recent, searchPrompt, PRESETS, PROVIDER_FREE,
-    VERSION, TTS_PROVIDERS, DEFAULT_VOICE_SETTINGS, cleanSpeakText, scoreDeviceVoice, pickBestDeviceVoice, describeDefaultVoice, mergeVoiceSettings, ttsProviderReady, speechErrorMessage, assertNoHardcodedSecrets
+    VERSION, TTS_PROVIDERS, DEFAULT_VOICE_SETTINGS, ELEVENLABS_TTS_URL, ELEVENLABS_VOICES_URL, ELEVENLABS_CHUNK, cleanSpeakText, chunkSpeakText, buildElevenLabsTtsRequest, mapElevenLabsError, parseElevenLabsVoices, scoreDeviceVoice, pickBestDeviceVoice, describeDefaultVoice, mergeVoiceSettings, ttsProviderReady, speechErrorMessage, assertNoHardcodedSecrets
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.NooraCore = api;
 })(typeof self !== 'undefined' ? self : this);

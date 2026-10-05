@@ -1,0 +1,13 @@
+ElevenLabs CORS check (2026-10-05) via curl OPTIONS/GET with Origin: https://example.com
+
+TTS POST https://api.elevenlabs.io/v1/text-to-speech/{id}
+  access-control-allow-origin: *
+  access-control-allow-headers: *
+  access-control-allow-methods: POST, PATCH, OPTIONS, DELETE, GET, PUT
+
+Voices GET https://api.elevenlabs.io/v1/voices
+  access-control-allow-origin: *
+  access-control-allow-headers: *
+  access-control-allow-methods: POST, PATCH, OPTIONS, DELETE, GET, PUT
+
+Conclusion: browser CORS allows both TTS and Load my voices from the web app.

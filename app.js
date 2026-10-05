@@ -1,4 +1,4 @@
-/* NOORA AI 2.0.2 web / PWA / Android WebView shell. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
+/* NOORA AI 2.0.3 web / PWA / Android WebView shell. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
 (function () {
   'use strict';
   const C = window.NooraCore, L = C.Lang;
@@ -29,7 +29,13 @@
     pinOn: false, pinHash: '', continuousVoice: false, activeAssistantId: null
   }, C.DEFAULT_VOICE_SETTINGS);
   let S = Object.assign({}, DEF);
-  try { S = Object.assign(S, JSON.parse(localStorage.getItem('noora.settings') || '{}')); } catch (e) {}
+  try {
+    const raw = JSON.parse(localStorage.getItem('noora.settings') || '{}');
+    S = Object.assign(S, raw);
+    // Merge voice defaults for new keys (ElevenLabs) without dropping existing AI/Gemini keys
+    const voiceMerged = C.mergeVoiceSettings(S);
+    Object.keys(C.DEFAULT_VOICE_SETTINGS).forEach((k) => { if (S[k] === undefined || S[k] === null) S[k] = voiceMerged[k]; });
+  } catch (e) {}
   const saveS = () => { try { localStorage.setItem('noora.settings', JSON.stringify(S)); } catch (e) {} };
   const hasOwnKey = () => S.provider !== C.PROVIDER_FREE && S.apiKey && S.baseUrl && S.chatModel;
   const prefLang = () => (S.voiceLang ? L[S.voiceLang] : null);
@@ -783,6 +789,7 @@
   let voices = [];
   let lastSpeakPayload = { text: '', lang: null };
   let ttsAudio = null;
+  let lastTtsBlob = null; // cached audio blob of last cloud TTS reply (replay without re-request)
   let speakToken = 0;
   const loadVoices = () => { voices = 'speechSynthesis' in window ? speechSynthesis.getVoices() : []; fillVoiceSelect(); renderVoiceInfo(); maybeAutoPickDefaultVoice(); };
   if ('speechSynthesis' in window) { loadVoices(); speechSynthesis.onvoiceschanged = loadVoices; }
@@ -812,6 +819,23 @@
     speakToken++;
     if ('speechSynthesis' in window) speechSynthesis.cancel();
     if (ttsAudio) { try { ttsAudio.pause(); ttsAudio.src = ''; } catch (e) {} ttsAudio = null; }
+  }
+  function applyTtsVolume() {
+    if (ttsAudio) {
+      try { ttsAudio.volume = S.volume == null ? 1 : S.volume; } catch (e) {}
+    }
+  }
+  function playTtsBlob(blob, token, onend) {
+    if (token !== speakToken) return;
+    if (lastTtsBlob && lastTtsBlob !== blob) { /* keep newest */ }
+    lastTtsBlob = blob;
+    const url = URL.createObjectURL(blob);
+    if (ttsAudio) { try { ttsAudio.pause(); } catch (e) {} }
+    ttsAudio = new Audio(url);
+    ttsAudio.volume = S.volume == null ? 1 : S.volume;
+    ttsAudio.onended = () => { URL.revokeObjectURL(url); if (token === speakToken && onend) onend(); };
+    ttsAudio.onerror = () => { URL.revokeObjectURL(url); toast(C.speechErrorMessage('tts-fail')); if (token === speakToken && onend) onend(); };
+    return ttsAudio.play();
   }
   function speakBrowser(clean, lang, onend) {
     if (!('speechSynthesis' in window)) { if (!warnedVoice.none) { warnedVoice.none = 1; toast('speechSynthesis not available.'); } if (onend) onend(); return; }
@@ -846,19 +870,63 @@
         toast(msg, 6500); status(msg); if (onend) onend(); return;
       }
       const blob = await res.blob();
-      if (token !== speakToken) return;
-      const url = URL.createObjectURL(blob);
-      if (ttsAudio) { try { ttsAudio.pause(); } catch (e) {} }
-      ttsAudio = new Audio(url);
-      ttsAudio.volume = S.volume == null ? 1 : S.volume;
-      ttsAudio.onended = () => { URL.revokeObjectURL(url); if (token === speakToken && onend) onend(); };
-      ttsAudio.onerror = () => { URL.revokeObjectURL(url); toast(C.speechErrorMessage('tts-fail')); if (token === speakToken && onend) onend(); };
-      await ttsAudio.play();
+      await playTtsBlob(blob, token, onend);
     } catch (e) {
       if (token !== speakToken) return;
       const msg = C.speechErrorMessage('tts-fail') + ' — ' + (e.message || 'network');
       toast(msg, 6500); status(msg); if (onend) onend();
     }
+  }
+  async function speakElevenLabs(clean, lang, onend) {
+    const ready = C.ttsProviderReady(Object.assign({}, S, { ttsProvider: 'elevenlabs' }));
+    if (!ready.ok) {
+      toast(ready.reason, 6000); status(ready.reason);
+      speakBrowser(clean, lang, onend);
+      return;
+    }
+    const token = speakToken;
+    const chunks = C.chunkSpeakText(clean, C.ELEVENLABS_CHUNK);
+    if (!chunks.length) { if (onend) onend(); return; }
+    const playChunk = async (i) => {
+      if (token !== speakToken) return;
+      const req = C.buildElevenLabsTtsRequest(S, chunks[i]);
+      try {
+        const res = await fetch(req.url, {
+          method: req.method,
+          headers: req.headers,
+          body: JSON.stringify(req.body)
+        });
+        if (token !== speakToken) return;
+        if (!res.ok) {
+          let detail = '';
+          try { const j = await res.json(); detail = (j.detail && (j.detail.message || JSON.stringify(j.detail))) || j.message || ''; } catch (e) {}
+          const msg = C.mapElevenLabsError(res.status, detail);
+          toast(msg, 6500); status(msg);
+          speakBrowser(clean, lang, onend);
+          return;
+        }
+        const blob = await res.blob();
+        if (token !== speakToken) return;
+        const next = () => {
+          if (token !== speakToken) return;
+          if (i + 1 < chunks.length) playChunk(i + 1);
+          else if (onend) onend();
+        };
+        try {
+          await playTtsBlob(blob, token, next);
+        } catch (playErr) {
+          const msg = C.mapElevenLabsError('network', playErr && playErr.message);
+          toast(msg, 6500); status(msg);
+          speakBrowser(clean, lang, onend);
+        }
+      } catch (e) {
+        if (token !== speakToken) return;
+        const msg = C.mapElevenLabsError('network', e && e.message);
+        toast(msg, 6500); status(msg);
+        speakBrowser(clean, lang, onend);
+      }
+    };
+    await playChunk(0);
   }
   function speak(text, lang, onend, opts) {
     const o = opts || {};
@@ -872,9 +940,23 @@
     if (ttsAudio) { try { ttsAudio.pause(); ttsAudio.src = ''; } catch (e) {} ttsAudio = null; }
     speakToken++;
     if (provider === 'openai') speakOpenAi(clean, onend);
+    else if (provider === 'elevenlabs') speakElevenLabs(clean, lang, onend);
     else speakBrowser(clean, lang, onend);
   }
   function replayLast() {
+    // Prefer cached cloud TTS blob when provider is openai/elevenlabs and we still have audio
+    if (lastTtsBlob && (S.ttsProvider === 'elevenlabs' || S.ttsProvider === 'openai') && !S.muted && (S.ttsOn || true)) {
+      unlockSpeech();
+      if ('speechSynthesis' in window) speechSynthesis.cancel();
+      if (ttsAudio) { try { ttsAudio.pause(); ttsAudio.src = ''; } catch (e) {} ttsAudio = null; }
+      speakToken++;
+      const token = speakToken;
+      playTtsBlob(lastTtsBlob, token, null).catch(() => {
+        // if blob replay fails, fall through to re-request
+        if (lastSpeakPayload.text) speak(lastSpeakPayload.text, lastSpeakPayload.lang || prefLang() || L.ENGLISH, null, { force: true });
+      });
+      return;
+    }
     if (!lastSpeakPayload.text) {
       const last = [...msgs].reverse().find((m) => m.role === 'assistant' && !m.pending && m.text);
       if (!last) return toast('Nothing to replay yet');
@@ -904,7 +986,9 @@
   function renderVoiceInfo() {
     const el = $('voiceInfo'); if (!el) return;
     const parts = [];
-    parts.push('Provider: ' + (S.ttsProvider === 'openai' ? 'OpenAI-compatible TTS' : 'Browser'));
+    const provLabel = S.ttsProvider === 'openai' ? 'OpenAI-compatible TTS'
+      : (S.ttsProvider === 'elevenlabs' ? 'ElevenLabs' : 'Browser');
+    parts.push('Provider: ' + provLabel);
     if ('speechSynthesis' in window) {
       const has = (ids) => ids.some((p) => voices.some((v) => v.lang.replace('_', '-').toLowerCase().startsWith(p)));
       parts.push('Device voices: ' + [['EN', ['en']], ['AR', ['ar']], ['UR', ['ur']], ['HI', ['hi']], ['PA', ['pa']]].map(([n, p]) => `${n}${has(p) ? '✓' : '✗'}`).join(' · ') +
@@ -912,15 +996,19 @@
       const d = C.describeDefaultVoice(voices, { gender: S.gender || 'female', voiceURI: S.voiceURI, langPrefs: ['en-US', 'en-GB', 'en'] });
       parts.push(d.label);
     } else parts.push('No speechSynthesis here (browser TTS unavailable).');
-    if (S.ttsProvider === 'openai') {
+    if (S.ttsProvider === 'openai' || S.ttsProvider === 'elevenlabs') {
       const r = C.ttsProviderReady(S);
-      parts.push(r.ok ? 'OpenAI TTS ready (key stored on this device).' : r.reason);
+      parts.push(r.ok ? (provLabel + ' ready (key stored on this device).') : r.reason);
+    }
+    if (S.ttsProvider === 'elevenlabs') {
+      parts.push('Speed: ElevenLabs voice_settings.speed (from Speaking speed slider).');
     }
     el.textContent = parts.join('\n');
   }
   function syncTtsProviderFields() {
-    const show = ($('sTtsProvider') && $('sTtsProvider').value === 'openai');
-    const box = $('ttsProviderFields'); if (box) box.hidden = !show;
+    const v = $('sTtsProvider') ? $('sTtsProvider').value : 'browser';
+    const box = $('ttsProviderFields'); if (box) box.hidden = v !== 'openai';
+    const elbox = $('elevenProviderFields'); if (elbox) elbox.hidden = v !== 'elevenlabs';
   }
 
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1225,6 +1313,9 @@
   $('btnNewPrompt').onclick = async () => { const title = prompt('Prompt name?') || 'Prompt'; const text = prompt('Prompt text?') || ''; await Store.addPrompt({ title, text, ts: Date.now() }); openFiles(); };
 
   function readVoiceForm() {
+    const pick = $('sElevenVoicePick');
+    let elevenVoiceId = ($('sElevenVoiceId').value || '').trim();
+    if (pick && pick.value) elevenVoiceId = pick.value;
     return {
       ttsOn: $('sTts').checked,
       rate: parseFloat($('sRate').value) || 1,
@@ -1235,7 +1326,12 @@
       ttsBaseUrl: ($('sTtsBase').value || '').trim().replace(/\/+$/, ''),
       ttsApiKey: ($('sTtsKey').value || '').trim(),
       ttsModel: ($('sTtsModel').value || '').trim() || 'tts-1',
-      ttsVoiceId: ($('sTtsVoiceId').value || '').trim()
+      ttsVoiceId: ($('sTtsVoiceId').value || '').trim(),
+      elevenApiKey: ($('sElevenKey').value || '').trim(),
+      elevenVoiceId: elevenVoiceId,
+      elevenModel: ($('sElevenModel').value || '').trim() || 'eleven_multilingual_v2',
+      elevenStability: parseFloat($('sElevenStability').value),
+      elevenSimilarity: parseFloat($('sElevenSimilarity').value)
     };
   }
   function openSettings() {
@@ -1246,6 +1342,13 @@
     $('sTtsKey').value = S.ttsApiKey || '';
     $('sTtsModel').value = S.ttsModel || 'tts-1';
     $('sTtsVoiceId').value = S.ttsVoiceId || 'nova';
+    $('sElevenKey').value = S.elevenApiKey || '';
+    $('sElevenVoiceId').value = S.elevenVoiceId || '';
+    $('sElevenModel').value = S.elevenModel || 'eleven_multilingual_v2';
+    $('sElevenStability').value = S.elevenStability != null ? S.elevenStability : 0.5;
+    $('sElevenSimilarity').value = S.elevenSimilarity != null ? S.elevenSimilarity : 0.75;
+    if ($('sElevenStabVal')) $('sElevenStabVal').textContent = String($('sElevenStability').value);
+    if ($('sElevenSimVal')) $('sElevenSimVal').textContent = String($('sElevenSimilarity').value);
     $('sRate').value = S.rate; $('sPitch').value = S.pitch || 1; $('sVolume').value = S.volume == null ? 1 : S.volume;
     $('sMemOn').checked = S.memoryOn !== false; $('sPinOn').checked = !!S.pinOn; $('sPin').value = '';
     syncTtsProviderFields(); fillVoiceSelect(); renderVoiceInfo();
@@ -1255,7 +1358,7 @@
       : 'iPhone web: chat, live data, images, memory, call/SMS/Maps links (you confirm).\n') +
       'Wake word / lock-screen listening is NOT possible in an iPhone web app.\n' +
       `Voice input: ${SR ? 'available (may be refused by OS — then use keyboard 🎤)' : 'NOT available — use keyboard 🎤'}.\n` +
-      `TTS: Browser Web Speech always available where supported; OpenAI-compatible TTS needs your key in Voice settings.\n` +
+      `TTS: Browser / OpenAI-compatible / ElevenLabs (keys in Voice settings only).\n` +
       `Storage: ${Store.kind}. Installed: ${STANDALONE || IS_ANDROID_WV ? 'yes' : 'no'}.`;
     $('about').textContent = `NOORA AI ${C.VERSION}\nLive: rss2json, Wikipedia, open.er-api.com, gold-api.com, Coinbase, Open-Meteo, Pollinations`;
   }
@@ -1266,10 +1369,53 @@
     S.memoryOn = $('sMemOn').checked;
     saveS(); setIcon($('btnTts'), S.ttsOn ? 'volOn' : 'volOff'); updateEmpty(); renderVoiceInfo(); syncTtsProviderFields();
   }
-  ['sName', 'sTts', 'sRate', 'sPitch', 'sVolume', 'sVoice', 'sMemOn', 'sTtsProvider', 'sTtsBase', 'sTtsKey', 'sTtsModel', 'sTtsVoiceId'].forEach((id) => {
-    const el = $(id); if (el) el.addEventListener('change', saveSettings);
+  ['sName', 'sTts', 'sRate', 'sPitch', 'sVolume', 'sVoice', 'sMemOn', 'sTtsProvider', 'sTtsBase', 'sTtsKey', 'sTtsModel', 'sTtsVoiceId',
+   'sElevenKey', 'sElevenVoiceId', 'sElevenModel', 'sElevenStability', 'sElevenSimilarity', 'sElevenVoicePick'].forEach((id) => {
+    const el = $(id); if (el) el.addEventListener('change', () => { saveSettings(); if (id === 'sVolume') applyTtsVolume(); });
+  });
+  ['sElevenStability', 'sElevenSimilarity', 'sRate', 'sPitch', 'sVolume'].forEach((id) => {
+    const el = $(id); if (!el) return;
+    el.addEventListener('input', () => {
+      if (id === 'sElevenStability' && $('sElevenStabVal')) $('sElevenStabVal').textContent = el.value;
+      if (id === 'sElevenSimilarity' && $('sElevenSimVal')) $('sElevenSimVal').textContent = el.value;
+      if (id === 'sVolume') applyTtsVolume();
+    });
   });
   $('sTtsProvider').addEventListener('change', () => { syncTtsProviderFields(); saveSettings(); });
+  if ($('sElevenVoicePick')) {
+    $('sElevenVoicePick').addEventListener('change', () => {
+      if ($('sElevenVoicePick').value) $('sElevenVoiceId').value = $('sElevenVoicePick').value;
+      saveSettings();
+    });
+  }
+  if ($('btnLoadElevenVoices')) {
+    $('btnLoadElevenVoices').onclick = async () => {
+      const key = ($('sElevenKey').value || S.elevenApiKey || '').trim();
+      if (!key) return toast('Paste ElevenLabs API key first', 5000);
+      try {
+        status('Loading ElevenLabs voices…');
+        const res = await fetch(C.ELEVENLABS_VOICES_URL, { headers: { 'xi-api-key': key, Accept: 'application/json' } });
+        if (!res.ok) {
+          const msg = C.mapElevenLabsError(res.status, '');
+          toast(msg, 6500); status(msg);
+          return;
+        }
+        const json = await res.json();
+        const list = C.parseElevenLabsVoices(json);
+        const sel = $('sElevenVoicePick');
+        if (!sel) return;
+        const cur = ($('sElevenVoiceId').value || S.elevenVoiceId || '').trim();
+        sel.innerHTML = '<option value="">— pick a voice —</option>' +
+          list.map((v) => `<option value="${v.voice_id}"${v.voice_id === cur ? ' selected' : ''}>${v.name}</option>`).join('');
+        if (cur && list.some((v) => v.voice_id === cur)) sel.value = cur;
+        toast('Loaded ' + list.length + ' ElevenLabs voices', 4000);
+        status('ElevenLabs voices loaded');
+      } catch (e) {
+        const msg = C.mapElevenLabsError('network', e && e.message);
+        toast(msg, 6500); status(msg);
+      }
+    };
+  }
   $('sVoiceTest').onclick = () => {
     const form = readVoiceForm();
     const sample = 'Hi, I am ' + aiName() + '. This is a short voice test with your current settings.';
@@ -1277,10 +1423,14 @@
     // Test CURRENT form values without requiring a prior Save
     const prev = {
       ttsOn: S.ttsOn, muted: S.muted, rate: S.rate, pitch: S.pitch, volume: S.volume, voiceURI: S.voiceURI,
-      ttsProvider: S.ttsProvider, ttsBaseUrl: S.ttsBaseUrl, ttsApiKey: S.ttsApiKey, ttsModel: S.ttsModel, ttsVoiceId: S.ttsVoiceId
+      ttsProvider: S.ttsProvider, ttsBaseUrl: S.ttsBaseUrl, ttsApiKey: S.ttsApiKey, ttsModel: S.ttsModel, ttsVoiceId: S.ttsVoiceId,
+      elevenApiKey: S.elevenApiKey, elevenVoiceId: S.elevenVoiceId, elevenModel: S.elevenModel,
+      elevenStability: S.elevenStability, elevenSimilarity: S.elevenSimilarity
     };
     Object.assign(S, form, { ttsOn: true, muted: false });
     if (Number.isNaN(S.volume)) S.volume = 1;
+    if (Number.isNaN(S.elevenStability)) S.elevenStability = 0.5;
+    if (Number.isNaN(S.elevenSimilarity)) S.elevenSimilarity = 0.75;
     speak(sample, prefLang() || L.ENGLISH, () => { Object.assign(S, prev); }, { force: true, provider: form.ttsProvider });
     toast('Playing Voice Test…');
   };

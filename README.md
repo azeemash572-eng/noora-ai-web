@@ -18,3 +18,5 @@ See `server/README.md`. Set **Server URL** in Settings to route AI/TTS/image thr
 
 ## Add to Home Screen (iPhone)
 1. Open the https URL in Safari → Share → Add to Home Screen.
+
+Published from `main` via GitHub Pages (static). Optional `server/` is for Replit only — not executed on Pages.

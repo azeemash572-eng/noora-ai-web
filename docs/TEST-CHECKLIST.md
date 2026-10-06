@@ -1,3 +1,30 @@
+# NOORA AI 2.3.0 — Test checklist (Android)
+
+2.3.0 targets Android only. Statuses mean the same as in the 2.2.0 section below. **No emulator or phone was available**, so anything that needs a real device is marked *built – not device-tested*.
+
+Test commands (all passed on 2026-10-06):
+
+- `npm test`: 48 Node unit tests (`core` 18, `cc` 9, `tools` 21).
+- `npm run test:e2e`: `cc-smoke`, `voice-smoke`, `actions-smoke` (27 checks), and the new `android-230` (19 checks, NooraNative bridge mocked).
+- Android: `./gradlew testReleaseUnitTest --tests NativeActionsTest --tests Noora230Test` (7 + 9 Robolectric tests). Then `assembleRelease`, `aapt dump`, and `apksigner verify`. The legacy `UiSmokeTest` tests the 1.0.0-proto native UI that was replaced in 2.0. It is stale and fails on purpose (it expects the old EditText and the "1.0.0-proto" about text), so it is excluded.
+
+| # | Item | Status | How tested |
+|---|---|---|---|
+| 1 | "Noora Toyota message" / "Ammi jaan ko likho …" / "Navra … send a message to Mariam" → messaging flow, never "Done: 0 contact numbers" | tested (web) / built – not device-tested | tools.test fixtures; e2e android-230 (lookup → app → message → confirm → whatsapp intent); Noora230Test contacts all/query/dedupe/permission-denied |
+| 2 | "open WhatsApp write a message to Ammi Jaan/Madhu" → WhatsApp flow, misheard wake words tolerated | tested (web) / built – not device-tested | tools.test; e2e; wa.me + ACTION_SENDTO fallback |
+| 3 | No ElevenLabs toast; elevenlabs → auto (native) migration | tested | core.test migration; e2e voice mode |
+| 4 | Image text removal → Gemini image edit (key) or free manual eraser, preview + save/share | tested (mock Gemini) | e2e request body; eraser pixel test; save/share bridge calls. Real Gemini image model not tested live (no key) |
+| 5 | File chooser: all accept types and capture modes, CAMERA/RECORD_AUDIO prompts, FileProvider | tested (Robolectric intents) / built – not device-tested | Noora230Test ChooserIntents |
+| 6 | Attach to chat → Chat tab + chips (Explain/Edit/Summarize/Read/Send/Save) | tested | e2e image + document flows |
+| A | Native Android TTS (Voice bridge), locales ur-PK / hi-IN / pa-IN / en, voice list, rate/pitch/volume, voice-pack hint → TTS settings; xAI Grok TTS (optional key) | tested (Robolectric + e2e mock) / built – not device-tested | Noora230Test NativeTts; e2e. Piper **not shipped** (no verified on-demand Android build) |
+| B | Offline/Online/Auto mode: rule engine, EXTRA_PREFER_OFFLINE STT, native TTS, honest no-AI replies | tested | e2e offline. On-device LLM (MediaPipe/Gemma) **not included** |
+| C | Smarter parsing: Roman Urdu / Punjabi / Hinglish fixtures, multi-step, contact-aware tools (numbers never sent to the AI) | tested | tools.test; e2e asserts no numbers in AI request |
+| D | Phone control (apps, call, SMS, WhatsApp, email, camera, gallery, files, share, maps, calendar, alarms/timers, reminders + BOOT_COMPLETED, media, volume, torch, settings panels) | partly tested (Robolectric intents, reminders reboot) / built – not device-tested | Android 10+ can't toggle Wi-Fi/BT directly; NOORA opens the panel and says so |
+| E | Design refresh: big voice orb, cleaner bubbles, chips, RTL fonts, 360–412 px | tested (screenshots) | `/workspace/noora-2.3.0-screens/before-*` / `after-*` |
+| 14 | Conversation style: user-approved strong profanity/gaali as friendly banter, mirrors the user, drops it when the user is serious or upset; limits: no hateful slurs, threats, third-party abuse, or minors | tested (prompt text) | core.test asserts the rule and its limits. Gemini/Pollinations have their own safety filters that NOORA can't override, so some replies may still be softened or refused |
+
+---
+
 # NOORA AI 2.2.0 — Test checklist
 
 Status values:

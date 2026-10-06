@@ -1,4 +1,4 @@
-/* NOORA AI 2.2.0 command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
+/* NOORA AI 2.3.0 command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
 (function () {
   'use strict';
   const C = window.NooraCore, L = C.Lang;
@@ -28,7 +28,8 @@
     modelPreset: 'Fast', webSearchOn: true, memoryOn: true,
     pinOn: false, pinHash: '', continuousVoice: false, activeAssistantId: null,
     serverUrl: '', videoProvider: '', videoApiKey: '', videoBaseUrl: '',
-    mapsProvider: '', defaultCountryCode: '', handsFree: false
+    mapsProvider: '', defaultCountryCode: '', handsFree: false,
+    netMode: 'auto', defaultMessenger: 'ask', imageEditModel: ''
   }, C.DEFAULT_VOICE_SETTINGS);
   let S = Object.assign({}, DEF);
   try {
@@ -475,6 +476,7 @@
     const orb = $('homeVoiceBtn');
     if (orb) { orb.dataset.state = st.toLowerCase(); orb.setAttribute('aria-label', 'Voice: ' + VS_LABEL[st]); }
     const vo = $('vsOrb'); if (vo) { vo.dataset.state = st.toLowerCase(); vo.setAttribute('aria-label', 'Voice: ' + VS_LABEL[st]); }
+    const co = $('chatVoiceOrb'); if (co) { co.dataset.state = st.toLowerCase(); co.setAttribute('aria-label', 'Voice: ' + VS_LABEL[st]); }
     if ($('vsLabel')) $('vsLabel').textContent = VS_LABEL[st] + (detail ? ' · ' + detail : '');
     const panel = $('voiceState'); if (panel) panel.hidden = st === 'IDLE' && !continuous && !detail && !pending;
     if (st === 'ERROR' && detail) { clearTimeout(setVoiceState._t); setVoiceState._t = setTimeout(() => { if (voiceState === 'ERROR') setVoiceState('IDLE'); }, 7000); }
@@ -531,6 +533,15 @@
     }
     else if (p.type === 'confirm') { if (value === 'yes') confirmPending(); else cancelPending(); }
     else if (p.type === 'choose') { const c = p.choices[Number(value)]; if (c) chooseContact(c); else cancelPending(); }
+    else if (p.type === 'app') { if (value === 'whatsapp' || value === 'sms') chooseApp(value); else cancelPending(); }
+    else if (p.type === 'attach') { pending = null; markCard(id, '✓'); attachAction(String(value)); }
+    else if (p.type === 'editask') {
+      pending = null; markCard(id, '✓');
+      const lang = prefLang() || L.ROMAN_URDU;
+      if (value === 'manual') openImageEditor('remove the painted area', lang, { manual: true });
+      else runPlan([{ tool: 'edit_image', args: { instruction: String(value) } }], lang);
+    }
+    else if (p.type === 'contacts') { pending = null; markCard(id, '✓'); const c = p.choices[Number(String(value).slice(1))]; if (c && value !== 'x') runPlan([{ tool: String(value).startsWith('m') ? 'send_message' : 'call_phone', args: { number: c.number, contactName: c.name } }], p.lang); }
     else if (p.type === 'retry') { pending = null; markCard(id, value === 'yes' ? '↻ Retrying' : 'Dismissed'); if (value === 'yes') retryLast(p.text); }
   }
   function speakLine(prep) {
@@ -587,7 +598,8 @@
   async function reportResult(prep, res, lang, more) {
     if (res.silent && res.ok) { busy = false; return; }
     let text;
-    if (res.ok) text = prep.confirm || res.leftApp ? T.say('opened', { what: prep.what || prep.label }, lang) : T.say('done', { what: res.message || prep.summary }, lang);
+    if (res.ok && res.data && Array.isArray(res.data.results)) text = (res.message || prep.summary);          // info results are shown, never "Done"
+    else if (res.ok) text = prep.confirm || res.leftApp ? T.say('opened', { what: prep.what || prep.label }, lang) : T.say('done', { what: res.message || prep.summary }, lang);
     else if (res.code === 'not_installed') text = T.say('not_installed', { app: prep.what || prep.label }, lang);
     else if (res.code === 'permission') text = T.say('action_failed', { reason: (res.message || 'permission needed') + ' — allow it and ask me again.' }, lang);
     else text = T.say('action_failed', { reason: res.message || 'unknown error' }, lang);
@@ -718,7 +730,31 @@
     }
     if (a.op === 'recall') return reply(C.memoryList(lang, await Store.memories()), lang, { meta: { via: 'memory' } });
     if (a.op === 'image') return generateImage(a.prompt, lang, null, null);
+    if (a.op === 'contacts') return showContactsResult(a.query, lang);
+    if (a.op === 'edit_image') return openImageEditor(a.instruction, lang);
     return reply(T.say('action_failed', { reason: 'unknown local action' }, lang), lang);
+  }
+  /** "What is Ammi's number" → real card with the FULL numbers from the phone (never a fake "Done: 0 contact numbers"). */
+  async function showContactsResult(query, lang) {
+    const name = String(query || '').trim();
+    const r = loadAllContacts(true);
+    if (r.code === 'permission') { plan = null; await askContactsPermission(name, lang); if (pending && pending.type === 'perm') pending.lookup = true; return; }
+    if (!r.ok) return reply(T.say('action_failed', { reason: r.message || 'could not read contacts' }, lang), lang, { meta: { via: 'Contacts' } });
+    const list = r.results || [];
+    const matches = name ? T.matchContacts(list, name) : [];
+    if (!matches.length) {
+      const close = T.suggestContacts(list, name, 3);
+      const txt = T.say('no_contact', { name, close: close.length ? T.say('close_names', { names: close.join(', ') }, lang) : '' }, lang).replace(/ Tell me the number.*$| Number bata do.*$|۔ نمبر بتا دیں.*$/, '.');
+      return reply(txt + (list.length ? '' : ' (' + (T.langKey(lang) === 'en' ? 'your phone returned no contacts' : 'phone ne koi contact nahi diya') + ')'), lang, { meta: { via: 'Contacts · ' + list.length + ' on phone' } });
+    }
+    const shown = matches.slice(0, 8);
+    const id = 'card' + (++cardSeq) + '_' + Date.now().toString(36);
+    pending = { type: 'contacts', cardId: id, choices: shown, lang };
+    const buttons = [];
+    shown.slice(0, 3).forEach((c, i) => { buttons.push({ label: '📞 ' + c.name, value: 'c' + i, go: i === 0 }); buttons.push({ label: '💬 ' + c.name, value: 'm' + i }); });
+    buttons.push({ label: 'Close', value: 'x' });
+    const card = { id, title: '📇 ' + name, details: shown.map((c) => [c.name + (c.label ? ' (' + c.label + ')' : ''), c.number]), buttons };
+    return reply(T.say('contacts_found', { n: matches.length, name }, lang), lang, { meta: { card, via: 'Contacts · ' + list.length + ' on phone' }, speakText: T.say('contacts_found', { n: matches.length, name }, lang) + ' ' + shown.slice(0, 2).map((c) => c.name).join(', ') });
   }
   async function saveNickname(name, value, category) {
     const rows = await Store.memoryRows();
@@ -726,7 +762,22 @@
     if (old) await Store.deleteMemory(old.id);
     return Store.addMemoryRecord(T.nicknameRecord(name, value, category));
   }
-  const CONTACT_TOOLS = ['call_phone', 'send_sms', 'send_whatsapp'];
+  const CONTACT_TOOLS = ['call_phone', 'send_sms', 'send_whatsapp', 'send_message'];
+  const MSG_TOOLS = ['send_sms', 'send_whatsapp', 'send_message'];
+  // 2.3.0: the whole phone book (names + full numbers) is read once on the phone and cached here — it is NEVER sent to the AI.
+  let contactsCache = null;
+  function loadAllContacts(force) {
+    if (!bridge()) return { ok: false, code: 'no_bridge', message: 'Contacts are only available in the Android app.' };
+    if (contactsCache && !force && Date.now() - contactsCache.at < 5 * 60 * 1000) return { ok: true, results: contactsCache.list, cached: true };
+    const r = nativeRun({ type: 'contacts', all: true, limit: 5000 });
+    if (r.ok && Array.isArray(r.results)) contactsCache = { at: Date.now(), list: r.results };
+    return r;
+  }
+  async function askContactsPermission(name, lang) {
+    pending = { type: 'perm', perm: 'contacts', name };
+    setVoiceState('IDLE', 'waiting for Contacts permission');
+    await reply(T.say('contacts_perm', { name: name || 'contacts' }, lang), lang, { meta: { via: 'Android' } });
+  }
   async function resolveStep(st) {
     const args = Object.assign({}, st.args);
     const lang = plan.lang;
@@ -735,22 +786,28 @@
       const name = String(args.contact || '').trim();
       if (!name) { askFor('number', '', lang); return { pause: true }; }
       const nick = T.findNickname(rows, name, 'contacts');
-      if (nick && T.normalizePhone(nick.value).ok) { args.number = nick.value; args.contactName = nick.name; return { args }; }
-      if (bridge()) {
-        const r = nativeRun({ type: 'contacts', query: name });
-        if (r.code === 'permission') {
-          pending = { type: 'perm', perm: 'contacts', name };
-          await reply(T.langKey(lang) === 'en' ? 'I need Contacts permission to find ' + name + ' — please tap Allow.' : 'Jaanu, ' + name + ' ko dhoondne ke liye Contacts permission chahiye — Allow dabao.', lang, { meta: { via: 'Android' } });
+      if (nick && T.normalizePhone(nick.value).ok) { args.number = nick.value; args.contactName = nick.name; }
+      else if (bridge()) {
+        const r = loadAllContacts();
+        if (r.code === 'permission') { await askContactsPermission(name, lang); return { pause: true }; }
+        const list = r.ok ? (r.results || []) : [];
+        const matches = T.matchContacts(list, name);
+        if (matches.length === 1) { args.number = matches[0].number; args.contactName = matches[0].name; }
+        else if (matches.length > 1) { st.args = args; askChoose(name, matches.slice(0, 6), lang); return { pause: true }; }
+        else {
+          const close = T.suggestContacts(list, name, 3);
+          st.args = args;
+          askFor('number', name, lang, 'no_contact', { close: close.length ? T.say('close_names', { names: close.join(', ') }, lang) : '' });
           return { pause: true };
         }
-        if (r.ok) {
-          const matches = T.matchContacts(r.results || [], name);
-          if (matches.length === 1) { args.number = matches[0].number; args.contactName = matches[0].name; return { args }; }
-          if (matches.length > 1) { askChoose(name, matches.slice(0, 6), lang); return { pause: true }; }
-        }
-        askFor('number', name, lang, 'need_number'); return { pause: true };
-      }
-      askFor('number', name, lang, 'need_number_web'); return { pause: true };
+      } else { askFor('number', name, lang, 'need_number_web'); return { pause: true }; }
+    }
+    if (st.tool === 'send_message' && !args.app) {
+      if (T.MESSENGERS.includes(S.defaultMessenger)) args.app = S.defaultMessenger;
+      else { st.args = args; askApp(args.contactName || args.contact || args.number, lang); return { pause: true }; }
+    }
+    if (MSG_TOOLS.includes(st.tool) && !String(args.message || '').trim() && !args.allowEmpty) {
+      st.args = args; askFor('message', args.contactName || args.contact || args.number, lang); return { pause: true };
     }
     if (st.tool === 'send_email' && !args.to) {
       const name = String(args.contact || '').trim();
@@ -765,15 +822,32 @@
     }
     return { args };
   }
-  function askFor(type, name, lang, key) {
+  function askFor(type, name, lang, key, vars) {
     pending = { type, name };
     let text;
-    if (type === 'number') text = name ? T.say(key || 'need_number', { name }, lang) : (T.langKey(lang) === 'en' ? 'Which number? (e.g. +92 300 1234567)' : 'Kaunsa number, jaanu? (jaise +92 300 1234567)');
+    if (type === 'number') text = name ? T.say(key || 'need_number', Object.assign({ name, close: '' }, vars || {}), lang) : (T.langKey(lang) === 'en' ? 'Which number? (e.g. +92 300 1234567)' : 'Kaunsa number, jaanu? (jaise +92 300 1234567)');
+    else if (type === 'message') text = T.say('ask_message', { name: name || (T.langKey(lang) === 'en' ? 'them' : 'unhein') }, lang);
     else if (type === 'email') text = T.langKey(lang) === 'en' ? 'What is ' + (name || 'their') + ' email address?' : 'Jaanu, ' + (name || 'unka') + ' email address kya hai?';
     else text = T.langKey(lang) === 'en' ? "What's your home address? I'll remember it for next time." : 'Jaanu, ghar ka address bata do — main yaad rakh lungi.';
     setVoiceState('IDLE', 'waiting for your answer');
     return reply(text, lang, { meta: { via: 'NOORA tools' } });
   }
+  function askApp(name, lang) {
+    const id = 'card' + (++cardSeq) + '_' + Date.now().toString(36);
+    pending = { type: 'app', cardId: id, name };
+    const buttons = [{ label: '🟢 WhatsApp', value: 'whatsapp', go: true }, { label: '✉️ SMS', value: 'sms' }, { label: 'Cancel', value: 'cancel' }];
+    setVoiceState('IDLE', 'WhatsApp or SMS?');
+    return reply(T.say('ask_app', { name: name || '' }, lang), lang, { meta: { card: { id, title: '💬 ' + (name || ''), details: [], note: 'I\'ll remember your choice — change it in Tools → Action preferences.', buttons }, via: 'NOORA tools' } });
+  }
+  function chooseApp(app) {
+    const p = pending; pending = null;
+    if (p && p.cardId) markCard(p.cardId, '✓ ' + (app === 'whatsapp' ? 'WhatsApp' : 'SMS'));
+    if (!plan) return;
+    S.defaultMessenger = app; saveS();
+    plan.steps[plan.i].args.app = app;
+    busy = true; advancePlan();
+  }
+  const parseAppChoice = (t) => { const n = String(t || '').toLowerCase(); if (/whats\s*app|whatsap|watsapp|wa\b|واٹس|व्हाट्स/.test(n)) return 'whatsapp'; if (/\bsms\b|text message|\bmessage\b|\bmsg\b|ایس ایم ایس|मैसेज/.test(n)) return 'sms'; return ''; };
   function askChoose(name, matches, lang) {
     const id = 'card' + (++cardSeq) + '_' + Date.now().toString(36);
     pending = { type: 'choose', cardId: id, choices: matches, name };
@@ -802,6 +876,20 @@
     if (p.type === 'retry') {
       if (yn === 'yes') { await addUser(text); pending = null; markCard(p.cardId, '↻ Retrying'); retryLast(p.text); return true; }
       markCard(p.cardId, 'Dismissed'); pending = null; if (yn === 'no') { await addUser(text); reply('Theek hai.', lang); return true; } return false;
+    }
+    if (p.type === 'message') {
+      if (!plan) { pending = null; return false; }
+      const msg = String(text).trim();
+      if (yn === 'no' && msg.split(/\s+/).length <= 2) { await addUser(text); cancelPending(); return true; }
+      await addUser(text); pending = null;
+      plan.steps[plan.i].args.message = msg.slice(0, 1000);
+      busy = true; advancePlan(); return true;
+    }
+    if (p.type === 'app') {
+      const app = parseAppChoice(text);
+      if (app) { await addUser(text); chooseApp(app); return true; }
+      if (yn === 'no') { await addUser(text); cancelPending(); return true; }
+      markCard(p.cardId, 'Skipped'); pending = null; plan = null; return false;
     }
     if (yn === 'no') { await addUser(text); cancelPending(); return true; }
     if (p.type === 'choose') {
@@ -834,7 +922,142 @@
       busy = true; advancePlan(); return true;
     }
     if (p.type === 'perm') { pending = null; plan = null; return false; }
+    if (p.type === 'contacts' || p.type === 'attach') { markCard(p.cardId, 'Closed'); pending = null; return false; }
+    if (p.type === 'editask') {
+      markCard(p.cardId, '✓'); pending = null;
+      await addUser(text); runPlan([{ tool: 'edit_image', args: { instruction: String(text).trim() } }], C.detect(text, prefLang())); return true;
+    }
     return false;
+  }
+
+  // ---- 2.3.0 photo edit: Gemini image model (user's key, live) + free on-device eraser (works offline) ----
+  const geminiKeyOk = () => !!(S.apiKey && /generativelanguage\.googleapis\.com/.test(S.baseUrl || ''));
+  const loadImg = (src) => new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error('decode')); im.src = src; });
+  async function geminiEditImage(instruction, dataUrl) {
+    const m = String(dataUrl).match(/^data:([^;]+);base64,(.*)$/);
+    if (!m) return { ok: false, message: 'the photo could not be read' };
+    if (!navigator.onLine || S.netMode === 'offline') return { ok: false, message: C.mapImageEditError('network') };
+    const req = C.buildGeminiImageEditRequest(S.apiKey, S.imageEditModel || C.IMAGE_EDIT_MODELS[0], instruction, m[1], m[2]);
+    const r = await http(req.url, { method: req.method, headers: req.headers, body: JSON.stringify(req.body) }, 120000);
+    if (!r.ok) {
+      let msg = ''; try { const j = await r.res.json(); msg = (j.error && j.error.message) || ''; } catch (e) {}
+      return { ok: false, status: r.status, message: C.mapImageEditError(r.status || 'network', msg || r.error) };
+    }
+    const j = await r.res.json();
+    const out = C.parseGeminiImageResponse(j);
+    if (!out.ok) return { ok: false, message: 'Gemini answered without an image (' + out.reason + ')' + (out.text ? ': ' + out.text.slice(0, 120) : '') + '. Try the free eraser.' };
+    return { ok: true, dataUrl: 'data:' + out.mime + ';base64,' + out.b64, text: out.text };
+  }
+  /** Onion-peel inpainting: fill masked pixels from their known neighbours, ring by ring, then smooth. */
+  function inpaint(ctx, w, h, mask) {
+    const img = ctx.getImageData(0, 0, w, h); const d = img.data;
+    let todo = []; for (let i = 0; i < w * h; i++) if (mask[i]) todo.push(i);
+    const known = new Uint8Array(w * h); for (let i = 0; i < w * h; i++) known[i] = mask[i] ? 0 : 1;
+    let guard = 0;
+    while (todo.length && guard++ < 4000) {
+      const next = []; const fill = [];
+      for (const i of todo) {
+        const x = i % w, y = (i / w) | 0; let r = 0, g = 0, b = 0, n = 0;
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          if (!dx && !dy) continue; const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+          const j = yy * w + xx; if (!known[j]) continue; r += d[j * 4]; g += d[j * 4 + 1]; b += d[j * 4 + 2]; n++;
+        }
+        if (n) fill.push([i, r / n, g / n, b / n]); else next.push(i);
+      }
+      if (!fill.length) break;
+      for (const [i, r, g, b] of fill) { d[i * 4] = r; d[i * 4 + 1] = g; d[i * 4 + 2] = b; known[i] = 1; }
+      todo = next;
+    }
+    for (let pass = 0; pass < 3; pass++) for (let i = 0; i < w * h; i++) {
+      if (!mask[i]) continue; const x = i % w, y = (i / w) | 0; let r = 0, g = 0, b = 0, n = 0;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue; const j = yy * w + xx; r += d[j * 4]; g += d[j * 4 + 1]; b += d[j * 4 + 2]; n++; }
+      d[i * 4] = r / n; d[i * 4 + 1] = g / n; d[i * 4 + 2] = b / n;
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+  async function saveImageData(dataUrl, name) {
+    const b64 = String(dataUrl).split(',')[1] || ''; const mime = (String(dataUrl).match(/^data:([^;]+)/) || [])[1] || 'image/png';
+    if (bridge()) { const r = nativeRun({ type: 'saveImage', name, mime, data: b64 }); return r.ok ? { ok: true, message: r.message || 'saved to Pictures/NOORA' } : { ok: false, message: r.message || 'could not save' }; }
+    if (typeof window.__nooraOpenHook === 'function') { window.__nooraOpenHook('download:' + name); return { ok: true, message: 'downloaded ' + name }; }
+    const a = document.createElement('a'); a.href = dataUrl; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    return { ok: true, message: 'downloaded ' + name };
+  }
+  async function shareImageData(dataUrl, name) {
+    const b64 = String(dataUrl).split(',')[1] || ''; const mime = (String(dataUrl).match(/^data:([^;]+)/) || [])[1] || 'image/png';
+    if (bridge()) { const r = nativeRun({ type: 'share', name, mime, data: b64 }); return { ok: !!r.ok, message: r.message || (r.ok ? 'share sheet opened' : 'share failed') }; }
+    try { const blob = await (await fetch(dataUrl)).blob(); const file = new File([blob], name, { type: mime }); if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return { ok: true, message: 'shared' }; } } catch (e) { return { ok: false, message: 'share cancelled' }; }
+    return { ok: false, message: 'this browser cannot share files — use Save instead' };
+  }
+  async function openImageEditor(instruction, lang, opts) {
+    const o = opts || {};
+    if (!lastAttachment || !/^image\//.test(lastAttachment.mime || '')) return reply(T.say('action_failed', { reason: 'attach the photo first (📎), then tell me what to change' }, lang), lang);
+    const src = lastAttachment.dataUrl || await readDataUrl(lastAttachment.file);
+    const im = await loadImg(src);
+    const k = Math.min(1, 1280 / Math.max(im.naturalWidth, im.naturalHeight));
+    const W = Math.max(1, Math.round(im.naturalWidth * k)), H = Math.max(1, Math.round(im.naturalHeight * k));
+    const wrap = document.createElement('div'); wrap.className = 'imgEditor';
+    const note = document.createElement('p'); note.className = 'note'; note.id = 'ieNote'; note.dir = 'auto';
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H; cv.id = 'ieCanvas';
+    const ctx = cv.getContext('2d', { willReadFrequently: true }); ctx.drawImage(im, 0, 0, W, H);
+    const overlay = document.createElement('canvas'); overlay.width = W; overlay.height = H; overlay.className = 'ieOverlay';
+    const octx = overlay.getContext('2d');
+    const stage = document.createElement('div'); stage.className = 'ieStage'; stage.appendChild(cv); stage.appendChild(overlay);
+    const row = document.createElement('div'); row.className = 'acb ieTools';
+    const mk = (label, fn, go, id) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; if (go) b.className = 'go'; if (id) b.id = id; b.onclick = fn; row.appendChild(b); return b; };
+    const size = document.createElement('input'); size.type = 'range'; size.min = '8'; size.max = '80'; size.value = '28'; size.setAttribute('aria-label', 'Brush size');
+    wrap.appendChild(note); wrap.appendChild(stage); wrap.appendChild(size); wrap.appendChild(row);
+    let mask = new Uint8Array(W * H); let painting = false; let current = src; const history = [];
+    const pos = (e) => { const r = overlay.getBoundingClientRect(); const t = e.touches ? e.touches[0] : e; return [(t.clientX - r.left) * W / r.width, (t.clientY - r.top) * H / r.height]; };
+    const dab = (x, y) => {
+      const rad = Number(size.value) * W / Math.max(1, overlay.getBoundingClientRect().width || W) / 2;
+      octx.fillStyle = 'rgba(236,72,153,0.55)'; octx.beginPath(); octx.arc(x, y, rad, 0, Math.PI * 2); octx.fill();
+      const r2 = rad * rad; for (let yy = Math.max(0, (y - rad) | 0); yy < Math.min(H, y + rad + 1); yy++) for (let xx = Math.max(0, (x - rad) | 0); xx < Math.min(W, x + rad + 1); xx++) if ((xx - x) ** 2 + (yy - y) ** 2 <= r2) mask[yy * W + xx] = 1;
+    };
+    const down = (e) => { painting = true; const [x, y] = pos(e); dab(x, y); e.preventDefault(); };
+    const move = (e) => { if (!painting) return; const [x, y] = pos(e); dab(x, y); e.preventDefault(); };
+    const up = () => { painting = false; };
+    overlay.addEventListener('pointerdown', down); overlay.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+    overlay.addEventListener('touchstart', down, { passive: false }); overlay.addEventListener('touchmove', move, { passive: false }); overlay.addEventListener('touchend', up);
+    const setNote = (t) => { note.textContent = t; };
+    const showResult = async (dataUrl) => { current = dataUrl; const r = await loadImg(dataUrl); ctx.clearRect(0, 0, W, H); ctx.drawImage(r, 0, 0, W, H); octx.clearRect(0, 0, W, H); mask = new Uint8Array(W * H); };
+    window.__nooraEditor = { canvas: cv, overlay, paint: (x, y) => dab(x, y), maskCount: () => mask.reduce((a, b) => a + b, 0), current: () => current };
+    mk('🧽 Erase painted area', () => {
+      const n = mask.reduce((a, b) => a + b, 0);
+      if (!n) return setNote('Paint over the text / object with your finger first, then tap Erase.');
+      history.push(ctx.getImageData(0, 0, W, H)); inpaint(ctx, W, H, mask); octx.clearRect(0, 0, W, H); mask = new Uint8Array(W * H);
+      current = cv.toDataURL('image/png'); setNote('Erased ✓ — paint more and erase again, or Save / Share.');
+    }, true, 'ieErase');
+    mk('↶ Undo', () => { const h = history.pop(); if (h) { ctx.putImageData(h, 0, 0); current = cv.toDataURL('image/png'); } octx.clearRect(0, 0, W, H); mask = new Uint8Array(W * H); }, false, 'ieUndo');
+    const aiBtn = mk('✨ AI edit (Gemini)', async () => {
+      if (!geminiKeyOk()) return setNote('AI editing needs your own Gemini API key with billing (Settings → AI model → Google Gemini). The free eraser works without it.');
+      aiBtn.disabled = true; setNote('✨ Asking Gemini to: ' + instruction + ' …');
+      const r = await geminiEditImage(instruction, current);
+      aiBtn.disabled = false;
+      if (!r.ok) return setNote('⚠ ' + r.message);
+      history.push(ctx.getImageData(0, 0, W, H)); await showResult(r.dataUrl);
+      setNote('✨ Gemini edited the photo' + (r.text ? ' — ' + r.text.slice(0, 140) : '') + '. Save or Share it, or keep editing.');
+    }, false, 'ieAi');
+    mk('💾 Save', async () => { const r = await saveImageData(current, 'noora-edit-' + Date.now() + '.png'); setNote(r.ok ? '💾 ' + r.message : '⚠ ' + r.message); toast(r.ok ? 'Saved ✓' : r.message); }, false, 'ieSave');
+    mk('📤 Share', async () => { const r = await shareImageData(current, 'noora-edit.png'); if (!r.ok) setNote('⚠ ' + r.message); }, false, 'ieShare');
+    mk('✓ Done', async () => {
+      $('modal').hidden = true; window.removeEventListener('pointerup', up);
+      if (current !== src) {
+        const blob = await (await fetch(current)).blob();
+        lastAttachment = { name: 'noora-edit.png', mime: blob.type || 'image/png', file: new File([blob], 'noora-edit.png', { type: blob.type || 'image/png' }), dataUrl: current };
+        await Store.addFile({ name: 'noora-edit.png', mime: lastAttachment.mime, kind: 'image', ts: Date.now(), dataUrl: current });
+        reply(T.langKey(lang) === 'en' ? 'Here is your edited photo 💜 (saved in Files — use Save / Share in the editor to put it in your gallery or send it).' : 'Yeh lo jaanu, edited photo 💜 (Files mein save hai — gallery mein ya kisi ko bhejne ke liye editor mein Save / Share dabao).', lang, { image: current, meta: { via: 'photo editor', attachChips: true } });
+      } else busy = false;
+    }, false, 'ieDone');
+    const aiFirst = geminiKeyOk() && navigator.onLine && S.netMode !== 'offline' && !o.manual;
+    setNote(aiFirst ? '✨ Editing with Gemini: "' + instruction + '" … (or paint over the area and tap 🧽 Erase — free, on-device)'
+      : '🧽 Paint over the text / object with your finger, then tap Erase. ' + (geminiKeyOk() ? '' : 'For one-tap AI edits add a Gemini key with billing in Settings.'));
+    modal('🖼 Edit photo', wrap, [{ label: 'Close', fn: () => { busy = false; window.removeEventListener('pointerup', up); } }]);
+    busy = false;
+    const intro = aiFirst
+      ? (T.langKey(lang) === 'en' ? 'Opening the photo editor — asking Gemini to ' + instruction + '.' : 'Jaanu, photo editor khol rahi hoon — Gemini se keh rahi hoon: ' + instruction + '.')
+      : (T.langKey(lang) === 'en' ? 'Opening the photo editor — paint over what you want removed and tap 🧽 Erase (free, works offline).' + (geminiKeyOk() ? '' : ' One-tap AI edits need a Gemini key with billing.') : 'Jaanu, photo editor khol diya — jo hatana hai us par ungli phero aur 🧽 Erase dabao (free, offline bhi).' + (geminiKeyOk() ? '' : ' Ek-tap AI edit ke liye billing wali Gemini key chahiye.'));
+    await reply(intro, lang, { meta: { via: 'photo editor' } });
+    if (aiFirst) aiBtn.click();
   }
   function offerSave(name, value, category, lang) {
     const m = { convId, role: 'assistant', text: (T.langKey(lang) === 'en' ? 'Want me to remember ' : 'Yaad rakhun? ') + name + ' → ' + value, meta: { saveNick: { name, value, category }, via: 'memory' }, ts: Date.now() };
@@ -876,7 +1099,87 @@
     renderChatPending(); updateMicIcon();
     if (chatPending.length) { showTab('chat'); input.focus && input.focus(); }
   }
+  // ---- 2.3.0: options after "Attach to chat": Explain · Edit · Summarize/Read · Send to someone · Save ----
+  const ATTACH_Q = {
+    explain: { en: 'Explain this', ru: 'Yeh kya hai? Samjhao' },
+    summarize: { en: 'Summarize this document', ru: 'Is document ka khulasa batao' },
+    read: { en: 'Read this out to me — what does it say?', ru: 'Yeh parh ke sunao — is mein kya likha hai?' }
+  };
+  function attachChipList(kinds) {
+    const k = new Set(kinds);
+    const out = [{ id: 'explain', label: '💡 Explain' }];
+    if (k.has('image')) out.push({ id: 'edit', label: '✏️ Edit photo' });
+    if (['pdf', 'docx', 'sheet', 'csv', 'text'].some((x) => k.has(x))) { out.push({ id: 'summarize', label: '📝 Summarize' }); out.push({ id: 'read', label: '🔊 Read' }); }
+    if (k.has('audio') || k.has('video')) out.push({ id: 'summarize', label: '📝 Summarize' });
+    out.push({ id: 'send', label: '📤 Send to someone' });
+    out.push({ id: 'save', label: '💾 Save' });
+    return out;
+  }
+  function renderAttachChips() {
+    const box = $('attachChips'); if (!box) return;
+    const ready = chatPending.filter((x) => x.status === 'ready');
+    box.innerHTML = ''; box.hidden = !ready.length;
+    attachChipList(ready.map((x) => x.kind)).forEach((c) => {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.dataset.attachAct = c.id; b.textContent = c.label;
+      b.onclick = () => attachAction(c.id); box.appendChild(b);
+    });
+  }
+  /** Process the tray silently (shows the file bubble) so lastAttachment is set. */
+  async function processTray() {
+    const items = chatPending.filter((x) => x.status === 'ready');
+    if (!items.length) return !!lastAttachment;
+    const done = [];
+    for (const it of items) { it.status = 'reading'; renderChatPending(); try { done.push(await processAttachment(it)); it.status = 'done'; } catch (e) { it.status = 'error'; it.error = friendlyError(e); } }
+    chatPending = chatPending.filter((x) => x.status === 'error'); renderChatPending(); updateMicIcon();
+    if (!done.length) { toast('Could not read the file(s) — see the ⚠ notes.'); return false; }
+    const img = done.find((p) => p.dataUrl);
+    await addUser(done.map((p) => (fileIcon[p.kind] || '📎') + ' ' + p.name).join('\n'), img ? img.dataUrl : null);
+    return true;
+  }
+  async function attachAction(act) {
+    const lang = prefLang() || C.detect(input.value || 'please', null);
+    const q = (k) => (T.langKey(lang) === 'en' ? ATTACH_Q[k].en : ATTACH_Q[k].ru);
+    const hasTray = chatPending.some((x) => x.status === 'ready');
+    if (busy) return toast(aiName() + ' is still answering…');
+    if (act === 'explain' || act === 'summarize' || act === 'read') {
+      if (!hasTray && lastAttachment && lastAttachment.file) addChatFiles([lastAttachment.file]);
+      const typed = input.value.trim();
+      return sendWithAttachments(typed || q(act));
+    }
+    if (!hasTray && !lastAttachment) return toast('Attach a file first (📎).');
+    if (hasTray && !(await processTray())) return;
+    if (act === 'edit') {
+      if (!lastAttachment || !/^image\//.test(lastAttachment.mime || '')) return reply(T.say('action_failed', { reason: 'only photos can be edited' }, lang), lang);
+      const typed = input.value.trim();
+      if (typed && T.isImageEditRequest(typed)) { input.value = ''; autoGrow(); await addUser(typed); return runPlan([{ tool: 'edit_image', args: { instruction: typed } }], lang); }
+      const id = 'card' + (++cardSeq) + '_' + Date.now().toString(36);
+      pending = { type: 'editask', cardId: id };
+      const buttons = [{ label: '🧽 Remove text', value: 'remove the text', go: true }, { label: '🧹 Remove object', value: 'remove the marked object' }, { label: '✨ Enhance', value: 'enhance the photo (sharper, better light)' }, { label: '🖌 Paint & erase myself', value: 'manual' }];
+      return reply(T.langKey(lang) === 'en' ? 'What should I change in the photo? Tap one or just tell me (e.g. "remove the text").' : 'Jaanu, photo mein kya badlun? Ek chuno ya bata do (jaise "text hata do").', lang, { meta: { card: { id, title: '✏️ Edit photo', details: [], buttons }, via: 'photo editor' } });
+    }
+    if (act === 'send') return runPlan([{ tool: 'share_file', args: { source: 'last_attachment' } }], lang);
+    if (act === 'save') {
+      const a = lastAttachment;
+      const r = /^image\//.test(a.mime || '') ? await saveImageData(a.dataUrl, a.name || 'noora-photo.jpg') : await saveFileData(a);
+      return reply(r.ok ? (T.langKey(lang) === 'en' ? '💾 Saved: ' : '💾 Save ho gaya: ') + r.message + (T.langKey(lang) === 'en' ? ' (also kept in the Files tab)' : ' (Files tab mein bhi hai)') : T.say('action_failed', { reason: r.message }, lang), lang, { meta: { via: 'Files' } });
+    }
+  }
+  async function saveFileData(a) {
+    const b64 = String(a.dataUrl || '').split(',')[1] || '';
+    if (!b64) return { ok: false, message: 'the file is too large to keep in memory — it is still in the Files tab' };
+    if (bridge()) { const r = nativeRun({ type: 'saveFile', name: a.name || 'noora-file', mime: a.mime || 'application/octet-stream', data: b64 }); return { ok: !!r.ok, message: r.message || (r.ok ? 'saved to Downloads/NOORA' : 'could not save') }; }
+    if (typeof window.__nooraOpenHook === 'function') { window.__nooraOpenHook('download:' + a.name); return { ok: true, message: 'downloaded ' + a.name }; }
+    const el = document.createElement('a'); el.href = a.dataUrl; el.download = a.name || 'noora-file'; document.body.appendChild(el); el.click(); el.remove();
+    return { ok: true, message: 'downloaded ' + (a.name || 'file') };
+  }
+  function offerAttachmentChips(processed, lang) {
+    const id = 'card' + (++cardSeq) + '_' + Date.now().toString(36);
+    const chips = attachChipList(processed.map((p) => p.kind));
+    pending = { type: 'attach', cardId: id };
+    return reply(T.langKey(lang) === 'en' ? 'Got it 💜 What should I do with it?' : 'Mil gaya jaanu 💜 Is ka kya karun?', lang, { meta: { card: { id, title: '📎 ' + processed.map((p) => p.name).join(', ').slice(0, 80), details: [], buttons: chips.map((c, i) => ({ label: c.label, value: c.id, go: i === 0 })) }, via: 'Files' } });
+  }
   function renderChatPending() {
+    renderAttachChips();
     const box = $('chatPending'); if (!box) return;
     box.innerHTML = '';
     box.hidden = !chatPending.length;
@@ -929,7 +1232,7 @@
   async function processAttachment(it) {
     const f = it.file, name = f.name || 'file', mime = f.type || '';
     const base = { name, kind: it.kind };
-    const keep = async (dataUrl) => { lastAttachment = { name, mime: mime || 'application/octet-stream', file: f, dataUrl: dataUrl || (f.size <= 15 * 1024 * 1024 ? await readDataUrl(f) : '') }; };
+    const keep = async (dataUrl) => { lastAttachment = { name, kind: it.kind, ts: Date.now(), mime: mime || 'application/octet-stream', file: f, dataUrl: dataUrl || (f.size <= 15 * 1024 * 1024 ? await readDataUrl(f) : '') }; };
     if (it.kind === 'image') {
       const dataUrl = await scaleImage(f, 1280);
       await Store.addFile({ name, mime: mime || 'image/jpeg', kind: 'image', ts: Date.now(), dataUrl });
@@ -985,8 +1288,10 @@
     const firstImg = processed.find((p) => p.dataUrl);
     await addUser((question ? question + '\n' : '') + names, firstImg ? firstImg.dataUrl : null);
     const lang = C.detect(question || 'please', prefLang());
+    if (question && T.isImageEditRequest(question) && processed.some((p) => p.kind === 'image')) { busy = false; return runPlan([{ tool: 'edit_image', args: { instruction: question } }], lang); }
     const cmd = question && T.parseCommand(question);
     if (cmd) { busy = false; return runPlan(cmd.steps, lang); }
+
     const hasImg = processed.some((p) => p.dataUrl), hasAudio = processed.some((p) => p.audio);
     const vr = T.visionReady(S);
     let usable = processed;
@@ -1116,12 +1421,45 @@
     }
     if ($('prefMaps')) $('prefMaps').value = S.mapsProvider || '';
     if ($('prefCc')) $('prefCc').value = S.defaultCountryCode || '';
+    if ($('prefMessenger')) $('prefMessenger').value = S.defaultMessenger || 'ask';
+    if ($('contactsCard')) $('contactsCard').hidden = PLATFORM !== 'android';
     if ($('siriCard')) $('siriCard').hidden = PLATFORM === 'android';
   }
   if ($('vsOrb')) $('vsOrb').onclick = () => { unlockSpeech(); if (listening) stopMic(); else if (voiceState === 'SPEAKING') { stopSpeaking(); setVoiceState('IDLE'); } else startListening(); };
+  if ($('chatVoiceOrb')) $('chatVoiceOrb').onclick = () => { unlockSpeech(); if (listening) stopMic(); else if (voiceState === 'SPEAKING') { stopSpeaking(); setVoiceState('IDLE'); } else window.__nooraStartVoice(); };
+  // ---- Tools → Phone contacts (full numbers stay on the phone) ----
+  function renderContactsList() {
+    const box = $('contactsList'); if (!box) return;
+    const r = loadAllContacts(false);
+    box.innerHTML = '';
+    if (r.code === 'permission') { $('contactsNote').textContent = 'Contacts permission is needed — tap "Load contacts" and choose Allow.'; return; }
+    if (!r.ok) { $('contactsNote').textContent = r.message || 'Could not read contacts.'; return; }
+    const all = r.results || [];
+    const q = ($('contactsSearch') && $('contactsSearch').value.trim()) || '';
+    const rows = q ? T.matchContacts(all, q) : all.slice(0, 200);
+    $('contactsNote').textContent = all.length + ' contacts on this phone' + (q ? ' · ' + rows.length + ' match "' + q + '"' : (all.length > 200 ? ' · showing first 200 — search to find anyone' : '')) + '. Never sent to the AI.';
+    rows.slice(0, 200).forEach((c) => {
+      const d = document.createElement('div'); d.className = 'contactRow';
+      const t = document.createElement('div'); t.className = 't'; t.textContent = c.name; t.dir = 'auto';
+      const n = document.createElement('div'); n.className = 's'; n.textContent = c.number + (c.label ? ' · ' + c.label : '');
+      const call = document.createElement('button'); call.type = 'button'; call.textContent = '📞'; call.setAttribute('aria-label', 'Call ' + c.name);
+      call.onclick = () => { showTab('chat'); runPlan([{ tool: 'call_phone', args: { number: c.number, contactName: c.name } }], prefLang() || L.ROMAN_URDU); };
+      const msg = document.createElement('button'); msg.type = 'button'; msg.textContent = '💬'; msg.setAttribute('aria-label', 'Message ' + c.name);
+      msg.onclick = () => { showTab('chat'); runPlan([{ tool: 'send_message', args: { number: c.number, contactName: c.name } }], prefLang() || L.ROMAN_URDU); };
+      d.appendChild(t); d.appendChild(n); d.appendChild(call); d.appendChild(msg); box.appendChild(d);
+    });
+  }
+  if ($('btnContactsLoad')) $('btnContactsLoad').onclick = () => {
+    const r = loadAllContacts(true);
+    if (r.code === 'permission') { pending = { type: 'perm', perm: 'contacts', name: '' }; $('contactsNote').textContent = 'Asking for Contacts permission… choose Allow.'; return; }
+    renderContactsList();
+  };
+  if ($('contactsSearch')) $('contactsSearch').addEventListener('input', () => { if (contactsCache) renderContactsList(); });
   if ($('btnPrefSave')) $('btnPrefSave').onclick = () => {
     const mp = $('prefMaps').value; const cc = String($('prefCc').value || '').replace(/[^\d]/g, '').slice(0, 4);
-    S.mapsProvider = mp; S.defaultCountryCode = cc; saveS();
+    S.mapsProvider = mp; S.defaultCountryCode = cc;
+    if ($('prefMessenger')) S.defaultMessenger = $('prefMessenger').value || 'ask';
+    saveS();
     $('prefCc').value = cc; toast('Saved — maps: ' + (mp || 'ask each time') + (cc ? ' · WhatsApp country code +' + cc : ''));
   };
 
@@ -1131,7 +1469,8 @@
     stopSpeaking();
     const lang = prefLang() ? prefLang().speech : (navigator.language || 'ur-PK');
     try {
-      const r = JSON.parse(window.NooraNative.sttStart(lang) || '{}');
+      const preferOffline = offlineMode();
+      const r = JSON.parse((typeof window.NooraNative.sttStartEx === 'function' ? window.NooraNative.sttStartEx(JSON.stringify({ lang, preferOffline })) : window.NooraNative.sttStart(lang)) || '{}');
       if (!r.ok) {
         if (r.code === 'permission') { setVoiceState('LISTENING', 'asking for microphone permission'); return; }
         const msg = r.code === 'unavailable' ? 'Speech recognition is not available on this phone (no Google speech service). Use the keyboard 🎤.' : friendlySpeechError(r.code);
@@ -1164,11 +1503,16 @@
     try {
       if (!ev || typeof ev !== 'object') return;
       if (ev.type === 'stt') return onNativeStt(ev);
+      if (ev.type === 'tts') return onNativeTts(ev);
       if (ev.type === 'permission') {
         if (ev.perm === 'mic') { if (ev.granted) startNativeListening(); else { const m = T.say('mic_denied', {}, prefLang() || L.ROMAN_URDU); setListening(false, m); setVoiceState('ERROR', m); continuous = false; } return; }
+        if (ev.perm === 'contacts') contactsCache = null;
+        if (ev.perm === 'contacts' && !(pending && pending.type === 'perm')) { if (ev.granted && $('contactsList')) renderContactsList(); return; }
         if (ev.perm === 'contacts' && pending && pending.type === 'perm') {
-          pending = null;
+          const was = pending; pending = null;
           if (ev.granted && plan) { busy = true; advancePlan(); }
+          else if (ev.granted && was.lookup) { showContactsResult(was.name, prefLang() || L.ROMAN_URDU); }
+          else if (ev.granted) { renderContactsList(); }
           else { const lang = plan ? plan.lang : L.ROMAN_URDU; const name = plan && plan.steps[plan.i] && plan.steps[plan.i].args.contact; if (plan) { askFor('number', name || '', lang, 'need_number'); } }
           return;
         }
@@ -1212,7 +1556,8 @@
   const status = (t) => { $('statusText').textContent = t; };
   function refreshStatus() {
     $('dot').classList.toggle('off', !navigator.onLine);
-    const base = !navigator.onLine ? 'Offline — greetings & saved chats only'
+    const base = S.netMode === 'offline' ? 'Offline mode — phone actions & small talk'
+      : !navigator.onLine ? (S.netMode === 'online' ? 'No internet — Online mode needs a connection' : 'Offline — phone actions & small talk')
       : hasOwnKey() ? `AI: ${S.provider} · ${S.chatModel}` : 'AI: free Pollinations (no key, rate-limited)';
     status(continuous ? ('🎙 Voice' + (S.muted ? ' (muted)' : '') + ' · ' + base) : base);
   }
@@ -1385,9 +1730,22 @@
     if (cmd && cmd.steps && cmd.steps.length) return runPlan(cmd.steps, lang);
     const lastBot = [...msgs].reverse().find((m) => m.role === 'assistant' && !m.pending);
     const lastGen = lastBot && lastBot.meta && lastBot.meta.genPrompt ? lastBot : null;
+    if (lastAttachment && /^image\//.test(lastAttachment.mime || '') && T.isImageEditRequest(text) && Date.now() - (lastAttachment.ts || 0) < 60 * 60 * 1000 && !(lastGen && lastGen.ts > (lastAttachment.ts || 0))) return runPlan([{ tool: 'edit_image', args: { instruction: text } }], lang);
+    if (offlineMode()) return offlineHandle(text, lang, lastGen);
     handle(C.route(text, !!lastGen), text, lang, lastGen);
   }
 
+  // ---- 2.3.0 Online / Offline mode ----
+  const offlineMode = () => S.netMode === 'offline' || (S.netMode !== 'online' && !navigator.onLine);
+  const OFFLINE_OK = ['Greeting', 'Help', 'Remember', 'RecallMemory', 'ForgetMemory', 'Flashlight', 'Alarm', 'Timer', 'OpenApp', 'Call', 'Sms', 'Maps', 'OpenUrl'];
+  function offlineHandle(text, lang, lastGen) {
+    const r = C.route(text, !!lastGen);
+    if (OFFLINE_OK.includes(r.type) && !((r.type === 'Alarm' && r.hour == null) || (r.type === 'Timer' && !r.seconds))) return handle(r, text, lang, lastGen);
+    busy = true;
+    const small = C.offlineReply(text, lang, S.userName);
+    setVoiceState('THINKING');
+    return reply(small || C.offlineNoAi(lang), lang, { meta: { via: 'offline mode' + (small ? ' · small talk' : '') } });
+  }
   function handle(r, text, lang, lastGen) {
     busy = true;
     const t4 = (en, ur, ru, hi) => C.t4(lang, en, ur, ru, hi);
@@ -1695,6 +2053,12 @@
     modal(title, rest.join('\n').trim(), [{ label, href, go: true }, { label: 'Cancel' }]);
   }
 
+  // 2.3.0 TTS provider state (declared before loadVoices runs)
+  const NATIVE_TTS = !!(IS_ANDROID_WV && window.NooraNative && typeof window.NooraNative.ttsSpeak === 'function');
+  let nativeVoices = null; let ttsSeq = 0; const ttsWaiters = {};
+  const ttsPlatform = () => (NATIVE_TTS ? 'android' : 'web');
+  const activeTtsProvider = () => C.effectiveTtsProvider(S, ttsPlatform());
+  const PROV_LABEL = { native: 'Phone voice (Android TextToSpeech)', browser: 'Browser voice', openai: 'OpenAI-compatible TTS', xai: 'Grok voice (xAI)' };
   let voices = [];
   let lastSpeakPayload = { text: '', lang: null };
   let ttsAudio = null;
@@ -1728,6 +2092,7 @@
     speakToken++;
     if ('speechSynthesis' in window) speechSynthesis.cancel();
     if (ttsAudio) { try { ttsAudio.pause(); ttsAudio.src = ''; } catch (e) {} ttsAudio = null; }
+    if (NATIVE_TTS) { try { window.NooraNative.ttsStop(); } catch (e) {} Object.keys(ttsWaiters).forEach((k) => { clearTimeout(ttsWaiters[k].tm); delete ttsWaiters[k]; }); }
   }
   function applyTtsVolume() {
     if (ttsAudio) {
@@ -1786,55 +2151,69 @@
       toast(msg, 6500); status(msg); if (onend) onend();
     }
   }
-  async function speakElevenLabs(clean, lang, onend) {
-    const ready = C.ttsProviderReady(Object.assign({}, S, { ttsProvider: 'elevenlabs' }));
-    if (!ready.ok) {
-      toast(ready.reason, 6000); status(ready.reason);
-      speakBrowser(clean, lang, onend);
-      return;
-    }
+  // ---- 2.3.0 native Android TextToSpeech (Voice.kt Speaker via NooraNative) · xAI Grok TTS ----
+  function loadNativeVoices(force) {
+    if (!NATIVE_TTS || typeof window.NooraNative.ttsVoices !== 'function') return [];
+    if (nativeVoices && !force) return nativeVoices;
+    try { const j = JSON.parse(window.NooraNative.ttsVoices() || '[]'); nativeVoices = Array.isArray(j) ? j : (j.voices || []); } catch (e) { nativeVoices = []; }
+    return nativeVoices;
+  }
+  function openTtsSettings() {
+    try { if (NATIVE_TTS && window.NooraNative.ttsOpenSettings) { window.NooraNative.ttsOpenSettings(); return true; } } catch (e) {}
+    const r = nativeRun({ type: 'settings', panel: 'tts' }); return !!r.ok;
+  }
+  function voicePackHint(lang, locale) {
+    const key = 'pack_' + locale; if (warnedVoice[key]) return; warnedVoice[key] = 1;
+    const label = (lang && lang.label) || locale;
+    modal('🔈 ' + label + ' voice not installed',
+      'Your phone\'s speech engine has no ' + label + ' (' + locale + ') voice yet. Open Text-to-speech settings → Google speech engine → Install voice data → ' + label + '. It\'s free and then works offline.',
+      [{ label: 'Open TTS settings', go: true, fn: () => openTtsSettings() }, { label: 'Later' }]);
+  }
+  function onNativeTts(ev) {
+    const w = ttsWaiters[ev.id]; if (!w) return;
+    if (ev.phase === 'start') return;
+    clearTimeout(w.tm); delete ttsWaiters[ev.id];
+    if (ev.phase === 'error' && ev.code) status('Phone voice error: ' + ev.code);
+    if (w.token === speakToken && w.onend) w.onend();
+  }
+  function speakNative(clean, lang, onend) {
     const token = speakToken;
-    const chunks = C.chunkSpeakText(clean, C.ELEVENLABS_CHUNK);
-    if (!chunks.length) { if (onend) onend(); return; }
+    const locales = C.ttsLocalesFor((lang && lang.id) || 'ENGLISH', clean);
+    const vs = loadNativeVoices();
+    let voice = S.nativeVoice || '';
+    if (voice && vs.length) { const v = vs.find((x) => x.name === voice); if (!v || !locales.some((l) => String(v.locale || '').toLowerCase().replace('_', '-').startsWith(l.toLowerCase().split('-')[0]))) voice = ''; }
+    if (!voice && vs.length) { const best = C.rankNativeVoices(vs, locales, S.gender || 'female')[0]; if (best) voice = best.name; }
+    const id = 'u' + (++ttsSeq);
+    let r = {};
+    try { r = JSON.parse(window.NooraNative.ttsSpeak(JSON.stringify({ id, text: clean, locales, voice, rate: S.rate || 1, pitch: S.pitch || 1, volume: S.volume == null ? 1 : S.volume })) || '{}'); }
+    catch (e) { r = { ok: false, code: 'bridge_error' }; }
+    if (!r.ok) {
+      if (r.code === 'lang_missing') voicePackHint(lang, locales[0]);
+      else if (r.code === 'not_ready') { /* engine still binding — try the browser voice once */ return speakBrowser(clean, lang, onend); }
+      else if (!warnedVoice.nativeErr) { warnedVoice.nativeErr = 1; toast('Phone voice unavailable (' + (r.code || 'error') + ') — check Settings → Voice.', 6000); }
+      if (onend) onend(); return;
+    }
+    ttsWaiters[id] = { token, onend, tm: setTimeout(() => { if (ttsWaiters[id]) { delete ttsWaiters[id]; if (token === speakToken && onend) onend(); } }, 6000 + clean.length * 110) };
+  }
+  async function speakXai(clean, lang, onend) {
+    const ready = C.ttsProviderReady(S, ttsPlatform());
+    const fallback = () => (NATIVE_TTS ? speakNative(clean, lang, onend) : speakBrowser(clean, lang, onend));
+    if (!ready.ok) { if (!warnedVoice.xaiKey) { warnedVoice.xaiKey = 1; status(ready.reason); } return fallback(); }
+    if (!navigator.onLine || S.netMode === 'offline') return fallback();
+    const token = speakToken;
+    const chunks = C.chunkSpeakText(clean, C.TTS_CHUNK);
     const playChunk = async (i) => {
       if (token !== speakToken) return;
-      const req = C.buildElevenLabsTtsRequest(S, chunks[i]);
+      const req = C.buildXaiTtsRequest(S, chunks[i], (lang && lang.id) || 'ENGLISH');
       try {
-        const res = await fetch(req.url, {
-          method: req.method,
-          headers: req.headers,
-          body: JSON.stringify(req.body)
-        });
+        const res = await fetch(req.url, { method: req.method, headers: req.headers, body: JSON.stringify(req.body) });
         if (token !== speakToken) return;
-        if (!res.ok) {
-          let detail = '';
-          try { const j = await res.json(); detail = (j.detail && (j.detail.message || JSON.stringify(j.detail))) || j.message || ''; } catch (e) {}
-          const msg = C.mapElevenLabsError(res.status, detail);
-          toast(msg, 6500); status(msg);
-          speakBrowser(clean, lang, onend);
-          return;
-        }
+        if (!res.ok) { let d = ''; try { const j = await res.json(); d = j.error || j.code || ''; } catch (e) {} const m = C.mapXaiTtsError(res.status, d); status(m); toast(m, 5000); return fallback(); }
         const blob = await res.blob();
-        if (token !== speakToken) return;
-        const next = () => {
-          if (token !== speakToken) return;
-          if (i + 1 < chunks.length) playChunk(i + 1);
-          else if (onend) onend();
-        };
-        try {
-          await playTtsBlob(blob, token, next);
-        } catch (playErr) {
-          const msg = C.mapElevenLabsError('network', playErr && playErr.message);
-          toast(msg, 6500); status(msg);
-          speakBrowser(clean, lang, onend);
-        }
-      } catch (e) {
-        if (token !== speakToken) return;
-        const msg = C.mapElevenLabsError('network', e && e.message);
-        toast(msg, 6500); status(msg);
-        speakBrowser(clean, lang, onend);
-      }
+        await playTtsBlob(blob, token, () => { if (i + 1 < chunks.length) playChunk(i + 1); else if (onend) onend(); });
+      } catch (e) { if (token !== speakToken) return; const m = C.mapXaiTtsError('network'); status(m); fallback(); }
     };
+    if (!chunks.length) { if (onend) onend(); return; }
     await playChunk(0);
   }
   function speak(text, lang, onend, opts) {
@@ -1846,18 +2225,21 @@
     setVoiceState('SPEAKING');
     const userEnd = onend;
     onend = () => { if (voiceState === 'SPEAKING') setVoiceState('IDLE'); if (userEnd) userEnd(); };
-    const provider = (o.provider != null ? o.provider : S.ttsProvider) || 'browser';
+    const provider = o.provider != null ? C.effectiveTtsProvider({ ttsProvider: o.provider }, ttsPlatform()) : activeTtsProvider();
     // cancel previous without bumping token twice awkwardly
     if ('speechSynthesis' in window) speechSynthesis.cancel();
     if (ttsAudio) { try { ttsAudio.pause(); ttsAudio.src = ''; } catch (e) {} ttsAudio = null; }
+    if (NATIVE_TTS) { try { window.NooraNative.ttsStop(); } catch (e) {} }
     speakToken++;
-    if (provider === 'openai') speakOpenAi(clean, onend);
-    else if (provider === 'elevenlabs') speakElevenLabs(clean, lang, onend);
+    const offline = S.netMode === 'offline' || !navigator.onLine;
+    if (provider === 'openai' && !offline) speakOpenAi(clean, onend);
+    else if (provider === 'xai') speakXai(clean, lang, onend);
+    else if (provider === 'native' && NATIVE_TTS) speakNative(clean, lang, onend);
     else speakBrowser(clean, lang, onend);
   }
   function replayLast() {
-    // Prefer cached cloud TTS blob when provider is openai/elevenlabs and we still have audio
-    if (lastTtsBlob && (S.ttsProvider === 'elevenlabs' || S.ttsProvider === 'openai') && !S.muted && (S.ttsOn || true)) {
+    // Prefer cached cloud TTS blob when provider is openai/xai and we still have audio
+    if (lastTtsBlob && (activeTtsProvider() === 'xai' || activeTtsProvider() === 'openai') && !S.muted) {
       unlockSpeech();
       if ('speechSynthesis' in window) speechSynthesis.cancel();
       if (ttsAudio) { try { ttsAudio.pause(); ttsAudio.src = ''; } catch (e) {} ttsAudio = null; }
@@ -1899,29 +2281,39 @@
   function renderVoiceInfo() {
     const el = $('voiceInfo'); if (!el) return;
     const parts = [];
-    const provLabel = S.ttsProvider === 'openai' ? 'OpenAI-compatible TTS'
-      : (S.ttsProvider === 'elevenlabs' ? 'ElevenLabs' : 'Browser');
-    parts.push('Provider: ' + provLabel);
-    if ('speechSynthesis' in window) {
-      const has = (ids) => ids.some((p) => voices.some((v) => v.lang.replace('_', '-').toLowerCase().startsWith(p)));
-      parts.push('Device voices: ' + [['EN', ['en']], ['AR', ['ar']], ['UR', ['ur']], ['HI', ['hi']], ['PA', ['pa']]].map(([n, p]) => `${n}${has(p) ? '✓' : '✗'}`).join(' · ') +
+    const p = activeTtsProvider();
+    parts.push('Provider: ' + PROV_LABEL[p] + (S.ttsProvider === 'auto' ? ' (Auto)' : ''));
+    if (p === 'native' || (NATIVE_TTS && p === 'xai')) {
+      const vs = loadNativeVoices();
+      const has = (pre) => vs.some((v) => String(v.locale || '').toLowerCase().replace('_', '-').startsWith(pre));
+      parts.push('Phone voices: ' + [['EN', 'en'], ['UR', 'ur'], ['HI', 'hi'], ['PA', 'pa'], ['AR', 'ar']].map(([n, pre]) => n + (has(pre) ? '✓' : '✗')).join(' · ') + (vs.length ? ' · ' + vs.length + ' total' : ''));
+      if (vs.length && !has('ur')) parts.push('Urdu voice pack not installed — tap "Install voice packs" below (free, then works offline).');
+    } else if ('speechSynthesis' in window) {
+      const has = (ids) => ids.some((pre) => voices.some((v) => v.lang.replace('_', '-').toLowerCase().startsWith(pre)));
+      parts.push('Device voices: ' + [['EN', ['en']], ['AR', ['ar']], ['UR', ['ur']], ['HI', ['hi']], ['PA', ['pa']]].map(([n, pre]) => `${n}${has(pre) ? '✓' : '✗'}`).join(' · ') +
         (voices.length ? ` · ${voices.length} total` : ' (loading…)'));
       const d = C.describeDefaultVoice(voices, { gender: S.gender || 'female', voiceURI: S.voiceURI, langPrefs: ['en-US', 'en-GB', 'en'] });
       parts.push(d.label);
     } else parts.push('No speechSynthesis here (browser TTS unavailable).');
-    if (S.ttsProvider === 'openai' || S.ttsProvider === 'elevenlabs') {
-      const r = C.ttsProviderReady(S);
-      parts.push(r.ok ? (provLabel + ' ready (key stored on this device).') : r.reason);
-    }
-    if (S.ttsProvider === 'elevenlabs') {
-      parts.push('Speed: ElevenLabs voice_settings.speed (from Speaking speed slider).');
+    if (p === 'openai' || p === 'xai' || S.ttsProvider === 'xai') {
+      const r = C.ttsProviderReady(S, ttsPlatform());
+      parts.push(r.ok ? (PROV_LABEL[p] + ' ready (key stored on this device only).') : r.reason);
     }
     el.textContent = parts.join('\n');
   }
+  function fillNativeVoiceSelect() {
+    const sel = $('sNativeVoice'); if (!sel) return;
+    const vs = loadNativeVoices(true);
+    const ranked = C.rankNativeVoices(vs, ['ur-PK', 'ur', 'hi-IN', 'pa-IN', 'en-IN', 'en-US', 'en-GB', 'en'], S.gender || 'female');
+    sel.innerHTML = '<option value="">Auto (best voice for each language)</option>' + ranked.map((v) => `<option value="${String(v.name).replace(/"/g, '')}"${v.name === S.nativeVoice ? ' selected' : ''}>${v.locale} · ${v.name}${v.network ? ' (online)' : ''}</option>`).join('');
+  }
   function syncTtsProviderFields() {
-    const v = $('sTtsProvider') ? $('sTtsProvider').value : 'browser';
+    const v = $('sTtsProvider') ? $('sTtsProvider').value : 'auto';
+    const eff = C.effectiveTtsProvider({ ttsProvider: v }, ttsPlatform());
     const box = $('ttsProviderFields'); if (box) box.hidden = v !== 'openai';
-    const elbox = $('elevenProviderFields'); if (elbox) elbox.hidden = v !== 'elevenlabs';
+    const xbox = $('xaiProviderFields'); if (xbox) xbox.hidden = v !== 'xai';
+    const nbox = $('nativeVoiceFields'); if (nbox) nbox.hidden = !(NATIVE_TTS && (eff === 'native' || v === 'xai'));
+    const bbox = $('browserVoiceFields'); if (bbox) bbox.hidden = eff === 'native';
   }
 
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -2257,42 +2649,34 @@
   $('btnNewPrompt').onclick = async () => { const title = prompt('Prompt name?') || 'Prompt'; const text = prompt('Prompt text?') || ''; await Store.addPrompt({ title, text, ts: Date.now() }); openFiles(); };
 
   function readVoiceForm() {
-    const pick = $('sElevenVoicePick');
-    let elevenVoiceId = ($('sElevenVoiceId').value || '').trim();
-    if (pick && pick.value) elevenVoiceId = pick.value;
     return {
       ttsOn: $('sTts').checked,
       rate: parseFloat($('sRate').value) || 1,
       pitch: parseFloat($('sPitch').value) || 1,
       volume: parseFloat($('sVolume').value),
       voiceURI: $('sVoice').value || '',
-      ttsProvider: $('sTtsProvider').value || 'browser',
+      ttsProvider: $('sTtsProvider').value || 'auto',
       ttsBaseUrl: ($('sTtsBase').value || '').trim().replace(/\/+$/, ''),
       ttsApiKey: ($('sTtsKey').value || '').trim(),
       ttsModel: ($('sTtsModel').value || '').trim() || 'tts-1',
       ttsVoiceId: ($('sTtsVoiceId').value || '').trim(),
-      elevenApiKey: ($('sElevenKey').value || '').trim(),
-      elevenVoiceId: elevenVoiceId,
-      elevenModel: ($('sElevenModel').value || '').trim() || 'eleven_multilingual_v2',
-      elevenStability: parseFloat($('sElevenStability').value),
-      elevenSimilarity: parseFloat($('sElevenSimilarity').value)
+      nativeVoice: $('sNativeVoice') ? $('sNativeVoice').value || '' : '',
+      xaiApiKey: $('sXaiKey') ? ($('sXaiKey').value || '').trim() : '',
+      xaiVoiceId: $('sXaiVoice') ? $('sXaiVoice').value || 'eve' : 'eve'
     };
   }
   function openSettings() {
     $('sName').value = S.userName;
     $('sTts').checked = S.ttsOn;
-    $('sTtsProvider').value = S.ttsProvider || 'browser';
+    $('sTtsProvider').value = S.ttsProvider || 'auto';
     $('sTtsBase').value = S.ttsBaseUrl || 'https://api.openai.com/v1';
     $('sTtsKey').value = S.ttsApiKey || '';
     $('sTtsModel').value = S.ttsModel || 'tts-1';
     $('sTtsVoiceId').value = S.ttsVoiceId || 'nova';
-    $('sElevenKey').value = S.elevenApiKey || '';
-    $('sElevenVoiceId').value = S.elevenVoiceId || '';
-    $('sElevenModel').value = S.elevenModel || 'eleven_multilingual_v2';
-    $('sElevenStability').value = S.elevenStability != null ? S.elevenStability : 0.5;
-    $('sElevenSimilarity').value = S.elevenSimilarity != null ? S.elevenSimilarity : 0.75;
-    if ($('sElevenStabVal')) $('sElevenStabVal').textContent = String($('sElevenStability').value);
-    if ($('sElevenSimVal')) $('sElevenSimVal').textContent = String($('sElevenSimilarity').value);
+    if ($('sXaiKey')) $('sXaiKey').value = S.xaiApiKey || '';
+    if ($('sXaiVoice')) $('sXaiVoice').value = S.xaiVoiceId || 'eve';
+    if ($('sNetMode')) $('sNetMode').value = S.netMode || 'auto';
+    fillNativeVoiceSelect();
     $('sRate').value = S.rate; $('sPitch').value = S.pitch || 1; $('sVolume').value = S.volume == null ? 1 : S.volume;
     $('sMemOn').checked = S.memoryOn !== false; $('sPinOn').checked = !!S.pinOn; $('sPin').value = '';
     syncTtsProviderFields(); fillVoiceSelect(); renderVoiceInfo();
@@ -2302,7 +2686,7 @@
       : 'iPhone web: chat, live data, images, memory, call/SMS/Maps links (you confirm).\n') +
       'Wake word / lock-screen listening is NOT possible in an iPhone web app.\n' +
       `Voice input: ${SR ? 'available (may be refused by OS — then use keyboard 🎤)' : 'NOT available — use keyboard 🎤'}.\n` +
-      `TTS: Browser / OpenAI-compatible / ElevenLabs (keys in Voice settings only).\n` +
+      `TTS: ${PROV_LABEL[activeTtsProvider()]} (Auto = phone voice on Android). Optional Grok / OpenAI-compatible keys stay in Voice settings only.\n` +
       `Storage: ${Store.kind}. Installed: ${STANDALONE || IS_ANDROID_WV ? 'yes' : 'no'}.`;
     $('about').textContent = `NOORA AI ${C.VERSION}\nLive: rss2json, Wikipedia, open.er-api.com, gold-api.com, Coinbase, Open-Meteo, Pollinations`;
   }
@@ -2314,52 +2698,16 @@
     saveS(); setIcon($('btnTts'), S.ttsOn ? 'volOn' : 'volOff'); updateEmpty(); renderVoiceInfo(); syncTtsProviderFields();
   }
   ['sName', 'sTts', 'sRate', 'sPitch', 'sVolume', 'sVoice', 'sMemOn', 'sTtsProvider', 'sTtsBase', 'sTtsKey', 'sTtsModel', 'sTtsVoiceId',
-   'sElevenKey', 'sElevenVoiceId', 'sElevenModel', 'sElevenStability', 'sElevenSimilarity', 'sElevenVoicePick'].forEach((id) => {
+   'sNativeVoice', 'sXaiKey', 'sXaiVoice'].forEach((id) => {
     const el = $(id); if (el) el.addEventListener('change', () => { saveSettings(); if (id === 'sVolume') applyTtsVolume(); });
   });
-  ['sElevenStability', 'sElevenSimilarity', 'sRate', 'sPitch', 'sVolume'].forEach((id) => {
+  ['sRate', 'sPitch', 'sVolume'].forEach((id) => {
     const el = $(id); if (!el) return;
-    el.addEventListener('input', () => {
-      if (id === 'sElevenStability' && $('sElevenStabVal')) $('sElevenStabVal').textContent = el.value;
-      if (id === 'sElevenSimilarity' && $('sElevenSimVal')) $('sElevenSimVal').textContent = el.value;
-      if (id === 'sVolume') applyTtsVolume();
-    });
+    el.addEventListener('input', () => { if (id === 'sVolume') applyTtsVolume(); });
   });
   $('sTtsProvider').addEventListener('change', () => { syncTtsProviderFields(); saveSettings(); });
-  if ($('sElevenVoicePick')) {
-    $('sElevenVoicePick').addEventListener('change', () => {
-      if ($('sElevenVoicePick').value) $('sElevenVoiceId').value = $('sElevenVoicePick').value;
-      saveSettings();
-    });
-  }
-  if ($('btnLoadElevenVoices')) {
-    $('btnLoadElevenVoices').onclick = async () => {
-      const key = ($('sElevenKey').value || S.elevenApiKey || '').trim();
-      if (!key) return toast('Paste ElevenLabs API key first', 5000);
-      try {
-        status('Loading ElevenLabs voices…');
-        const res = await fetch(C.ELEVENLABS_VOICES_URL, { headers: { 'xi-api-key': key, Accept: 'application/json' } });
-        if (!res.ok) {
-          const msg = C.mapElevenLabsError(res.status, '');
-          toast(msg, 6500); status(msg);
-          return;
-        }
-        const json = await res.json();
-        const list = C.parseElevenLabsVoices(json);
-        const sel = $('sElevenVoicePick');
-        if (!sel) return;
-        const cur = ($('sElevenVoiceId').value || S.elevenVoiceId || '').trim();
-        sel.innerHTML = '<option value="">— pick a voice —</option>' +
-          list.map((v) => `<option value="${v.voice_id}"${v.voice_id === cur ? ' selected' : ''}>${v.name}</option>`).join('');
-        if (cur && list.some((v) => v.voice_id === cur)) sel.value = cur;
-        toast('Loaded ' + list.length + ' ElevenLabs voices', 4000);
-        status('ElevenLabs voices loaded');
-      } catch (e) {
-        const msg = C.mapElevenLabsError('network', e && e.message);
-        toast(msg, 6500); status(msg);
-      }
-    };
-  }
+  if ($('btnTtsSettings')) $('btnTtsSettings').onclick = () => { if (!openTtsSettings()) toast('Could not open text-to-speech settings on this phone.'); };
+  if ($('sNetMode')) $('sNetMode').addEventListener('change', () => { S.netMode = $('sNetMode').value; saveS(); refreshStatus(); toast('Mode: ' + S.netMode); });
   $('sVoiceTest').onclick = () => {
     const form = readVoiceForm();
     const sample = 'Hi, I am ' + aiName() + '. This is a short voice test with your current settings.';
@@ -2368,13 +2716,10 @@
     const prev = {
       ttsOn: S.ttsOn, muted: S.muted, rate: S.rate, pitch: S.pitch, volume: S.volume, voiceURI: S.voiceURI,
       ttsProvider: S.ttsProvider, ttsBaseUrl: S.ttsBaseUrl, ttsApiKey: S.ttsApiKey, ttsModel: S.ttsModel, ttsVoiceId: S.ttsVoiceId,
-      elevenApiKey: S.elevenApiKey, elevenVoiceId: S.elevenVoiceId, elevenModel: S.elevenModel,
-      elevenStability: S.elevenStability, elevenSimilarity: S.elevenSimilarity
+      nativeVoice: S.nativeVoice, xaiApiKey: S.xaiApiKey, xaiVoiceId: S.xaiVoiceId
     };
     Object.assign(S, form, { ttsOn: true, muted: false });
     if (Number.isNaN(S.volume)) S.volume = 1;
-    if (Number.isNaN(S.elevenStability)) S.elevenStability = 0.5;
-    if (Number.isNaN(S.elevenSimilarity)) S.elevenSimilarity = 0.75;
     speak(sample, prefLang() || L.ENGLISH, () => { Object.assign(S, prev); }, { force: true, provider: form.ttsProvider });
     toast('Playing Voice Test…');
   };
@@ -2614,7 +2959,7 @@
     const files = fcPending.map((x) => x.file);
     fcPending = []; renderFcPending();
     addChatFiles(files);      // → chat tray: preview, remove, then type a question and press send
-    toast(files.length + ' file(s) attached — add a question (optional) and press send.');
+    toast(files.length + ' file(s) attached — pick Explain / Edit / Summarize / Send / Save, or type a question.');
   };
 
   function openTools() {
@@ -2680,6 +3025,7 @@
       navigator.serviceWorker.register('./sw.js').catch(() => {});
     }
     window.__noora = { send, Store, S, route: C.route, msgs: () => msgs, showTab, AI, Live, VERSION: C.VERSION, speak, stopVoiceMode, replayLast, updateVoiceBar, continuous: () => continuous, tools: toolRegistry,
-      T, runPlan, pending: () => pending, plan: () => plan, voiceState: () => voiceState, addChatFiles, chatPending: () => chatPending, setVoiceState, platform: PLATFORM };
+      T, runPlan, pending: () => pending, plan: () => plan, voiceState: () => voiceState, addChatFiles, chatPending: () => chatPending, setVoiceState, platform: PLATFORM,
+      lastAttachment: () => lastAttachment, attachAction, ttsProvider: () => activeTtsProvider(), offlineMode };
   })();
 })();

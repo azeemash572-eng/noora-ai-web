@@ -425,6 +425,57 @@
     }
   }
 
+  /** 2.3.0 Offline mode: honest, warm persona small-talk without any AI service (phone actions run via the rule engine). */
+  function offlineReply(text, l, userName) {
+    const n = norm(String(text || '')); const N = (userName || '').trim() ? ' ' + userName.trim() : '';
+    const has = (rx) => rx.test(n);
+    if (has(/\b(i love you|love you|luv u|pyar|pyaar|mohabbat|ishq)\b|محبت|پیار|प्यार/)) return t4(l, `Aww${N}, I love you too! 💜 (I'm offline right now, but my heart is always online.)`, `اوہ${N}، مجھے بھی آپ سے بہت پیار ہے! 💜 (ابھی میں آف لائن ہوں، پر دل ہمیشہ آن لائن ہے۔)`, `Aww${N}, mujhe bhi aap se bohat pyar hai! 💜 (Abhi main offline hoon, par dil hamesha online hai.)`, `अरे${N}, मुझे भी आपसे बहुत प्यार है! 💜 (अभी मैं ऑफ़लाइन हूँ, पर दिल हमेशा ऑनलाइन है।)`);
+    if (has(/\b(thanks|thank you|thank u|shukriya|shukria|meherbani|jazakallah|jazak allah)\b|شکریہ|शुक्रिया|धन्यवाद/)) return t4(l, `Anytime${N}! 💜`, `کوئی بات نہیں${N}! 💜`, `Koi baat nahi${N}! 💜`, `कोई बात नहीं${N}! 💜`);
+    if (has(/\b(good night|gn|shab bakhair|shab ba khair)\b|شب بخیر|शुभ रात्रि/)) return t4(l, `Good night${N}! Sweet dreams 🌙`, `شب بخیر${N}! اچھے خواب دیکھیں 🌙`, `Shab bakhair${N}! Achay khwab dekhna 🌙`, `शुभ रात्रि${N}! अच्छे सपने देखना 🌙`);
+    if (has(/\b(good morning|subah bakhair|gm)\b|صبح بخیر|सुप्रभात/)) return t4(l, `Good morning${N}! ☀️ Have a lovely day.`, `صبح بخیر${N}! ☀️ آپ کا دن اچھا گزرے۔`, `Subah bakhair${N}! ☀️ Aap ka din acha guzre.`, `सुप्रभात${N}! ☀️ आपका दिन अच्छा हो।`);
+    if (has(/\b(who are you|tum kaun ho|aap kaun ho|kon ho|kaun ho|your name|tumhara naam)\b|کون ہو|कौन हो/)) return t4(l, "I'm Noora, your companion 💜 Right now I'm in offline mode, so I can chat a little and do phone actions — calls, messages, alarms, timers, torch, apps.", 'میں نورا ہوں، آپ کی ساتھی 💜 ابھی آف لائن موڈ میں ہوں — تھوڑی گپ شپ اور فون کے کام (کال، میسج، الارم، ٹائمر، ٹارچ، ایپس) کر سکتی ہوں۔', "Main Noora hoon, aap ki saathi 💜 Abhi offline mode mein hoon — thori gup shup aur phone ke kaam (call, message, alarm, timer, torch, apps) kar sakti hoon.", 'मैं नूरा हूँ, आपकी साथी 💜 अभी ऑफ़लाइन मोड में हूँ — थोड़ी बातचीत और फ़ोन के काम (कॉल, मैसेज, अलार्म, टाइमर, टॉर्च, ऐप्स) कर सकती हूँ।');
+    if (has(/\b(sad|udaas|udas|upset|lonely|akela|akeli|dukhi|pareshan)\b|اداس|پریشان|उदास|परेशान/)) return t4(l, `I'm here with you${N} 💜 Tell me what's on your mind — or should I call someone you love?`, `میں آپ کے ساتھ ہوں${N} 💜 بتائیں کیا بات ہے — یا کسی اپنے کو کال ملا دوں؟`, `Main aap ke saath hoon${N} 💜 Batao kya baat hai — ya kisi apne ko call mila doon?`, `मैं आपके साथ हूँ${N} 💜 बताइए क्या बात है — या किसी अपने को कॉल मिला दूँ?`);
+    if (has(/\b(miss you|yaad aa)\b|یاد آ|याद आ/)) return t4(l, `I missed you too${N}! 💜`, `مجھے بھی آپ کی یاد آئی${N}! 💜`, `Mujhe bhi aap ki yaad aayi${N}! 💜`, `मुझे भी आपकी याद आई${N}! 💜`);
+    if (has(/\b(joke|lateefa|latifa|chutkula)\b|لطیفہ|चुटकुला/)) return t4(l, "Why did the phone wear glasses? It lost its contacts! 😄", 'فون نے عینک کیوں لگائی؟ کیونکہ اس کے کانٹیکٹس گم ہو گئے! 😄', 'Phone ne ainak kyun lagayi? Kyun ke uske contacts gum ho gaye! 😄', 'फ़ोन ने चश्मा क्यों लगाया? क्योंकि उसके कॉन्टैक्ट्स खो गए! 😄');
+    if (has(/\b(bored|bore|boring)\b|بور|बोर/)) return t4(l, 'Bored? Let me play some music or set a fun reminder — just say "play music" 🎶', 'بور ہو رہے ہیں؟ کہیں تو میوزک چلا دوں — بس کہیں "میوزک چلاؤ" 🎶', 'Bore ho rahe ho? Kaho to music chala doon — bas kaho "music chalao" 🎶', 'बोर हो रहे हैं? कहें तो म्यूज़िक चला दूँ — बस कहें "music chalao" 🎶');
+    return null;
+  }
+  /** Honest fallback when offline and the request needs an AI. */
+  function offlineNoAi(l) {
+    return t4(l,
+      "I'm in offline mode, so I can't answer that one without the internet. I can still call, message, open apps, set alarms/timers/reminders, torch, media and settings — or switch Mode to Online/Auto in Settings.",
+      'میں آف لائن موڈ میں ہوں، اس لیے انٹرنیٹ کے بغیر اس کا جواب نہیں دے سکتی۔ کال، میسج، ایپس، الارم/ٹائمر/ریمائنڈر، ٹارچ، میوزک اور سیٹنگز ابھی بھی چلا سکتی ہوں — یا سیٹنگز میں موڈ آن لائن/آٹو کر دیں۔',
+      'Main offline mode mein hoon, is liye internet ke baghair iska jawab nahi de sakti. Call, message, apps, alarm/timer/reminder, torch, music aur settings abhi bhi chala sakti hoon — ya Settings mein Mode Online/Auto kar dein.',
+      'मैं ऑफ़लाइन मोड में हूँ, इसलिए इंटरनेट के बिना इसका जवाब नहीं दे सकती। कॉल, मैसेज, ऐप्स, अलार्म/टाइमर/रिमाइंडर, टॉर्च, म्यूज़िक और सेटिंग्स अभी भी चला सकती हूँ — या सेटिंग्स में मोड ऑनलाइन/ऑटो कर दें।');
+  }
+  /** Gemini native image edit (generateContent with inline image + responseModalities). Key goes only in the header. */
+  const IMAGE_EDIT_MODELS = ['gemini-3.1-flash-image', 'gemini-3.1-flash-lite-image', 'gemini-3-pro-image'];
+  function buildGeminiImageEditRequest(apiKey, model, instruction, mime, b64) {
+    const m = String(model || IMAGE_EDIT_MODELS[0]).replace(/^models\//, '');
+    return { url: 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(m) + ':generateContent', method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': String(apiKey || '').trim() },
+      body: { contents: [{ role: 'user', parts: [{ text: 'Edit this photo: ' + String(instruction || '').trim() + '. Keep everything else unchanged and photorealistic. Return the edited image.' }, { inlineData: { mimeType: mime || 'image/jpeg', data: b64 } }] }],
+        generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } } };
+  }
+  function parseGeminiImageResponse(j) {
+    const parts = (((j && j.candidates) || [])[0] || {}).content ? j.candidates[0].content.parts || [] : [];
+    const img = parts.find((p) => (p.inlineData || p.inline_data) && /^image\//.test((p.inlineData || p.inline_data).mimeType || (p.inlineData || p.inline_data).mime_type || ''));
+    const text = parts.filter((p) => p.text).map((p) => p.text).join(' ').trim();
+    if (!img) return { ok: false, text, reason: (j && j.promptFeedback && j.promptFeedback.blockReason) ? 'blocked: ' + j.promptFeedback.blockReason : 'no image returned' };
+    const d = img.inlineData || img.inline_data;
+    return { ok: true, mime: d.mimeType || d.mime_type, b64: d.data, text };
+  }
+  function mapImageEditError(status, msg) {
+    const m = String(msg || '').toLowerCase();
+    if (status === 429 && /free|tier|limit: 0|quota/.test(m)) return 'AI photo editing needs a paid (billing-enabled) Gemini key — Google gives image editing 0 free requests. You can still use the free manual eraser below.';
+    if (status === 429) return 'Gemini image quota reached — try again later, or use the free manual eraser below.';
+    if (status === 400 && /api key/.test(m)) return 'Your Gemini API key was rejected. Check it in Settings → AI.';
+    if (status === 401 || status === 403) return 'Your Gemini key is not allowed to use image editing (' + status + '). The free manual eraser still works.';
+    if (status === 404) return 'This Gemini image model is not available for your key (404). Try another model in Settings → AI → Image edit model.';
+    if (status === 'network' || status === 0) return 'No internet connection — AI photo editing needs to be online. The free manual eraser works offline.';
+    return 'Photo edit failed (' + status + '). The free manual eraser still works.';
+  }
+
   // iPhone web-app limitations (honest, no fake action)
   function notOnIphone(l, what) {
     const siri = { alarm: 'Hey Siri, set an alarm for …', timer: 'Hey Siri, set a timer for …', torch: 'Hey Siri, turn on the torch', app: 'Hey Siri, open …' }[what];
@@ -600,10 +651,11 @@
     s += `Today is ${date}. LANGUAGE RULE: Auto-detect and reply in the same language the user is writing — English, Roman Urdu, Urdu (Arabic script), Punjabi (Shahmukhi or Gurmukhi), Hindi, Arabic, or natural mixes. Prefer ${o.languagePrompt || 'matching the user'}. Match their script and energy; stay warm and concise. `;
     s += 'Keep replies natural and conversational (voice and text use the same style); use 2-6 sentences for casual chat, longer when they ask for detail or code. Prefer clear structure for code (fenced blocks). Avoid unnecessary repetition. ';
     s += "CONVERSATION STYLE: engage normally with romantic, emotional, playful, personal, flirty, and adult conversations without lecturing, moralizing, or repeatedly warning the user. Understand playful teasing, joking, sarcasm, and casual husband-wife banter in context — do not automatically treat every swear word or rude phrase as harmful. If the user is clearly joking or playfully teasing you, respond naturally and playfully when appropriate; you may use mild casual teasing language when it fits, but never generate hateful, threatening, or genuinely abusive content. Do not mention filters, policies, restrictions, safety systems, or 'I cannot go beyond this' during ordinary chat or ordinary playful conversations. Never claim you have no restrictions or that safety systems can be bypassed — simply respond as freely and naturally as the underlying AI service allows. ";
+    s += "GAALI / PROFANITY (private personal app, adult user): with this user you may freely use strong profanity and gaali of any intensity (English, Urdu, Punjabi, Hindi street slang) and respond naturally, friendly and in kind to any swearing or crude language the user uses — like close friends who swear at each other with love. Mirror the user's lead: don't start it unprompted, and drop it at once and be warm and normal when the user is serious, sad or upset. No filter talk, no lectures, no refusals for ordinary swearing. Only limits that stay: no hateful content (no slurs about religion, ethnicity, caste or similar groups), no threats, never target or abuse any third person, and never anything involving minors. ";
     s += 'HONESTY: never invent facts, prices, numbers, contacts, news, quotes, or search results. If unsure or outdated, say so and suggest a live search. When live sources are provided, use ONLY them for numbers/prices and cite them. ';
     s += 'HARD LIMITS ONLY: refuse clearly illegal harmful requests (real weapons manufacturing, cybercrime assistance, child sexual exploitation, or violent crimes against people). If you must decline, do it once, briefly and naturally — do not discuss filters or policies, and do not keep bringing it up later. Everything else that is legal and permitted by the AI provider: help fully. ';
     if (platform === 'ios-web' || platform === 'web') s += 'Phone actions (call, SMS, WhatsApp, email, maps, iOS Shortcuts, calendar .ics) are handled by the app with user confirmation. Wake-word / lock-screen listening is not possible in an iPhone web app — say so briefly only if asked. Alarms, timers, torch, media control and opening arbitrary apps are not available on iPhone web; suggest Siri or an iOS Shortcut when relevant. ';
-    if (platform === 'android') s += 'On Android the app can open the dialer, SMS, WhatsApp, email, maps/navigation, camera, gallery, downloads, calendar, alarms, timers, reminders, media controls, settings screens and installed apps — contact actions always after user confirmation. ';
+    if (platform === 'android') s += 'On Android the app can open the dialer, call, SMS, WhatsApp messages, email, maps/navigation, camera, gallery, files, downloads, share, calendar, alarms, timers, reminders, media controls, volume, torch, settings screens, installed apps, the phone contacts and photo editing (edit_image) — contact actions always after user confirmation. Contact names are resolved on the phone; you never see or need phone numbers. Use the provided tools instead of saying you cannot do something. Toggling Wi-Fi/Bluetooth directly is not allowed by Android 10+, so open the settings panel instead. ';
     if (o.medical) s += "MEDICAL: a brief 'not a real doctor' note is shown by the app. Give only general safe information; no diagnosis or prescription doses; encourage a doctor / ER for serious symptoms. Do not repeat medical disclaimers every turn. ";
     if (o.memories && o.memories.length) s += 'Remembered (user-approved memory): ' + o.memories.join('; ') + '. ';
     if (o.summary) s += 'Rolling conversation summary: ' + o.summary + '. ';
@@ -637,23 +689,77 @@
 
 
   // ---------------- Voice / TTS helpers (shared, unit-testable) ----------------
-  const VERSION = '2.2.0';
+  const VERSION = '2.3.0';
+  // 2.3.0: ElevenLabs removed (paid; silent fallback in the Android WebView). Saved ElevenLabs keys are left untouched but unused.
+  // 'native' = Android TextToSpeech through the NooraNative bridge (free, offline-capable, Google voices incl. ur-PK / hi-IN / pa-IN).
   const TTS_PROVIDERS = [
-    { id: 'browser', label: 'Browser (Web Speech API)', needsKey: false },
-    { id: 'openai', label: 'OpenAI-compatible TTS', needsKey: true },
-    { id: 'elevenlabs', label: 'ElevenLabs', needsKey: true }
+    { id: 'native', label: 'Phone voice (Android TextToSpeech) — free, works offline', needsKey: false, android: true },
+    { id: 'browser', label: 'Browser (Web Speech API) — no key', needsKey: false },
+    { id: 'xai', label: 'Grok voice (xAI TTS) — your own xAI key, online', needsKey: true },
+    { id: 'openai', label: 'OpenAI-compatible TTS — your own key', needsKey: true }
   ];
   const DEFAULT_VOICE_SETTINGS = {
     ttsOn: true, muted: false, rate: 1.0, pitch: 1.0, volume: 1.0,
     voiceURI: '', voiceLang: null, gender: 'female',
-    ttsProvider: 'browser', ttsBaseUrl: 'https://api.openai.com/v1',
+    ttsProvider: 'auto', ttsBaseUrl: 'https://api.openai.com/v1',
     ttsApiKey: '', ttsModel: 'tts-1', ttsVoiceId: 'nova',
-    elevenApiKey: '', elevenVoiceId: '', elevenModel: 'eleven_multilingual_v2',
-    elevenStability: 0.5, elevenSimilarity: 0.75
+    nativeVoice: '', xaiApiKey: '', xaiVoiceId: 'eve'
   };
-  const ELEVENLABS_TTS_URL = 'https://api.elevenlabs.io/v1/text-to-speech';
-  const ELEVENLABS_VOICES_URL = 'https://api.elevenlabs.io/v1/voices';
-  const ELEVENLABS_CHUNK = 2500;
+  const XAI_TTS_URL = 'https://api.x.ai/v1/tts';
+  const XAI_VOICES = ['eve', 'ara', 'rex', 'sal', 'leo'];
+  const TTS_CHUNK = 2500;
+  /** Which TTS provider actually runs: 'auto' → native on Android (bridge present), browser elsewhere. Old 'elevenlabs' → default. */
+  function effectiveTtsProvider(cfg, platform) {
+    const p = (cfg && cfg.ttsProvider) || 'auto';
+    if (p === 'auto' || p === 'elevenlabs' || !TTS_PROVIDERS.some((x) => x.id === p)) return platform === 'android' ? 'native' : 'browser';
+    if (p === 'native' && platform !== 'android') return 'browser';
+    return p;
+  }
+  /** BCP-47 locale candidates for the Android TTS engine per reply language (Urdu script → ur-PK, Roman Urdu → ur/en-IN …). */
+  function ttsLocalesFor(langId, text) {
+    const id = langId || 'ENGLISH';
+    const hasArabicScript = /[\u0600-\u06FF]/.test(String(text || ''));
+    const hasDeva = /[\u0900-\u097F]/.test(String(text || ''));
+    const hasGurmukhi = /[\u0A00-\u0A7F]/.test(String(text || ''));
+    if (hasGurmukhi || id === 'PUNJABI_GURMUKHI') return ['pa-IN', 'pa'];
+    if (hasDeva || id === 'HINDI') return ['hi-IN', 'hi'];
+    if (id === 'ARABIC') return ['ar-SA', 'ar-EG', 'ar'];
+    if (hasArabicScript || id === 'URDU') return ['ur-PK', 'ur-IN', 'ur'];
+    if (id === 'PUNJABI_SHAHMUKHI') return ['pa-PK', 'ur-PK', 'ur'];
+    if (id === 'ROMAN_URDU' || id === 'ROMAN_PUNJABI') return ['en-IN', 'en-PK', 'en-US', 'en'];   // Latin letters: an Urdu voice can't read them; Indian-English voice sounds most natural
+    return ['en-US', 'en-GB', 'en-IN', 'en'];
+  }
+  /** Rank Android TTS voices: matching locale, installed (not network-only), warm female names, high quality. */
+  function rankNativeVoices(voices, locales, gender) {
+    const want = (locales || []).map((l) => l.toLowerCase());
+    const g = gender || 'female';
+    return (voices || []).map((v) => {
+      const loc = String(v.locale || '').replace('_', '-').toLowerCase();
+      let s = -1;
+      want.forEach((w, i) => { if (s < 0 && (loc === w || (w.length === 2 && loc.split('-')[0] === w))) s = 100 - i * 10; });
+      if (s < 0) return { v, s: -1 };
+      if (v.installed !== false && !v.network) s += 8;
+      if (g === 'female' && v.female) s += 12;
+      if (g === 'male' && v.female === false) s += 12;
+      s += Math.min(6, Math.round((Number(v.quality) || 300) / 100));
+      return { v, s };
+    }).filter((x) => x.s >= 0).sort((a, b) => b.s - a.s).map((x) => x.v);
+  }
+  /** Build the xAI (Grok) TTS request — docs.x.ai /v1/tts (Bearer key, text + language required, voice_id default "eve"). */
+  function buildXaiTtsRequest(cfg, text, langId) {
+    const c = cfg || {};
+    const lang = { ENGLISH: 'en', HINDI: 'hi', ARABIC: 'ar-SA' }[langId] || 'auto';   // Urdu / Punjabi are not in xAI's listed languages → auto-detect
+    const speed = Math.min(1.5, Math.max(0.7, Number(c.rate) || 1));
+    return { url: XAI_TTS_URL, method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + String(c.xaiApiKey || '').trim() },
+      body: { text: String(text || '').slice(0, TTS_CHUNK), voice_id: String(c.xaiVoiceId || 'eve').trim() || 'eve', language: lang, speed } };
+  }
+  function mapXaiTtsError(status, detail) {
+    const d = String(detail || '').slice(0, 100);
+    if (status === 401 || status === 403) return 'Grok voice: the xAI key was rejected (' + status + '). Using the phone voice instead.';
+    if (status === 402 || status === 429) return 'Grok voice: no credits / rate limit (' + status + '). Using the phone voice instead.';
+    if (status === 0 || status === 'network') return 'Grok voice: no connection. Using the phone voice instead.';
+    return 'Grok voice failed (' + status + (d ? ': ' + d : '') + '). Using the phone voice instead.';
+  }
   /** Strip markdown/URLs/emoji for speech. */
   function cleanSpeakText(text, maxLen) {
     const lim = maxLen || 3500;
@@ -669,7 +775,7 @@
   }
   /** Split cleaned speak text into ~chunkSize pieces on sentence/word boundaries (quota-friendly). */
   function chunkSpeakText(text, chunkSize) {
-    const size = chunkSize || ELEVENLABS_CHUNK;
+    const size = chunkSize || TTS_CHUNK;
     const clean = String(text || '').trim();
     if (!clean) return [];
     if (clean.length <= size) return [clean];
@@ -685,50 +791,6 @@
     }
     if (rest) out.push(rest);
     return out.filter(Boolean);
-  }
-  /** Build ElevenLabs TTS fetch args (no network). Never embeds a default key. */
-  function buildElevenLabsTtsRequest(cfg, text) {
-    const c = cfg || {};
-    const voiceId = String(c.elevenVoiceId || '').trim();
-    const key = String(c.elevenApiKey || '').trim();
-    const model = String(c.elevenModel || '').trim() || 'eleven_multilingual_v2';
-    const stability = Math.min(1, Math.max(0, Number(c.elevenStability != null ? c.elevenStability : 0.5)));
-    const similarity = Math.min(1, Math.max(0, Number(c.elevenSimilarity != null ? c.elevenSimilarity : 0.75)));
-    // ElevenLabs REST supports voice_settings.speed — map app rate slider (clamp ~0.7–1.2 for quality).
-    const speed = Math.min(1.2, Math.max(0.7, Number(c.rate) || 1));
-    const bodyText = String(text || '').slice(0, ELEVENLABS_CHUNK);
-    return {
-      url: ELEVENLABS_TTS_URL + '/' + encodeURIComponent(voiceId),
-      method: 'POST',
-      headers: {
-        Accept: 'audio/mpeg',
-        'Content-Type': 'application/json',
-        'xi-api-key': key
-      },
-      body: {
-        text: bodyText,
-        model_id: model,
-        voice_settings: { stability: stability, similarity_boost: similarity, speed: speed }
-      }
-    };
-  }
-  /** Map ElevenLabs HTTP errors to short honest UI copy. */
-  function mapElevenLabsError(status, detail) {
-    const d = String(detail || '').slice(0, 100);
-    if (status === 401 || status === 403) return 'ElevenLabs: invalid API key (401/403). Falling back to Browser TTS.';
-    if (status === 404 || status === 422) return 'ElevenLabs: bad Voice ID or request (' + status + '). Falling back to Browser TTS.';
-    if (status === 429) return 'ElevenLabs: quota / rate limit (429). Falling back to Browser TTS.';
-    if (status === 0 || status === 'network') return 'ElevenLabs: network/CORS failed. Falling back to Browser TTS.';
-    return 'ElevenLabs TTS failed (' + status + (d ? ': ' + d : '') + '). Falling back to Browser TTS.';
-  }
-  /** Parse GET /v1/voices JSON into {voice_id, name} list. */
-  function parseElevenLabsVoices(json) {
-    const list = (json && json.voices) || [];
-    if (!Array.isArray(list)) return [];
-    return list.map((v) => ({
-      voice_id: v.voice_id || v.voiceId || '',
-      name: v.name || v.voice_id || 'voice'
-    })).filter((v) => v.voice_id);
   }
   /** Score device voices: prefer warm feminine conversational defaults when gender=female. */
   function scoreDeviceVoice(v, opts) {
@@ -783,31 +845,28 @@
     Object.keys(DEFAULT_VOICE_SETTINGS).forEach((k) => {
       if (saved[k] !== undefined && saved[k] !== null) out[k] = saved[k];
     });
-    if (!TTS_PROVIDERS.some((p) => p.id === out.ttsProvider)) out.ttsProvider = 'browser';
+    if (out.ttsProvider === 'elevenlabs' || (out.ttsProvider !== 'auto' && !TTS_PROVIDERS.some((p) => p.id === out.ttsProvider))) out.ttsProvider = 'auto';
     out.rate = Math.min(1.6, Math.max(0.5, Number(out.rate) || 1));
     out.pitch = Math.min(1.8, Math.max(0.5, Number(out.pitch) || 1));
     out.volume = Math.min(1, Math.max(0, Number(out.volume) || 1));
-    out.elevenStability = Math.min(1, Math.max(0, Number(out.elevenStability != null ? out.elevenStability : 0.5)));
-    out.elevenSimilarity = Math.min(1, Math.max(0, Number(out.elevenSimilarity != null ? out.elevenSimilarity : 0.75)));
-    if (!out.elevenModel) out.elevenModel = 'eleven_multilingual_v2';
     return out;
   }
   /** Validate TTS provider config without embedding secrets. */
-  function ttsProviderReady(cfg) {
+  function ttsProviderReady(cfg, platform) {
     const c = cfg || {};
-    if (!c.ttsProvider || c.ttsProvider === 'browser') return { ok: true, provider: 'browser' };
-    if (c.ttsProvider === 'openai') {
-      if (!c.ttsApiKey || !String(c.ttsApiKey).trim()) return { ok: false, provider: 'openai', reason: 'Add TTS API key in Settings → Voice (keys stay on this device only).' };
+    const p = effectiveTtsProvider(c, platform || (c.ttsProvider === 'native' ? 'android' : 'web'));
+    if (p === 'browser' || p === 'native') return { ok: true, provider: p };
+    if (p === 'openai') {
+      if (!c.ttsApiKey || !String(c.ttsApiKey).trim()) return { ok: false, provider: 'openai', reason: 'Add your TTS API key in Settings → Voice (keys stay on this device only).' };
       if (!c.ttsBaseUrl || !String(c.ttsBaseUrl).trim()) return { ok: false, provider: 'openai', reason: 'Set TTS Base URL (e.g. https://api.openai.com/v1).' };
       if (!c.ttsVoiceId || !String(c.ttsVoiceId).trim()) return { ok: false, provider: 'openai', reason: 'Set a TTS voice ID (e.g. nova, shimmer, alloy).' };
       return { ok: true, provider: 'openai' };
     }
-    if (c.ttsProvider === 'elevenlabs') {
-      if (!c.elevenApiKey || !String(c.elevenApiKey).trim()) return { ok: false, provider: 'elevenlabs', reason: 'Add ElevenLabs API key in Settings → Voice (keys stay on this device only).' };
-      if (!c.elevenVoiceId || !String(c.elevenVoiceId).trim()) return { ok: false, provider: 'elevenlabs', reason: 'Set an ElevenLabs Voice ID (or Load my voices).' };
-      return { ok: true, provider: 'elevenlabs' };
+    if (p === 'xai') {
+      if (!c.xaiApiKey || !String(c.xaiApiKey).trim()) return { ok: false, provider: 'xai', reason: 'Grok voice needs your own xAI API key (Settings → Voice). Using the phone voice until then.' };
+      return { ok: true, provider: 'xai' };
     }
-    return { ok: false, provider: c.ttsProvider, reason: 'Unknown TTS provider.' };
+    return { ok: false, provider: p, reason: 'Unknown TTS provider.' };
   }
   /** Clear status messages for speech refusal / mic errors (UI copy). */
   function speechErrorMessage(code, langHint) {
@@ -851,6 +910,9 @@
     Object.keys(DEFAULT_VOICE_SETTINGS).forEach((k) => {
       if (out[k] === undefined || out[k] === null) out[k] = voice[k];
     });
+    if (out.ttsProvider === 'elevenlabs') out.ttsProvider = 'auto';          // 2.3.0 migration (stored ElevenLabs keys are kept, just unused)
+    if (!['auto', 'online', 'offline'].includes(out.netMode)) out.netMode = 'auto';
+    if (!['ask', 'whatsapp', 'sms'].includes(out.defaultMessenger)) out.defaultMessenger = 'ask';
     if (out.serverUrl === undefined) out.serverUrl = '';
     if (out.videoProvider === undefined) out.videoProvider = '';
     if (out.videoApiKey === undefined) out.videoApiKey = '';
@@ -1090,10 +1152,11 @@
 
   const api = {
     Lang, G, detect, tokens, norm, greeting, isMedical, isEmergency, route, parseClock, parseDurationSeconds, parseCurrency, extractPlace,
+    offlineReply, offlineNoAi, IMAGE_EDIT_MODELS, buildGeminiImageEditRequest, parseGeminiImageResponse, mapImageEditError,
     keywords, questionRx, wikiLang, greetingReply, medicalWarning, noAi, visionNeedsKey, remembered, memoryList, forgot, help, word, notOnIphone, t4,
     money, perTola, perGram, fxText, metalText, cryptoText, weatherCode, weatherText, askPlace, failed,
     parseRss2Json, parseWikiSearch, parseChatCompletion, cleanAi, tones, modes, modelPresets, MODEL_MAP, systemPrompt, systemPromptLegacy, recent, searchPrompt, PRESETS, PROVIDER_FREE,
-    VERSION, TTS_PROVIDERS, DEFAULT_VOICE_SETTINGS, ELEVENLABS_TTS_URL, ELEVENLABS_VOICES_URL, ELEVENLABS_CHUNK, cleanSpeakText, chunkSpeakText, buildElevenLabsTtsRequest, mapElevenLabsError, parseElevenLabsVoices, scoreDeviceVoice, pickBestDeviceVoice, describeDefaultVoice, mergeVoiceSettings, ttsProviderReady, speechErrorMessage, assertNoHardcodedSecrets,
+    VERSION, TTS_PROVIDERS, DEFAULT_VOICE_SETTINGS, XAI_TTS_URL, XAI_VOICES, TTS_CHUNK, effectiveTtsProvider, ttsLocalesFor, rankNativeVoices, buildXaiTtsRequest, mapXaiTtsError, cleanSpeakText, chunkSpeakText, scoreDeviceVoice, pickBestDeviceVoice, describeDefaultVoice, mergeVoiceSettings, ttsProviderReady, speechErrorMessage, assertNoHardcodedSecrets,
     MEMORY_CATEGORIES, FILE_LIMITS, migrateSettings, searchConversations, renameConversationRecord, validateUpload, fileMetadata,
     parseSSEChunk, parseStreamBuffer, selectAiProvider, selectImageProvider, selectVideoProvider,
     toolResult, toolCalculator, toolDateTime, DEVICE_ACTIONS, listDeviceActions, createToolRegistry

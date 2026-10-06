@@ -304,6 +304,7 @@ async function tapCard(page, value) {
   await page.click('#bottomNav button[data-tab="chat"]');
   await page.evaluate(() => window.__noora.send('mujhe ek achi si kahani sunao please'));
   await page.waitForFunction(() => window.__noora.pending() && window.__noora.pending().type === 'retry', null, { timeout: 40000 });
+  await page.waitForFunction(() => { const m = window.__noora.msgs().filter((x) => x.role === 'assistant' && !x.pending); return m.length && /Connection issue/.test(m[m.length - 1].text); }, null, { timeout: 5000 }).catch(() => {});
   assert.match(await bot(page), /Connection issue hai, jaanu\. Dobara try karun\?|Connection issue/);
   assert.ok(await page.locator('#tab-chat [data-card-btn="yes"]').last().isVisible());
   ok('Network failure → "Connection issue hai, jaanu. Dobara try karun?" with Try-again button');

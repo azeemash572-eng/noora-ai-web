@@ -37,8 +37,8 @@
       <div class="who"><div class="name" id="homeGreeting">NOORA</div><div class="status"><span id="homeDot"></span><span id="homeStatus">Ready</span></div></div>
     </header>
     <div class="scroll homeDash">
-      <button type="button" class="voiceOrb" id="homeVoiceBtn" aria-label="Start voice">🎙</button>
-      <p class="orbHint">Tap for voice · hold the chat mic anytime</p>
+      <button type="button" class="voiceOrb bigOrb" id="homeVoiceBtn" data-state="idle" aria-label="Start voice"><span class="orbRing" aria-hidden="true"></span><span class="orbRing r2" aria-hidden="true"></span><span class="orbCore"><img src="icons/icon-192.png" alt=""></span><span class="orbMic" aria-hidden="true">🎙</span></button>
+      <p class="orbHint">Tap to talk · Urdu · Roman Urdu · English · हिन्दी · ਪੰਜਾਬੀ</p>
       <div class="quickCmd glassCard">
         <input id="homeQuick" type="text" placeholder="Quick command…" dir="auto" enterkeyhint="go" autocomplete="off">
         <button type="button" class="primary sm" id="homeQuickGo">Go</button>
@@ -74,7 +74,7 @@
     <div id="installHint" hidden>Install on iPhone: tap <b>Share</b> <span class="share"></span> → <b>Add to Home Screen</b>. <button id="hintClose" aria-label="Dismiss">✕</button></div>
     <main id="list"></main>
     <section id="empty">
-      <img src="icons/icon-192.png" alt="" class="hero">
+      <button type="button" class="voiceOrb chatOrb" id="chatVoiceOrb" data-state="idle" aria-label="Voice: Ready"><span class="orbCore"><img src="icons/icon-192.png" alt=""></span></button>
       <h1 id="welcome">Hi, I'm Noora</h1>
       <p class="sub">Ask me anything · بولیں یا لکھیں · تحدث · बोलिए · ਬੋਲੋ</p>
       <div class="homeActions">
@@ -99,6 +99,7 @@
       <button type="button" id="btnVoiceMic" class="vbtn" title="Mic on/off">🎤 Mic</button>
     </div>
     <div id="chatPending" class="fcPending chatTray" hidden aria-label="Files to send"></div>
+    <div id="attachChips" class="attachChips" hidden role="toolbar" aria-label="What should I do with the file?"></div>
     <footer id="bar">
       <div class="field">
         <button class="icon" id="btnAttach" aria-label="Attach file"></button>
@@ -200,7 +201,15 @@
         <h3>Action preferences</h3>
         <label>Maps app<select id="prefMaps"><option value="">Ask each time</option><option value="google">Google Maps</option><option value="apple">Apple Maps</option><option value="geo">Phone default (Android geo:)</option></select></label>
         <label>WhatsApp default country code (for numbers like 0300…)<input id="prefCc" type="text" inputmode="numeric" placeholder="e.g. 92 or 968" maxlength="5"></label>
+        <label>"Message X" sends with<select id="prefMessenger"><option value="ask">Ask each time (WhatsApp or SMS)</option><option value="whatsapp">WhatsApp</option><option value="sms">SMS</option></select></label>
         <button type="button" class="outline" id="btnPrefSave">Save preferences</button>
+      </div>
+      <div class="glassCard" id="contactsCard">
+        <h3>📇 Phone contacts</h3>
+        <p class="note" id="contactsNote">After you allow Contacts, NOORA reads all names and full numbers on this phone. They stay on the phone — never sent to the AI.</p>
+        <input id="contactsSearch" type="search" placeholder="Search contacts (e.g. Ammi, Mariam)" autocomplete="off" autocapitalize="off">
+        <button type="button" class="outline" id="btnContactsLoad">Load contacts</button>
+        <div id="contactsList" class="contactsList"></div>
       </div>
       <div class="glassCard" id="siriCard" hidden>
         <h3>Siri / iPhone Shortcuts</h3>
@@ -281,10 +290,22 @@
       <div class="card">
         <label class="row">Speak replies aloud<input type="checkbox" id="sTts" class="switch"></label>
         <label>TTS provider<select id="sTtsProvider">
+          <option value="auto">Auto — phone voice on Android, browser voice elsewhere (free)</option>
+          <option value="native">Phone voice (Android TextToSpeech) — free, works offline</option>
           <option value="browser">Browser (Web Speech API) — no key</option>
-          <option value="openai">OpenAI-compatible TTS</option>
-          <option value="elevenlabs">ElevenLabs</option>
+          <option value="xai">Grok voice (xAI TTS) — your own xAI key, online</option>
+          <option value="openai">OpenAI-compatible TTS — your own key</option>
         </select></label>
+        <div id="nativeVoiceFields" hidden>
+          <label>Phone voice<select id="sNativeVoice"><option value="">Auto (best voice for each language)</option></select></label>
+          <button type="button" class="outline" id="btnTtsSettings">🔈 Install voice packs (Urdu / Hindi / Punjabi)</button>
+          <p class="note">Uses your phone's speech engine (Google). Urdu → ur-PK, Roman Urdu → Indian-English voice, Hindi → hi-IN, Punjabi → pa-IN. Voice packs are free and then work without internet.</p>
+        </div>
+        <div id="xaiProviderFields" hidden>
+          <label>xAI API key<input id="sXaiKey" type="password" placeholder="paste your xAI key (stored only on this device)" autocapitalize="off" autocorrect="off" autocomplete="off"></label>
+          <label>Grok voice<select id="sXaiVoice"><option value="eve">Eve (default)</option><option value="ara">Ara</option><option value="rex">Rex</option><option value="sal">Sal</option><option value="leo">Leo</option></select></label>
+          <p class="note">Paid xAI API (api.x.ai/v1/tts). English/Hindi are officially listed; Urdu uses auto-detect. Falls back to the phone voice if offline or on any error.</p>
+        </div>
         <div id="ttsProviderFields" hidden>
           <label>TTS Base URL<input id="sTtsBase" placeholder="https://api.openai.com/v1" inputmode="url" autocapitalize="off" autocorrect="off"></label>
           <label>TTS API key<input id="sTtsKey" type="password" placeholder="paste TTS key (stored only on this device)" autocapitalize="off" autocorrect="off" autocomplete="off"></label>
@@ -292,29 +313,22 @@
           <label>TTS voice ID<input id="sTtsVoiceId" placeholder="nova / shimmer / alloy / …" autocapitalize="off" autocorrect="off"></label>
           <p class="note">Keys are saved in local Settings only — never baked into the app.</p>
         </div>
-        <div id="elevenProviderFields" hidden>
-          <label>ElevenLabs API key<input id="sElevenKey" type="password" placeholder="paste ElevenLabs xi-api-key (this device only)" autocapitalize="off" autocorrect="off" autocomplete="off"></label>
-          <label>Voice ID<input id="sElevenVoiceId" placeholder="e.g. 21m00Tcm4TlvDq8ikWAM" autocapitalize="off" autocorrect="off"></label>
-          <label>Or pick a loaded voice<select id="sElevenVoicePick"><option value="">— Load my voices first —</option></select></label>
-          <button type="button" class="outline" id="btnLoadElevenVoices">Load my voices</button>
-          <label>Model<input id="sElevenModel" placeholder="eleven_multilingual_v2" autocapitalize="off" autocorrect="off" list="elevenModelHints"></label>
-          <datalist id="elevenModelHints">
-            <option value="eleven_multilingual_v2"></option>
-            <option value="eleven_turbo_v2_5"></option>
-            <option value="eleven_flash_v2_5"></option>
-            <option value="eleven_monolingual_v1"></option>
-          </datalist>
-          <label>Stability <span id="sElevenStabVal">0.5</span><input type="range" id="sElevenStability" min="0" max="1" step="0.05" value="0.5"></label>
-          <label>Similarity <span id="sElevenSimVal">0.75</span><input type="range" id="sElevenSimilarity" min="0" max="1" step="0.05" value="0.75"></label>
-          <p class="note">Keys stay in local Settings only — never hard-coded.</p>
-        </div>
-        <label>Device voice (Browser provider)<select id="sVoice"></select></label>
+        <div id="browserVoiceFields"><label>Device voice (Browser provider)<select id="sVoice"></select></label></div>
         <label>Speaking speed<input type="range" id="sRate" min="0.5" max="1.6" step="0.1"></label>
         <label>Pitch<input type="range" id="sPitch" min="0.5" max="1.8" step="0.1"></label>
         <label>Volume<input type="range" id="sVolume" min="0" max="1" step="0.05"></label>
         <p class="note" id="voiceInfo"></p>
         <button type="button" class="outline" id="sVoiceTest">▶ Voice Test (current settings)</button>
         <p class="note">Wake word / lock-screen listening is <b>not possible</b> in an iPhone web app.</p>
+      </div>
+      <h3>Online / Offline mode</h3>
+      <div class="card">
+        <label>Mode<select id="sNetMode">
+          <option value="auto">Auto — online AI when there is internet, offline otherwise</option>
+          <option value="online">Online — always use the AI service</option>
+          <option value="offline">Offline — phone actions + small talk, no internet needed</option>
+        </select></label>
+        <p class="note" id="netModeNote">Offline: phone actions (call, message, alarms, timers, reminders, torch, apps, media, settings) run on the built-in rule engine, speech recognition prefers the on-device model, replies use the phone voice. Open questions need Online.</p>
       </div>
       <h3>Memory</h3>
       <div class="card">

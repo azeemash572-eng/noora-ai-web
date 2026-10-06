@@ -119,3 +119,14 @@ voice (Web Speech or Android SpeechRecognizer via NooraNative.sttStart) / typed 
 - **Memory**: nickname rows `{kind:'nickname', key, name, value, category:'contacts'|'places'}` in the existing `memories` store. They are saved only when the user taps "Remember …" or says "yaad rakho …".
 - **Settings** (`noora.settings`, keys preserved): new `mapsProvider` ('' = ask, apple, google, geo) and `defaultCountryCode` (WhatsApp numbers without a country code).
 - **Tests**: see `docs/TEST-CHECKLIST.md`.
+
+
+## 2.3.0 additions (Android)
+
+- **Messaging**: `send_message` tool → `resolveStep` → contact cache (`NooraNative.run({op:'contacts',all:true})`, up to 5000, deduped) → JS fuzzy matcher (`translit`, `phoneticKey`, honorific stripping, Levenshtein) → ambiguity / app / message prompts → confirm card → `whatsapp` (wa.me, ACTION_SENDTO fallback) or `sms`. Numbers stay on the device and are never put in AI prompts.
+- **TTS**: `NativeTts.kt` (Android TextToSpeech, chunking, locale pick, events `onNativeTts`) is the Android default. Providers: native, browser, xAI (`api.x.ai/v1/tts`, user key), OpenAI-compatible. ElevenLabs was removed and migrates to auto.
+- **File chooser**: `ChooserIntents.kt` plans the pick/capture intents from accept types plus the capture flag. The camera writes to a FileProvider URI.
+- **Reminders**: the `Reminders` object persists to SharedPreferences, and `BootReceiver` reschedules after reboot.
+- **Image edit**: `edit_image` tool / `isImageEditRequest` → Gemini `generateContent` with responseModalities IMAGE (user key), or a local canvas eraser/inpaint. Results go to `saveToMedia` or native share.
+- **Net mode**: `netMode` auto/online/offline. Offline uses the rule engine, `offlineReply`, and STT with `EXTRA_PREFER_OFFLINE`.
+- **Persona**: `systemPrompt` CONVERSATION STYLE carries the user-approved "GAALI / PROFANITY" rule with its hard limits. Cloud provider filters still apply.

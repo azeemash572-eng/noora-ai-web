@@ -116,7 +116,8 @@ test('every tool prepares on its platforms and is honestly unavailable elsewhere
     calendar_event: { title: 'Meet', start: 'kal 3 baje' }, set_reminder: { text: 'Pani piyo', at: 'in 10 minutes' }, set_alarm: { hour: 7, minute: 0 },
     set_timer: { seconds: 60 }, open_files: { where: 'downloads' }, share_file: { source: 'last_attachment' }, open_settings: { panel: 'wifi' },
     torch: { on: true }, notify: { text: 'hi' }, open_app: { name: 'WhatsApp' }, run_shortcut: { name: 'Alarm' }, web_search: { query: 'x' },
-    calculator: { expression: '2+2' }, get_datetime: {}, remember: { fact: 'likes tea' }, recall_memory: {}, generate_image: { prompt: 'cat' }, generate_video: { prompt: 'cat' }
+    calculator: { expression: '2+2' }, get_datetime: {}, remember: { fact: 'likes tea' }, recall_memory: {}, generate_image: { prompt: 'cat' }, generate_video: { prompt: 'cat' },
+    send_message: { number: '+923001234567', message: 'hi', app: 'whatsapp' }, edit_image: { instruction: 'remove the text' }
   };
   for (const t of T.TOOLS) {
     assert.ok(sample[t.name], 'sample args for ' + t.name);
@@ -219,4 +220,69 @@ test('mocked fetch: Gemini OpenAI-compatible request shape with tools (no real k
   const j = await res.json();
   assert.deepEqual(T.parseToolCalls(j.choices[0].message)[0].args, { seconds: 60 });
   assert.equal(C.parseChatCompletion(j) || '', '');
+});
+
+// ---------------- 2.3.0 regression: the exact phrases from the bug report ----------------
+test('2.3.0 bug 1/2: messaging phrases parse to a message flow (never find_contact / open_app)', () => {
+  const one = (t) => { const r = T.parseCommand(t); assert.ok(r && r.steps && r.steps.length === 1, t + ' → ' + JSON.stringify(r)); return r.steps[0]; };
+  let s = one('Noora Toyota message');
+  assert.equal(s.tool, 'send_message'); assert.equal(s.args.contact, 'Toyota'); assert.ok(!s.args.message);
+  s = one('Ammi jaan ko likho Assalamu Alaikum');
+  assert.equal(s.tool, 'send_message'); assert.match(s.args.contact, /^ammi jaan$/i); assert.equal(s.args.message, 'Assalamu Alaikum');
+  for (const [t, who] of [['Navra open WhatsApp and send a message to Mariam', /^mariam$/i], ['open WhatsApp write a message to Ammi Jaan', /^ammi jaan$/i], ['Nora open WhatsApp and write a message to Madhu', /^madhu$/i]]) {
+    s = one(t);
+    assert.equal(s.tool, 'send_whatsapp', t); assert.match(s.args.contact, who, t);
+  }
+  for (const w of ['Noora', 'Nora', 'Navra', 'Nura', 'Noura']) {
+    s = one(w + ' open WhatsApp and send a message to Mariam');
+    assert.equal(s.tool, 'send_whatsapp', w); assert.match(s.args.contact, /^mariam$/i);
+  }
+  s = one('Ali ko whatsapp pe likh do ke kal milte hain');
+  assert.equal(s.tool, 'send_whatsapp'); assert.match(s.args.message, /kal milte hain/);
+  assert.equal(one('whatsapp kholo').tool, 'open_app');
+  assert.equal(one('open WhatsApp').tool, 'open_app');
+  assert.equal(T.parseCommand('write a birthday message'), null);
+  assert.equal(T.parseCommand('I love you Noora'), null);
+});
+test('2.3.0 contacts: honorifics, spelling variants, Urdu script, suggestions', () => {
+  const book = [{ name: 'Ammi', number: '+923001234567' }, { name: 'Maryam Khan', number: '+923211112222' }, { name: 'مریم', number: '+923213334444' },
+    { name: 'Madhu Sharma', number: '+919876543210' }, { name: 'Toyota Service Center', number: '+924235550000' }, { name: 'امی جان', number: '+923005556666' }];
+  assert.deepEqual(T.matchContacts(book, 'Ammi jaan').map((c) => c.name), ['Ammi']);
+  assert.deepEqual(T.matchContacts(book, 'Mariam').map((c) => c.name).sort(), ['Maryam Khan', 'مریم'].sort());
+  assert.deepEqual(T.matchContacts(book, 'Toyota').map((c) => c.name), ['Toyota Service Center']);
+  assert.deepEqual(T.matchContacts(book, 'Madhu').map((c) => c.name), ['Madhu Sharma']);
+  assert.deepEqual(T.matchContacts([{ name: 'امی جان', number: '1' }], 'Ammi jaan').map((c) => c.name), ['امی جان']);
+  assert.equal(T.phoneticKey('Mariam'), T.phoneticKey('Maryam'));
+  assert.equal(T.phoneticKey('مریم'), T.phoneticKey('Maryam'));
+  assert.deepEqual(T.matchContacts(book, 'Zainab'), []);
+  assert.deepEqual(T.suggestContacts([{ name: 'Zainab Ali' }, { name: 'Ammi' }], 'Zaynab'), ['Zainab Ali']);
+});
+test('2.3.0 send_message: app from setting, honest need_app, delegates to WhatsApp / SMS', () => {
+  const ctx = { platform: 'android', settings: { defaultMessenger: 'ask' } };
+  const p0 = T.prepare('send_message', { number: '+923001234567', message: 'hi' }, ctx);
+  assert.equal(p0.ok, false); assert.equal(p0.code, 'need_app');
+  const p1 = T.prepare('send_message', { number: '+923001234567', message: 'hi', app: 'whatsapp' }, ctx);
+  assert.equal(p1.ok, true); assert.equal(p1.tool, 'send_whatsapp'); assert.equal(p1.action.payload.type, 'whatsapp');
+  const p2 = T.prepare('send_message', { number: '+923001234567', message: 'hi' }, { platform: 'android', settings: { defaultMessenger: 'sms' } });
+  assert.equal(p2.ok, true); assert.equal(p2.tool, 'send_sms');
+});
+test('2.3.0 image edit requests are detected (Roman Urdu / English / Urdu) and edit_image needs a photo', () => {
+  for (const t of ['remove the text', 'remove text from this image please', 'is photo se text hata do', 'is photo se text remove kar do', 'background change karo', 'is tasveer se likhai mita do', 'تصویر سے تحریر ہٹا دو'])
+    assert.ok(T.isImageEditRequest(t), t);
+  for (const t of ['what is in this photo', 'explain this', 'ye kya hai', 'how are you', 'Noora Toyota message'])
+    assert.ok(!T.isImageEditRequest(t), t);
+  const no = T.prepare('edit_image', { instruction: 'remove the text' }, { platform: 'android' });
+  assert.equal(no.ok, false);
+  const yes = T.prepare('edit_image', { instruction: 'remove the text' }, { platform: 'android', lastAttachment: { mime: 'image/png' } });
+  assert.equal(yes.ok, true); assert.equal(yes.action.op, 'edit_image');
+  assert.equal(T.prepare('find_contact', { name: 'Ammi' }, { platform: 'android' }).action.op, 'contacts');
+});
+test('2.3.0 smarter parsing: Roman Urdu / Punjabi / Hinglish fixtures and multi-step', () => {
+  const tools = (t) => { const r = T.parseCommand(t); return r ? r.steps.map((s) => s.tool) : null; };
+  assert.deepEqual(tools('torch on karo'), ['torch']);
+  assert.deepEqual(tools('Noora 10 minute ka timer laga do'), ['set_timer']);
+  assert.deepEqual(tools('Ammi ko call karo'), ['call_phone']);
+  assert.deepEqual(tools('text to speech settings kholo'), ['open_settings']);
+  const multi = tools('Ali ko call karo aur phir torch on karo');
+  assert.ok(multi && multi.length === 2 && multi[0] === 'call_phone' && multi[1] === 'torch', JSON.stringify(multi));
 });

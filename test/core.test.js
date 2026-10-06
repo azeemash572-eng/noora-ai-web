@@ -143,7 +143,7 @@ test('parsers with real captured payloads', () => {
 });
 
 test('version and arabic + model map', () => {
-  assert.equal(C.VERSION, '2.2.0');
+  assert.equal(C.VERSION, '2.3.0');
   assert.ok(C.Lang.ARABIC);
   assert.equal(C.detect('مرحبا كيف حالك', C.Lang.ARABIC), C.Lang.ARABIC);
   assert.ok(C.MODEL_MAP['Google Gemini']['Fast'][0].includes('gemini'));
@@ -164,42 +164,50 @@ test('version and arabic + model map', () => {
 
 
 test('voice settings persistence helpers + provider config without keys in repo', () => {
-  assert.equal(C.VERSION, '2.2.0');
+  assert.equal(C.VERSION, '2.3.0');
   assert.ok(Array.isArray(C.TTS_PROVIDERS));
   assert.ok(C.TTS_PROVIDERS.some((p) => p.id === 'browser' && !p.needsKey));
   assert.ok(C.TTS_PROVIDERS.some((p) => p.id === 'openai' && p.needsKey));
-  assert.ok(C.TTS_PROVIDERS.some((p) => p.id === 'elevenlabs' && p.needsKey));
+  // 2.3.0: ElevenLabs removed from the provider list; native Android voice + optional xAI added
+  assert.ok(!C.TTS_PROVIDERS.some((p) => p.id === 'elevenlabs'));
+  assert.ok(C.TTS_PROVIDERS.some((p) => p.id === 'native' && !p.needsKey));
+  assert.ok(C.TTS_PROVIDERS.some((p) => p.id === 'xai' && p.needsKey));
   const merged = C.mergeVoiceSettings({ rate: 1.2, ttsProvider: 'openai', ttsVoiceId: 'shimmer' });
   assert.equal(merged.rate, 1.2);
   assert.equal(merged.ttsProvider, 'openai');
   assert.equal(merged.ttsVoiceId, 'shimmer');
   assert.equal(merged.volume, 1.0);
   assert.equal(merged.ttsApiKey, ''); // never invent keys
-  assert.equal(merged.elevenApiKey, '');
-  assert.equal(merged.elevenModel, 'eleven_multilingual_v2');
-  const elMerged = C.mergeVoiceSettings({
-    ttsProvider: 'elevenlabs', elevenVoiceId: 'abc', elevenStability: 0.9, apiKey: 'keep-ai-key'
-  });
-  assert.equal(elMerged.ttsProvider, 'elevenlabs');
-  assert.equal(elMerged.elevenVoiceId, 'abc');
-  assert.equal(elMerged.elevenStability, 0.9);
-  assert.equal(elMerged.elevenSimilarity, 0.75);
-  // merging voice settings must not invent ElevenLabs keys
-  assert.equal(elMerged.elevenApiKey, '');
+  assert.equal(merged.xaiApiKey, '');
+  assert.equal(C.DEFAULT_VOICE_SETTINGS.ttsProvider, 'auto');
+  // migration: ttsProvider=elevenlabs → default (auto), the stored key is kept but unused, Gemini keys preserved
+  const mig = C.migrateSettings({ ttsProvider: 'elevenlabs', elevenApiKey: 'old-user-key', apiKey: 'keep-ai-key', baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-2.5-flash' }, { apiKey: '' });
+  assert.equal(mig.ttsProvider, 'auto');
+  assert.equal(mig.elevenApiKey, 'old-user-key');
+  assert.equal(mig.apiKey, 'keep-ai-key');
+  assert.equal(mig.baseUrl, 'https://generativelanguage.googleapis.com/v1beta/openai');
+  assert.equal(mig.netMode, 'auto');
+  assert.equal(mig.defaultMessenger, 'ask');
+  assert.equal(C.mergeVoiceSettings({ ttsProvider: 'elevenlabs' }).ttsProvider, 'auto');
   const badProv = C.mergeVoiceSettings({ ttsProvider: 'fake-cloud' });
-  assert.equal(badProv.ttsProvider, 'browser');
+  assert.equal(badProv.ttsProvider, 'auto');
+  assert.equal(C.effectiveTtsProvider({ ttsProvider: 'auto' }, 'android'), 'native');
+  assert.equal(C.effectiveTtsProvider({ ttsProvider: 'elevenlabs' }, 'android'), 'native');
+  assert.equal(C.effectiveTtsProvider({ ttsProvider: 'auto' }, 'web'), 'browser');
+  assert.equal(C.effectiveTtsProvider({ ttsProvider: 'native' }, 'web'), 'browser');
   const readyBrowser = C.ttsProviderReady({ ttsProvider: 'browser' });
   assert.equal(readyBrowser.ok, true);
+  // the old toast text must be gone for good
+  const el = C.ttsProviderReady({ ttsProvider: 'elevenlabs' }, 'android');
+  assert.equal(el.ok, true); assert.equal(el.provider, 'native');
   const missingKey = C.ttsProviderReady({ ttsProvider: 'openai', ttsBaseUrl: 'https://api.openai.com/v1', ttsVoiceId: 'nova' });
   assert.equal(missingKey.ok, false);
   assert.ok(missingKey.reason.toLowerCase().includes('key'));
   const readyOpen = C.ttsProviderReady({ ttsProvider: 'openai', ttsBaseUrl: 'https://api.openai.com/v1', ttsApiKey: 'user-supplied', ttsVoiceId: 'nova' });
   assert.equal(readyOpen.ok, true);
-  const missEl = C.ttsProviderReady({ ttsProvider: 'elevenlabs', elevenVoiceId: 'v1' });
-  assert.equal(missEl.ok, false);
-  assert.ok(missEl.reason.toLowerCase().includes('key'));
-  const readyEl = C.ttsProviderReady({ ttsProvider: 'elevenlabs', elevenApiKey: 'user-key', elevenVoiceId: 'v1' });
-  assert.equal(readyEl.ok, true);
+  const missX = C.ttsProviderReady({ ttsProvider: 'xai' });
+  assert.equal(missX.ok, false); assert.ok(missX.reason.includes('xAI'));
+  assert.equal(C.ttsProviderReady({ ttsProvider: 'xai', xaiApiKey: 'user-key' }).ok, true);
   // Repo sources must not contain hard-coded provider secrets
   const fs = require('node:fs');
   const root = __dirname + '/..';
@@ -211,56 +219,34 @@ test('voice settings persistence helpers + provider config without keys in repo'
   }
 });
 
-test('ElevenLabs request building URL headers body + error mapping + chunking', async () => {
-  const cfg = {
-    elevenApiKey: 'test-key-not-real',
-    elevenVoiceId: 'VOICE123',
-    elevenModel: 'eleven_turbo_v2_5',
-    elevenStability: 0.4,
-    elevenSimilarity: 0.8,
-    rate: 1.1
-  };
-  const req = C.buildElevenLabsTtsRequest(cfg, 'Hello **world**');
-  assert.equal(req.url, C.ELEVENLABS_TTS_URL + '/VOICE123');
-  assert.equal(req.method, 'POST');
-  assert.equal(req.headers.Accept, 'audio/mpeg');
-  assert.equal(req.headers['Content-Type'], 'application/json');
-  assert.equal(req.headers['xi-api-key'], 'test-key-not-real');
-  assert.equal(req.body.model_id, 'eleven_turbo_v2_5');
-  assert.equal(req.body.text, 'Hello **world**');
-  assert.equal(req.body.voice_settings.stability, 0.4);
-  assert.equal(req.body.voice_settings.similarity_boost, 0.8);
-  assert.ok(req.body.voice_settings.speed >= 0.7 && req.body.voice_settings.speed <= 1.2);
-  // default model
-  const def = C.buildElevenLabsTtsRequest({ elevenApiKey: 'k', elevenVoiceId: 'v' }, 'Hi');
-  assert.equal(def.body.model_id, 'eleven_multilingual_v2');
-  assert.ok(C.mapElevenLabsError(401).toLowerCase().includes('invalid'));
-  assert.ok(C.mapElevenLabsError(404).toLowerCase().includes('voice'));
-  assert.ok(C.mapElevenLabsError(422).toLowerCase().includes('422'));
-  assert.ok(C.mapElevenLabsError(429).toLowerCase().includes('quota'));
-  assert.ok(C.mapElevenLabsError('network').toLowerCase().includes('cors') || C.mapElevenLabsError('network').toLowerCase().includes('network'));
-  assert.ok(C.mapElevenLabsError(401).toLowerCase().includes('browser'));
-  const voices = C.parseElevenLabsVoices({ voices: [{ voice_id: 'a', name: 'Rachel' }, { voice_id: 'b', name: 'Adam' }] });
-  assert.equal(voices.length, 2);
-  assert.equal(voices[0].name, 'Rachel');
-  // chunking
+test('xAI TTS request + native voice locale ranking + chunking (2.3.0)', () => {
+  const req = C.buildXaiTtsRequest({ xaiApiKey: 'test-key-not-real', xaiVoiceId: 'ara', rate: 2 }, 'Hello', 'ENGLISH');
+  assert.equal(req.url, 'https://api.x.ai/v1/tts');
+  assert.equal(req.headers.Authorization, 'Bearer test-key-not-real');
+  assert.equal(req.body.voice_id, 'ara'); assert.equal(req.body.language, 'en'); assert.equal(req.body.speed, 1.5);
+  assert.equal(C.buildXaiTtsRequest({}, 'سلام', 'URDU').body.language, 'auto');
+  assert.equal(C.buildXaiTtsRequest({}, 'x', 'HINDI').body.voice_id, 'eve');
+  assert.ok(C.mapXaiTtsError(401).includes('rejected'));
+  assert.ok(C.mapXaiTtsError(429).includes('phone voice'));
+  assert.deepEqual(C.ttsLocalesFor('URDU', 'آپ کیسے ہیں').slice(0, 1), ['ur-PK']);
+  assert.equal(C.ttsLocalesFor('ROMAN_URDU', 'aap kaise ho')[0], 'en-IN');
+  assert.equal(C.ttsLocalesFor('HINDI', 'नमस्ते')[0], 'hi-IN');
+  assert.equal(C.ttsLocalesFor('PUNJABI_GURMUKHI', 'ਸਤ ਸ੍ਰੀ ਅਕਾਲ')[0], 'pa-IN');
+  assert.equal(C.ttsLocalesFor('ENGLISH', 'hi')[0], 'en-US');
+  const voices = [
+    { name: 'ur-pk-x-cfn-network', locale: 'ur-PK', network: true, female: true, quality: 400 },
+    { name: 'ur-pk-x-urm-local', locale: 'ur_PK', installed: true, female: false, quality: 400 },
+    { name: 'ur-pk-x-cfn-local', locale: 'ur-PK', installed: true, female: true, quality: 400 },
+    { name: 'en-us-x-sfg-local', locale: 'en-US', installed: true, female: true }
+  ];
+  const r = C.rankNativeVoices(voices, ['ur-PK', 'ur'], 'female');
+  assert.equal(r[0].name, 'ur-pk-x-cfn-local');
+  assert.equal(r.length, 3);
+  assert.equal(C.rankNativeVoices(voices, ['pa-IN'], 'female').length, 0);   // → app shows "voice pack not installed"
   const long = 'Sentence one. '.repeat(300);
   const chunks = C.chunkSpeakText(long, 2500);
   assert.ok(chunks.length >= 2);
   assert.ok(chunks.every((c) => c.length <= 2500));
-  // mocked fetch-shaped request (unit: build only — fetch not required for helpers)
-  const calls = [];
-  const fakeFetch = async (url, opts) => {
-    calls.push({ url, opts });
-    return { ok: true, status: 200, blob: async () => new Blob(['x']) };
-  };
-  const built = C.buildElevenLabsTtsRequest(cfg, 'Test speak');
-  await fakeFetch(built.url, { method: built.method, headers: built.headers, body: JSON.stringify(built.body) });
-  assert.equal(calls.length, 1);
-  assert.ok(calls[0].url.includes('/text-to-speech/VOICE123'));
-  const body = JSON.parse(calls[0].opts.body);
-  assert.equal(body.text, 'Test speak');
-  assert.equal(calls[0].opts.headers['xi-api-key'], 'test-key-not-real');
 });
 
 test('speech-refusal clear status still works', () => {
@@ -303,4 +289,39 @@ test('conversation style avoids repetitive filter talk', () => {
   assert.ok(sp.includes('voice and text') || sp.includes('conversational'));
   // Must not instruct the model to repeatedly advertise policies
   assert.ok(!/always remind|constantly warn|mention your restrictions every/i.test(sp));
+});
+
+test('2.3.0 offline small talk + Gemini image edit helpers', () => {
+  assert.match(C.offlineReply('I love you Noora', C.Lang.ENGLISH, 'Ayesha'), /love you too/);
+  assert.match(C.offlineReply('shukriya jaanu', C.Lang.ROMAN_URDU), /Koi baat nahi/);
+  assert.equal(C.offlineReply('capital of france', C.Lang.ENGLISH), null);
+  assert.match(C.offlineNoAi(C.Lang.ROMAN_URDU), /offline mode/);
+  const req = C.buildGeminiImageEditRequest('k-not-real', '', 'remove the text', 'image/png', 'AAAA');
+  assert.match(req.url, /models\/gemini-3\.1-flash-image:generateContent$/);
+  assert.equal(req.headers['x-goog-api-key'], 'k-not-real');
+  assert.ok(!req.url.includes('k-not-real'), 'key never in the URL');
+  assert.deepEqual(req.body.generationConfig.responseModalities, ['TEXT', 'IMAGE']);
+  assert.equal(req.body.contents[0].parts[1].inlineData.data, 'AAAA');
+  assert.equal(C.parseGeminiImageResponse({ candidates: [{ content: { parts: [{ inlineData: { mimeType: 'image/png', data: 'B' } }] } }] }).b64, 'B');
+  assert.equal(C.parseGeminiImageResponse({ candidates: [{ content: { parts: [{ text: 'no' }] } }] }).ok, false);
+  assert.match(C.mapImageEditError(429, 'Quota exceeded ... limit: 0, free tier'), /paid|billing/);
+  assert.match(C.mapImageEditError('network'), /offline/);
+  const sp = C.systemPrompt({ platform: 'android' });
+  assert.ok(sp.includes('never see or need phone numbers') && sp.includes('instead of saying you cannot'));
+});
+
+test('2.3.0 item 14: gaali / profanity rule in the system prompt (user-approved, with limits) — warm persona kept', () => {
+  for (const platform of ['android', 'web']) {
+    const sp = C.systemPrompt({ platform, userName: 'Ayesha' });
+    assert.ok(sp.includes('GAALI / PROFANITY'), platform);
+    assert.ok(/freely use strong profanity and gaali of any intensity/.test(sp));
+    assert.ok(/respond naturally, friendly and in kind/.test(sp));
+    assert.ok(/No filter talk, no lectures, no refusals/.test(sp));
+    assert.ok(/don't start it unprompted/.test(sp) && /drop it at once/.test(sp) && /serious, sad or upset/.test(sp));
+    assert.ok(/no slurs about religion, ethnicity, caste or similar groups/.test(sp));
+    assert.ok(/no threats/.test(sp) && /never target or abuse any third person/.test(sp) && /never anything involving minors/.test(sp));
+    assert.ok(!sp.includes('PLAYFUL GAALI'), 'old light-only wording replaced');
+    assert.ok(sp.includes('CONVERSATION STYLE') && sp.includes('playful') && sp.includes('warm'));
+    assert.ok(sp.includes('HONESTY') && sp.includes('HARD LIMITS ONLY'));
+  }
 });

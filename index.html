@@ -207,7 +207,7 @@
       <div class="glassCard" id="contactsCard">
         <h3>📇 Phone contacts</h3>
         <p class="note" id="contactsNote">After you allow Contacts, NOORA reads all names and full numbers on this phone. They stay on the phone — never sent to the AI.</p>
-        <input id="contactsSearch" type="search" placeholder="Search contacts (e.g. Ammi, Mariam)" autocomplete="off" autocapitalize="off">
+        <input id="contactsSearch" type="search" placeholder="Search contacts by name or nickname" autocomplete="off" autocapitalize="off">
         <button type="button" class="outline" id="btnContactsLoad">Load contacts</button>
         <div id="contactsList" class="contactsList"></div>
       </div>
@@ -256,6 +256,14 @@
       <h3>Profile</h3>
       <div class="card">
         <label>Your name<input id="sName" placeholder="e.g. Ayesha" autocomplete="given-name"></label>
+      </div>
+      <h3>Contacts access</h3>
+      <div class="card" id="contactsAccessCard">
+        <p class="note" id="contactsAccessState">Checking…</p>
+        <button type="button" class="primary" id="btnContactsAccess" hidden>📇 Allow contacts access</button>
+        <button type="button" class="outline" id="btnContactsRefresh" hidden>🔄 Refresh contacts</button>
+        <button type="button" class="outline" id="btnContactsAppSettings" hidden>⚙️ Open app settings</button>
+        <p class="note">NOORA reads every contact and every number on this phone so you can call or message anyone by name. Kept only on this phone (memory + on-device storage), refreshed when your contacts change — never sent to Groq, Gemini or any AI.</p>
       </div>
       <h3>AI model</h3>
       <div class="card groqCard" id="groqCard">

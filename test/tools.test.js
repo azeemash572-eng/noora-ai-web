@@ -7,13 +7,13 @@ const NOW = new Date('2026-10-05T10:00:00').getTime();
 const p = (t) => T.parseCommand(t, { now: NOW });
 const steps = (t) => { const r = p(t); return r ? r.steps : null; };
 
-test('user fixtures: Roman Urdu / Hinglish natural commands', () => {
-  assert.deepEqual(steps('Janu Majo ko WhatsApp kar do ke main thori dair se aaunga'), [{ tool: 'send_whatsapp', args: { contact: 'Majo', message: 'main thori dair se aaunga' } }]);
-  assert.deepEqual(steps('Darling Google Maps kholo aur Lulu ka rasta lagao'), [{ tool: 'open_maps', args: { query: 'Lulu', navigate: true } }]);
-  assert.deepEqual(steps('Noora meri kal 7 baje alarm laga do'), [{ tool: 'set_alarm', args: { hour: 7, minute: 0, day: 'tomorrow' } }]);
+test('natural commands: Roman Urdu / Hinglish', () => {
+  assert.deepEqual(steps('Janu Zarvish ko WhatsApp kar do ke meeting 5 baje shuru hogi'), [{ tool: 'send_whatsapp', args: { contact: 'Zarvish', message: 'meeting 5 baje shuru hogi' } }]);
+  assert.deepEqual(steps('Darling Google Maps kholo aur Testmall ka rasta lagao'), [{ tool: 'open_maps', args: { query: 'Testmall', navigate: true } }]);
+  assert.deepEqual(steps('Noora kal subah 7 baje alarm laga do'), [{ tool: 'set_alarm', args: { hour: 7, minute: 0, day: 'tomorrow' } }]);
   assert.deepEqual(steps('Ali ko call karo'), [{ tool: 'call_phone', args: { contact: 'Ali' } }]);
   assert.deepEqual(steps('call 0300 1234567'), [{ tool: 'call_phone', args: { number: '03001234567' } }]);
-  assert.deepEqual(steps('Majo ko sms karo ke main aa raha hoon'), [{ tool: 'send_sms', args: { contact: 'Majo', message: 'main aa raha hoon' } }]);
+  assert.deepEqual(steps('Zarvish ko sms karo ke main aa raha hoon'), [{ tool: 'send_sms', args: { contact: 'Zarvish', message: 'main aa raha hoon' } }]);
   assert.deepEqual(steps('5 minute ka timer laga do'), [{ tool: 'set_timer', args: { seconds: 300 } }]);
   assert.deepEqual(steps('whatsapp kholo'), [{ tool: 'open_app', args: { name: 'whatsapp' } }]);
   assert.deepEqual(steps('camera kholo'), [{ tool: 'open_camera', args: { mode: 'photo' } }]);
@@ -21,24 +21,24 @@ test('user fixtures: Roman Urdu / Hinglish natural commands', () => {
   assert.deepEqual(steps('music pause karo'), [{ tool: 'media_control', args: { action: 'pause' } }]);
   assert.deepEqual(steps('next song'), [{ tool: 'media_control', args: { action: 'next' } }]);
   assert.deepEqual(steps('open my downloads'), [{ tool: 'open_files', args: { where: 'downloads' } }]);
-  assert.deepEqual(steps('send this photo to Majo'), [{ tool: 'share_file', args: { source: 'last_attachment', contact: 'Majo', app: 'any' } }]);
-  assert.deepEqual(steps('send my latest photo to Majo on whatsapp'), [{ tool: 'share_file', args: { source: 'latest_photo', contact: 'Majo', app: 'whatsapp' } }]);
+  assert.deepEqual(steps('send this photo to Zarvish'), [{ tool: 'share_file', args: { source: 'last_attachment', contact: 'Zarvish', app: 'any' } }]);
+  assert.deepEqual(steps('send my latest photo to Zarvish on whatsapp'), [{ tool: 'share_file', args: { source: 'latest_photo', contact: 'Zarvish', app: 'whatsapp' } }]);
   assert.deepEqual(steps('torch on karo'), [{ tool: 'torch', args: { on: true } }]);
   assert.deepEqual(steps('google karo Lahore weather'), [{ tool: 'web_search', args: { query: 'Lahore weather' } }]);
   assert.deepEqual(steps('search the web for Lahore weather today'), [{ tool: 'web_search', args: { query: 'Lahore weather today' } }]);
-  assert.deepEqual(steps('yaad rakho Lulu ka address Lulu Hypermarket Lahore hai'), [{ tool: 'remember', args: { nickname: 'Lulu', value: 'Lulu Hypermarket Lahore' } }]);
+  assert.deepEqual(steps('yaad rakho Testmall ka address Testmall Plaza Lahore hai'), [{ tool: 'remember', args: { nickname: 'Testmall', value: 'Testmall Plaza Lahore' } }]);
   assert.equal(steps('remind me tomorrow at 3pm to call Ali')[0].tool, 'set_reminder');
   assert.equal(steps('kal 3 baje meeting ka reminder laga do')[0].tool, 'set_reminder');
 });
 
 test('multi-step plans split on aur / phir / then and keep message bodies intact', () => {
-  assert.deepEqual(steps('Majo ko WhatsApp kar do ke main nikal raha hoon aur phir ghar ka rasta lagao'), [
-    { tool: 'send_whatsapp', args: { contact: 'Majo', message: 'main nikal raha hoon' } },
+  assert.deepEqual(steps('Zarvish ko WhatsApp kar do ke main rasta mein hoon aur phir ghar ka rasta lagao'), [
+    { tool: 'send_whatsapp', args: { contact: 'Zarvish', message: 'main rasta mein hoon' } },
     { tool: 'open_maps', args: { query: 'home', navigate: true } }]);
   const s = steps('camera kholo phir 10 minute ka timer laga do');
   assert.deepEqual(s.map((x) => x.tool), ['open_camera', 'set_timer']);
   // "aur" inside a message must NOT split it
-  assert.deepEqual(steps('Majo ko WhatsApp kar do ke roti aur daal le aana'), [{ tool: 'send_whatsapp', args: { contact: 'Majo', message: 'roti aur daal le aana' } }]);
+  assert.deepEqual(steps('Zarvish ko WhatsApp kar do ke chai aur biscuit le aana'), [{ tool: 'send_whatsapp', args: { contact: 'Zarvish', message: 'chai aur biscuit le aana' } }]);
 });
 
 test('ordinary chat is not hijacked by the command parser', () => {
@@ -52,12 +52,12 @@ test('yes / no in Urdu, Roman Urdu, English', () => {
 });
 
 test('contact ambiguity: never guesses, ordinals + unique words pick', () => {
-  const book = [{ name: 'Ali Ahmed', number: '+923001111111' }, { name: 'Ali Khan', number: '+923002222222' }, { name: 'Majo', number: '+923003333333' }];
+  const book = [{ name: 'Ali Ahmed', number: '+923001111111' }, { name: 'Ali Khan', number: '+923002222222' }, { name: 'Zarvish', number: '+923003333333' }];
   const m = T.matchContacts(book, 'Ali');
   assert.equal(m.length, 2);
   assert.equal(T.say('ambiguous', { choices: T.describeChoices(m, C.Lang.ROMAN_URDU) }, C.Lang.ROMAN_URDU), 'Jaanu, Ali Ahmed ya Ali Khan?');
   assert.deepEqual(T.matchContacts(book, 'Ali Khan'), [book[1]]);
-  assert.deepEqual(T.matchContacts(book, 'majo'), [book[2]]);
+  assert.deepEqual(T.matchContacts(book, 'zarvish'), [book[2]]);
   assert.deepEqual(T.matchContacts(book, 'Zara'), []);
   assert.equal(T.pickChoice(m, 'doosra').name, 'Ali Khan');
   assert.equal(T.pickChoice(m, 'pehla').name, 'Ali Ahmed');
@@ -66,12 +66,12 @@ test('contact ambiguity: never guesses, ordinals + unique words pick', () => {
 });
 
 test('nickname memory records', () => {
-  const rec = T.nicknameRecord('Majo', '+923003333333', 'contacts');
+  const rec = T.nicknameRecord('Zarvish', '+923003333333', 'contacts');
   assert.equal(rec.kind, 'nickname'); assert.equal(rec.category, 'contacts');
   const home = T.nicknameRecord('home', 'DHA Phase 5, Lahore', 'places');
-  assert.equal(T.findNickname([rec, home], 'majo', 'contacts').value, '+923003333333');
+  assert.equal(T.findNickname([rec, home], 'zarvish', 'contacts').value, '+923003333333');
   assert.equal(T.findNickname([rec, home], 'Home', 'places').value, 'DHA Phase 5, Lahore');
-  assert.equal(T.findNickname([rec, home], 'majo', 'places'), null);
+  assert.equal(T.findNickname([rec, home], 'zarvish', 'places'), null);
 });
 
 test('confirmation rules: contact/settings actions confirm, low-risk run, purchases impossible', () => {
@@ -92,11 +92,11 @@ test('URL builders: tel / sms (iOS &body vs ?body) / mailto / wa.me / maps / sho
   assert.equal(T.whatsappUrl('03001112233', 'hi', '92'), 'https://wa.me/923001112233?text=hi');
   assert.equal(T.whatsappUrl('+968 9123 4567', ''), 'https://wa.me/96891234567');
   assert.throws(() => T.whatsappUrl('03001112233', 'hi', ''), /country code/);
-  assert.equal(T.mapsUrl('Lulu', 'apple', false), 'https://maps.apple.com/?q=Lulu');
-  assert.equal(T.mapsUrl('Lulu', 'apple', true), 'https://maps.apple.com/?daddr=Lulu');
-  assert.equal(T.mapsUrl('Lulu', 'google', true), 'https://www.google.com/maps/dir/?api=1&destination=Lulu');
-  assert.equal(T.mapsUrl('Lulu', 'geo', true), 'google.navigation:q=Lulu');
-  assert.equal(T.mapsUrl('Lulu', 'geo', false), 'geo:0,0?q=Lulu');
+  assert.equal(T.mapsUrl('Testmall', 'apple', false), 'https://maps.apple.com/?q=Testmall');
+  assert.equal(T.mapsUrl('Testmall', 'apple', true), 'https://maps.apple.com/?daddr=Testmall');
+  assert.equal(T.mapsUrl('Testmall', 'google', true), 'https://www.google.com/maps/dir/?api=1&destination=Testmall');
+  assert.equal(T.mapsUrl('Testmall', 'geo', true), 'google.navigation:q=Testmall');
+  assert.equal(T.mapsUrl('Testmall', 'geo', false), 'geo:0,0?q=Testmall');
   assert.equal(T.shortcutUrl('Set Alarm', '7am'), 'shortcuts://run-shortcut?name=Set%20Alarm&input=text&text=7am');
   assert.throws(() => T.shortcutUrl(''), /empty/);
   assert.equal(T.safeHttpUrl('example.com/x'), 'https://example.com/x');
@@ -112,7 +112,7 @@ test('every tool prepares on its platforms and is honestly unavailable elsewhere
   const sample = {
     call_phone: { number: '+923001234567' }, send_sms: { number: '+923001234567', message: 'hi' }, send_email: { to: 'a@b.com', subject: 's' },
     send_whatsapp: { number: '+923001234567', message: 'hi' }, find_contact: { name: 'Ali' }, open_camera: { mode: 'video' }, open_gallery: {},
-    media_control: { action: 'next' }, open_maps: { query: 'Lulu', navigate: true }, open_url: { url: 'https://example.com' },
+    media_control: { action: 'next' }, open_maps: { query: 'Testmall', navigate: true }, open_url: { url: 'https://example.com' },
     calendar_event: { title: 'Meet', start: 'kal 3 baje' }, set_reminder: { text: 'Pani piyo', at: 'in 10 minutes' }, set_alarm: { hour: 7, minute: 0 },
     set_timer: { seconds: 60 }, open_files: { where: 'downloads' }, share_file: { source: 'last_attachment' }, open_settings: { panel: 'wifi' },
     torch: { on: true }, notify: { text: 'hi' }, open_app: { name: 'WhatsApp' }, run_shortcut: { name: 'Alarm' }, web_search: { query: 'x' },
@@ -130,7 +130,7 @@ test('every tool prepares on its platforms and is honestly unavailable elsewhere
   }
   // spot-check native payloads
   assert.deepEqual(T.prepare('set_alarm', { hour: 7, minute: 0 }, ctxA).action.payload, { type: 'alarm', hour: 7, minute: 0, label: 'NOORA' });
-  assert.equal(T.prepare('open_maps', { query: 'Lulu', navigate: true }, ctxA).action.payload.type, 'navigate');
+  assert.equal(T.prepare('open_maps', { query: 'Testmall', navigate: true }, ctxA).action.payload.type, 'navigate');
   assert.equal(T.prepare('open_settings', { panel: 'bluetooth' }, ctxA).note.includes('does not let apps'), true);
   assert.equal(T.prepare('run_shortcut', { name: 'x' }, ctxA).ok, false);
   const ics = T.prepare('calendar_event', { title: 'Meet', start: 'kal 3 baje' }, ctxI).action;
@@ -225,17 +225,17 @@ test('mocked fetch: Gemini OpenAI-compatible request shape with tools (no real k
 // ---------------- 2.3.0 regression: the exact phrases from the bug report ----------------
 test('2.3.0 bug 1/2: messaging phrases parse to a message flow (never find_contact / open_app)', () => {
   const one = (t) => { const r = T.parseCommand(t); assert.ok(r && r.steps && r.steps.length === 1, t + ' → ' + JSON.stringify(r)); return r.steps[0]; };
-  let s = one('Noora Toyota message');
-  assert.equal(s.tool, 'send_message'); assert.equal(s.args.contact, 'Toyota'); assert.ok(!s.args.message);
-  s = one('Ammi jaan ko likho Assalamu Alaikum');
-  assert.equal(s.tool, 'send_message'); assert.match(s.args.contact, /^ammi jaan$/i); assert.equal(s.args.message, 'Assalamu Alaikum');
-  for (const [t, who] of [['Navra open WhatsApp and send a message to Mariam', /^mariam$/i], ['open WhatsApp write a message to Ammi Jaan', /^ammi jaan$/i], ['Nora open WhatsApp and write a message to Madhu', /^madhu$/i]]) {
+  let s = one('Noora Ravish message');
+  assert.equal(s.tool, 'send_message'); assert.equal(s.args.contact, 'Ravish'); assert.ok(!s.args.message);
+  s = one('Hoorain baji ko likho kal milte hain');
+  assert.equal(s.tool, 'send_message'); assert.match(s.args.contact, /^hoorain baji$/i); assert.equal(s.args.message, 'kal milte hain');
+  for (const [t, who] of [['Nawra open WhatsApp and send a message to Zarnesh', /^zarnesh$/i], ['open WhatsApp write a message to Hoorain Baji', /^hoorain baji$/i], ['Nora open WhatsApp and write a message to Dureen', /^dureen$/i]]) {
     s = one(t);
     assert.equal(s.tool, 'send_whatsapp', t); assert.match(s.args.contact, who, t);
   }
-  for (const w of ['Noora', 'Nora', 'Navra', 'Nura', 'Noura']) {
-    s = one(w + ' open WhatsApp and send a message to Mariam');
-    assert.equal(s.tool, 'send_whatsapp', w); assert.match(s.args.contact, /^mariam$/i);
+  for (const w of ['Noora', 'Nora', 'Nawra', 'Nura', 'Noura']) {
+    s = one(w + ' open WhatsApp and send a message to Zarnesh');
+    assert.equal(s.tool, 'send_whatsapp', w); assert.match(s.args.contact, /^zarnesh$/i);
   }
   s = one('Ali ko whatsapp pe likh do ke kal milte hain');
   assert.equal(s.tool, 'send_whatsapp'); assert.match(s.args.message, /kal milte hain/);
@@ -244,18 +244,32 @@ test('2.3.0 bug 1/2: messaging phrases parse to a message flow (never find_conta
   assert.equal(T.parseCommand('write a birthday message'), null);
   assert.equal(T.parseCommand('I love you Noora'), null);
 });
-test('2.3.0 contacts: honorifics, spelling variants, Urdu script, suggestions', () => {
-  const book = [{ name: 'Ammi', number: '+923001234567' }, { name: 'Maryam Khan', number: '+923211112222' }, { name: 'مریم', number: '+923213334444' },
-    { name: 'Madhu Sharma', number: '+919876543210' }, { name: 'Toyota Service Center', number: '+924235550000' }, { name: 'امی جان', number: '+923005556666' }];
-  assert.deepEqual(T.matchContacts(book, 'Ammi jaan').map((c) => c.name), ['Ammi']);
-  assert.deepEqual(T.matchContacts(book, 'Mariam').map((c) => c.name).sort(), ['Maryam Khan', 'مریم'].sort());
-  assert.deepEqual(T.matchContacts(book, 'Toyota').map((c) => c.name), ['Toyota Service Center']);
-  assert.deepEqual(T.matchContacts(book, 'Madhu').map((c) => c.name), ['Madhu Sharma']);
-  assert.deepEqual(T.matchContacts([{ name: 'امی جان', number: '1' }], 'Ammi jaan').map((c) => c.name), ['امی جان']);
-  assert.equal(T.phoneticKey('Mariam'), T.phoneticKey('Maryam'));
-  assert.equal(T.phoneticKey('مریم'), T.phoneticKey('Maryam'));
-  assert.deepEqual(T.matchContacts(book, 'Zainab'), []);
-  assert.deepEqual(T.suggestContacts([{ name: 'Zainab Ali' }, { name: 'Ammi' }], 'Zaynab'), ['Zainab Ali']);
+test('2.3.2 contacts: honorifics, spelling variants, Urdu / Hindi script, nicknames, partials, suggestions (synthetic book)', () => {
+  const book = [{ name: 'Hoorain', number: '+923001234567' }, { name: 'Zarnish Khan', number: '+923211112222' }, { name: 'زرنش', number: '+923213334444' },
+    { name: 'Dureen Sharma', number: '+919876543210' }, { name: 'Ravish Workshop', number: '+924235550000' }, { name: 'حورین', number: '+923005556666' },
+    { name: 'Test Contact A', number: '+923001112222', label: 'Mobile' }, { name: 'Test Contact A', number: '+924235550101', label: 'Work' },
+    { name: 'Kashaf Durrani', nick: 'Kashi', number: '+923214445555' }, { name: 'विहान', number: '+919811122233' }, { name: 'Shaheer Qadri', number: '+96891234567' }];
+  const names = (q) => T.matchContacts(book, q).map((c) => c.name).sort();
+  assert.deepEqual(names('Hoorain baji'), ['Hoorain']);                        // honorific suffix
+  assert.deepEqual(names('baji Hoorain'), ['Hoorain']);                        // honorific prefix
+  assert.deepEqual(names('Hoorain bhai'), ['Hoorain']);
+  assert.deepEqual(names('Zarnesh'), ['Zarnish Khan', 'زرنش'].sort());        // spelling variant + Urdu script
+  assert.deepEqual(names('زرنش'), ['زرنش']);                                   // exact same-script name wins
+  assert.deepEqual(names('زرنش خان'), ['Zarnish Khan']);                        // Urdu-script query → Roman-spelled contact
+  assert.deepEqual(names('Ravish'), ['Ravish Workshop']);
+  assert.deepEqual(names('Workshop'), ['Ravish Workshop']);                   // last-name / second-word partial
+  assert.deepEqual(names('Dureen'), ['Dureen Sharma']);
+  assert.deepEqual(names('Kashi'), ['Kashaf Durrani']);                       // nickname from the phone
+  assert.deepEqual(names('Kashaf ji'), ['Kashaf Durrani']);
+  assert.deepEqual(names('Vihaan'), ['विहान']);                               // Hindi script
+  assert.deepEqual(names('Shaheer Kadri'), ['Shaheer Qadri']);                // q/k sound-alike
+  assert.deepEqual(names('Shaheerr'), ['Shaheer Qadri']);                     // edit-distance tolerance
+  assert.equal(T.matchContacts(book, 'Test Contact A').length, 2);             // two numbers → caller shows a pick card
+  assert.deepEqual(T.matchContacts([{ name: 'حورین', number: '1' }], 'Hoorain').map((c) => c.name), ['حورین']);
+  assert.equal(T.phoneticKey('Zarnesh'), T.phoneticKey('Zarnish'));
+  assert.equal(T.phoneticKey('زرنش'), T.phoneticKey('Zarnish'));
+  assert.deepEqual(T.matchContacts(book, 'Qwertyuiop'), []);                   // honest "not found"
+  assert.deepEqual(T.suggestContacts([{ name: 'Zainab Ali' }, { name: 'Hoorain' }], 'Zaynab'), ['Zainab Ali']);
 });
 test('2.3.0 send_message: app from setting, honest need_app, delegates to WhatsApp / SMS', () => {
   const ctx = { platform: 'android', settings: { defaultMessenger: 'ask' } };
@@ -269,19 +283,19 @@ test('2.3.0 send_message: app from setting, honest need_app, delegates to WhatsA
 test('2.3.0 image edit requests are detected (Roman Urdu / English / Urdu) and edit_image needs a photo', () => {
   for (const t of ['remove the text', 'remove text from this image please', 'is photo se text hata do', 'is photo se text remove kar do', 'background change karo', 'is tasveer se likhai mita do', 'تصویر سے تحریر ہٹا دو'])
     assert.ok(T.isImageEditRequest(t), t);
-  for (const t of ['what is in this photo', 'explain this', 'ye kya hai', 'how are you', 'Noora Toyota message'])
+  for (const t of ['what is in this photo', 'explain this', 'ye kya hai', 'how are you', 'Noora Ravish message'])
     assert.ok(!T.isImageEditRequest(t), t);
   const no = T.prepare('edit_image', { instruction: 'remove the text' }, { platform: 'android' });
   assert.equal(no.ok, false);
   const yes = T.prepare('edit_image', { instruction: 'remove the text' }, { platform: 'android', lastAttachment: { mime: 'image/png' } });
   assert.equal(yes.ok, true); assert.equal(yes.action.op, 'edit_image');
-  assert.equal(T.prepare('find_contact', { name: 'Ammi' }, { platform: 'android' }).action.op, 'contacts');
+  assert.equal(T.prepare('find_contact', { name: 'Hoorain' }, { platform: 'android' }).action.op, 'contacts');
 });
 test('2.3.0 smarter parsing: Roman Urdu / Punjabi / Hinglish fixtures and multi-step', () => {
   const tools = (t) => { const r = T.parseCommand(t); return r ? r.steps.map((s) => s.tool) : null; };
   assert.deepEqual(tools('torch on karo'), ['torch']);
   assert.deepEqual(tools('Noora 10 minute ka timer laga do'), ['set_timer']);
-  assert.deepEqual(tools('Ammi ko call karo'), ['call_phone']);
+  assert.deepEqual(tools('Hoorain ko call karo'), ['call_phone']);
   assert.deepEqual(tools('text to speech settings kholo'), ['open_settings']);
   const multi = tools('Ali ko call karo aur phir torch on karo');
   assert.ok(multi && multi.length === 2 && multi[0] === 'call_phone' && multi[1] === 'torch', JSON.stringify(multi));

@@ -35,8 +35,8 @@ def wav(path, secs=0.5, rate=8000):
         f.writeframes(b''.join(struct.pack('<h', int(8000 * math.sin(2 * math.pi * 440 * i / rate))) for i in range(int(secs * rate))))
 
 pdf(os.path.join(out, 'report.pdf'), 'NOORA PDF FIXTURE quarterly sales up 12 percent')
-docx(os.path.join(out, 'notes.docx'), 'NOORA DOCX FIXTURE meeting notes for Majo')
-open(os.path.join(out, 'table.csv'), 'w').write('name,amount\nAli,120\nMajo,340\n')
+docx(os.path.join(out, 'notes.docx'), 'NOORA DOCX FIXTURE meeting notes for Zarvish')
+open(os.path.join(out, 'table.csv'), 'w').write('name,amount\nAli,120\nZarvish,340\n')
 open(os.path.join(out, 'hello.txt'), 'w').write('NOORA TXT FIXTURE hello jaanu\n')
 open(os.path.join(out, 'old.doc'), 'wb').write(b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1' + b'\x00' * 64)
 png(os.path.join(out, 'photo.png'))

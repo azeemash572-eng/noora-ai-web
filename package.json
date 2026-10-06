@@ -1,9 +1,9 @@
 {
   "name": "noora-ai-web",
-  "version": "2.3.1",
+  "version": "2.3.2",
   "private": true,
   "scripts": {
-    "test": "node --test ./test/core.test.js && node --test ./test/cc.test.js && node --test ./test/tools.test.js && node --test ./test/groq.test.js",
+    "test": "node --test ./test/core.test.js && node --test ./test/cc.test.js && node --test ./test/tools.test.js && node --test ./test/groq.test.js && node --test ./test/contacts-big.test.js",
     "test:e2e": "node test/e2e/cc-smoke.mjs && node test/e2e/voice-smoke.mjs && node test/e2e/actions-smoke.mjs && node test/e2e/android-230.mjs && node test/e2e/groq-231.mjs",
     "test:e2e:cc": "node test/e2e/cc-smoke.mjs",
     "server": "node server/index.js"

@@ -28,7 +28,7 @@ test('greetings are local and match language', () => {
   const g = (s) => r(s);
   assert.deepEqual(g('kesi ho'), { type: 'Greeting', kind: 'HOW_ARE_YOU' });
   assert.deepEqual(g('Kesi ho Noora?'), { type: 'Greeting', kind: 'HOW_ARE_YOU' });
-  assert.deepEqual(g('Assalam o Alaikum'), { type: 'Greeting', kind: 'SALAM' });
+  assert.deepEqual(g('AoA'), { type: 'Greeting', kind: 'SALAM' });
   assert.deepEqual(g('salam, kaise ho?'), { type: 'Greeting', kind: 'HOW_ARE_YOU' });
   assert.deepEqual(g('کیسی ہو؟'), { type: 'Greeting', kind: 'HOW_ARE_YOU' });
   assert.deepEqual(g('आप कैसी हैं?'), { type: 'Greeting', kind: 'HOW_ARE_YOU' });
@@ -90,8 +90,8 @@ test('images', () => {
 
 test('phone tasks', () => {
   assert.deepEqual(r('call 0300 1234567'), { type: 'Call', number: '03001234567', who: null });
-  assert.deepEqual(r('call ammi'), { type: 'Call', number: null, who: 'ammi' });
-  assert.deepEqual(r('ammi ko call karo'), { type: 'Call', number: null, who: 'ammi' });
+  assert.deepEqual(r('call hoorain'), { type: 'Call', number: null, who: 'hoorain' });
+  assert.deepEqual(r('hoorain ko call karo'), { type: 'Call', number: null, who: 'hoorain' });
   assert.deepEqual(r('sms 03001234567 saying I am late'), { type: 'Sms', number: '03001234567', who: null, body: 'I am late' });
   assert.deepEqual(r('set alarm 7:30 am'), { type: 'Alarm', hour: 7, minute: 30 });
   assert.deepEqual(r('set an alarm for 6 pm'), { type: 'Alarm', hour: 18, minute: 0 });
@@ -110,7 +110,7 @@ test('phone tasks', () => {
 
 test('memory', () => {
   assert.deepEqual(r("Remember that my sister's name is Sara."), { type: 'Remember', fact: "my sister's name is Sara" });
-  assert.deepEqual(r('yaad rakho ke meri ammi ka birthday 5 May ko hai'), { type: 'Remember', fact: 'meri ammi ka birthday 5 May ko hai' });
+  assert.deepEqual(r('yaad rakho ke meri hoorain ka birthday 5 May ko hai'), { type: 'Remember', fact: 'meri hoorain ka birthday 5 May ko hai' });
   assert.deepEqual(r('what do you remember about me?'), { type: 'RecallMemory' });
   assert.deepEqual(r('forget everything'), { type: 'ForgetMemory' });
   assert.equal(r('help').type, 'Help');
@@ -143,7 +143,7 @@ test('parsers with real captured payloads', () => {
 });
 
 test('version and arabic + model map', () => {
-  assert.equal(C.VERSION, '2.3.1');
+  assert.equal(C.VERSION, '2.3.2');
   assert.ok(C.Lang.ARABIC);
   assert.equal(C.detect('مرحبا كيف حالك', C.Lang.ARABIC), C.Lang.ARABIC);
   assert.ok(C.MODEL_MAP['Google Gemini']['Fast'][0].includes('gemini'));
@@ -164,7 +164,7 @@ test('version and arabic + model map', () => {
 
 
 test('voice settings persistence helpers + provider config without keys in repo', () => {
-  assert.equal(C.VERSION, '2.3.1');
+  assert.equal(C.VERSION, '2.3.2');
   assert.ok(Array.isArray(C.TTS_PROVIDERS));
   assert.ok(C.TTS_PROVIDERS.some((p) => p.id === 'browser' && !p.needsKey));
   assert.ok(C.TTS_PROVIDERS.some((p) => p.id === 'openai' && p.needsKey));

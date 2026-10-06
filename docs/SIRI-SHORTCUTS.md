@@ -22,7 +22,7 @@ iOS Safari only starts the microphone after a tap, so tap the 🎤 button once.
    - **Text**: `https://azeemash572-eng.github.io/noora-ai-web/?cmd=` followed by the **URL Encoded Text** variable
    - **Open URLs** (input: Text)
 2. Name it **Noora command**.
-3. Say: "Hey Siri, Noora command" … "Majo ko WhatsApp kar do ke main thori dair se aaunga".
+3. Say: "Hey Siri, Noora command" … "Zarvish ko WhatsApp kar do ke meeting 5 baje shuru hogi".
 
 NOORA runs the command exactly as if you had typed it. Calls, messages and WhatsApp still show a confirmation card, and iPhone needs your tap to switch apps.
 

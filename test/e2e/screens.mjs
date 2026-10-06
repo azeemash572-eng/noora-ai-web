@@ -21,7 +21,7 @@ const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, de
 await ctx.addInitScript(() => {
   window.NooraNative = {
     isAndroid: () => true,
-    run: (j) => { const o = JSON.parse(j); if (o.type === 'contacts') return JSON.stringify({ ok: true, results: [{ name: 'Ammi Jaan', number: '+923001112223', label: 'Mobile' }], message: '1 contact numbers' }); return JSON.stringify({ ok: true, message: 'ok', leftApp: true }); },
+    run: (j) => { const o = JSON.parse(j); if (o.type === 'contacts') return JSON.stringify({ ok: true, results: [{ name: 'Hoorain Baji', number: '+923001112223', label: 'Mobile' }], message: '1 contact numbers' }); return JSON.stringify({ ok: true, message: 'ok', leftApp: true }); },
     action: () => 'ok', sttStart: () => JSON.stringify({ ok: true }), sttStop: () => JSON.stringify({ ok: true }),
     ttsSpeak: () => JSON.stringify({ ok: true }), ttsStop: () => JSON.stringify({ ok: true }), ttsIsSpeaking: () => false,
     ttsVoices: () => JSON.stringify({ ok: true, engine: 'com.google.android.tts', voices: [{ name: 'ur-pk-x-cfn-local', locale: 'ur-PK', quality: 400, network: false, female: true, installed: true }, { name: 'en-in-x-ene-local', locale: 'en-IN', quality: 400, network: false, female: true, installed: true }] }),

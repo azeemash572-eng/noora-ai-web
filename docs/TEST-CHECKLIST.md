@@ -1,4 +1,4 @@
-# NOORA AI 2.3.1 — Test checklist (Android)
+# NOORA AI 2.3.2 — Test checklist (Android)
 
 2.3.0 / 2.3.1 target Android only. Statuses mean the same as in the 2.2.0 section below. **No emulator or phone was available**, so anything that needs a real device is marked *built – not device-tested*.
 
@@ -10,8 +10,8 @@ Test commands (all passed on 2026-10-06, 2.3.1):
 
 | # | Item | Status | How tested |
 |---|---|---|---|
-| 1 | "Noora Toyota message" / "Ammi jaan ko likho …" / "Navra … send a message to Mariam" → messaging flow, never "Done: 0 contact numbers" | tested (web) / built – not device-tested | tools.test fixtures; e2e android-230 (lookup → app → message → confirm → whatsapp intent); Noora230Test contacts all/query/dedupe/permission-denied |
-| 2 | "open WhatsApp write a message to Ammi Jaan/Madhu" → WhatsApp flow, misheard wake words tolerated | tested (web) / built – not device-tested | tools.test; e2e; wa.me + ACTION_SENDTO fallback |
+| 1 | "Noora Ravish message" / "Hoorain baji ko likho …" / "Nawra … send a message to Zarnesh" → messaging flow, never "Done: 0 contact numbers" | tested (web) / built – not device-tested | tools.test fixtures; e2e android-230 (lookup → app → message → confirm → whatsapp intent); Noora230Test contacts all/query/dedupe/permission-denied |
+| 2 | "open WhatsApp write a message to Hoorain Baji/Dureen" → WhatsApp flow, misheard wake words tolerated | tested (web) / built – not device-tested | tools.test; e2e; wa.me + ACTION_SENDTO fallback |
 | 3 | No ElevenLabs toast; elevenlabs → auto (native) migration | tested | core.test migration; e2e voice mode |
 | 4 | Image text removal → Gemini image edit (key) or free manual eraser, preview + save/share | tested (mock Gemini) | e2e request body; eraser pixel test; save/share bridge calls. Real Gemini image model not tested live (no key) |
 | 5 | File chooser: all accept types and capture modes, CAMERA/RECORD_AUDIO prompts, FileProvider | tested (Robolectric intents) / built – not device-tested | Noora230Test ChooserIntents |
@@ -24,6 +24,8 @@ Test commands (all passed on 2026-10-06, 2.3.1):
 | 14 | Conversation style: user-approved strong profanity/gaali as friendly banter, mirrors the user, drops it when the user is serious or upset; limits: no hateful slurs, threats, third-party abuse, or minors | tested (prompt text) | core.test asserts the rule and its limits. Gemini/Pollinations have their own safety filters that NOORA can't override, so some replies may still be softened or refused |
 
 | 15 | Groq primary (`qwen/qwen3.8-27b`, api.groq.com/openai/v1, streaming, `reasoning_effort:"none"`) with automatic fallback to Gemini and then Pollinations on no key / network / 401 / 403 / 429 / 5xx / ~20 s timeout / empty reply. Honest notice line under the reply. Tool calls are taken from exactly one provider. Photos go to Gemini first. The masked Groq key field shows the Urdu hint and "Primary: Groq (Qwen 27B), Backup: Gemini" | tested (mocked HTTP) / **live Groq untested** (no real key) | `groq.test.js` (chain order, notice texts, same system prompt incl. item 14, no keys in logs, migration). `groq-231` e2e (the real app with routes mocked: OK, 429, 401, 500, empty, no key, both fail → Pollinations, torch tool runs once, vision routing, Settings + screenshots `after-231-*`). Noora231Test checks that the bundled assets have no keys. The stream timeout path is unit-level only |
+
+| 16 | 2.3.2 full contacts: every contact and every number (no cap), deduplicated across accounts, original plus E.164 form (+92 / 0092 / 03xx / +968), nicknames. READ_CONTACTS on first use and from Settings → Contacts access, with an "Open app settings" path if permanently denied. Cached in memory and in on-device IndexedDB, refreshed on resume when the count changes. Fuzzy matching across scripts, honorifics, nicknames, partials and edit distance. Pick card when several match; honest "not found" plus type-a-number when none do | tested (Robolectric + node + Playwright with a mocked bridge) / built – not device-tested | Noora232Test (12,000 contacts → 24,400 numbers, 371 ms; normalization; nicknames; permission and app-settings intents); contacts-big.test.js (12,004 contacts / 21,005 numbers; call / WhatsApp / SMS resolve to the right number; unknown → no match); tools.test matching; android-230 flows |
 
 ---
 
@@ -49,7 +51,7 @@ The free Pollinations endpoint was checked live on 2026-10-05. Plain requests re
 
 | Capability | Platform | Status | How tested |
 |---|---|---|---|
-| Local NL intent parser (Roman Urdu / Urdu / Hinglish / English; strips "janu/darling/noora") | all | tested | `tools.test.js`: the 3 user fixtures plus about 20 more commands. Chat sentences return `null` (not hijacked) |
+| Local NL intent parser (Roman Urdu / Urdu / Hinglish / English; strips "janu/darling/noora") | all | tested | `tools.test.js`: natural command fixtures plus about 20 more commands. Chat sentences return `null` (not hijacked) |
 | Multi-step plans ("… aur phir …"), sequential, pause at confirmation | all | tested | unit test (split, keeping "aur" inside a message); e2e: WhatsApp (1/2) → tap → asks home address → maps (2/2) |
 | Voice/typed confirmation "haan / ji / yes" and cancel "nahi / cancel" | all | tested | unit `parseYesNo`; e2e "haan" opens wa.me, "nahi" cancels with nothing opened, spoken "haan ji" confirms |
 | Confirmation rules (calls/SMS/WhatsApp/email/share/Shortcuts always confirm; camera/maps/search/timer/calc run at once) | all | tested | unit `needsConfirm` and `prepare().confirm`; e2e cards |
@@ -68,10 +70,10 @@ The free Pollinations endpoint was checked live on 2026-10-05. Plain requests re
 | Messaging: WhatsApp | built – not device-tested (installed check com.whatsapp / w4b, else "installed nahi mil raha" + wa.me browser fallback) | tested: `https://wa.me/<digits>?text=` | e2e both paths; Robolectric not_installed |
 | Messaging: email | built – not device-tested (SENDTO mailto with extras) | tested: `mailto:` | e2e + Robolectric |
 | Contacts lookup (READ_CONTACTS, ambiguity "Janu, Ali Ahmed ya Ali Khan?", never guesses) | built – not device-tested | not possible (no contacts API in web apps) → asks for the number, offers to remember it | unit `matchContacts` / `pickChoice`; bridge contract e2e (permission → choice → dial); Robolectric permission gate; e2e web honest message |
-| Nicknames / places memory ("Majo", "home", "Lulu") | tested | tested | e2e: save button → memory row `{kind:'nickname'}`; reused for the next WhatsApp |
+| Nicknames / places memory ("Zarvish", "home", "Testmall") | tested | tested | e2e: save button → memory row `{kind:'nickname'}`; reused for the next WhatsApp |
 | Camera (photo / video) | built – not device-tested (STILL_IMAGE_CAMERA / VIDEO_CAMERA) | tested up to the tap card / form; the picker itself is the browser's (`capture` input) | e2e form |
 | Gallery / files / downloads | built – not device-tested (APP_GALLERY, ACTION_VIEW_DOWNLOADS) | tested up to the form; web can only open the file picker, not Downloads | e2e form |
-| Share "send this photo to Majo" | built – not device-tested (FileProvider + ACTION_SEND, optional WhatsApp package) | tested code path: Web Share API with the attached file (needs a tap) | unit `prepare`; shown honestly when unsupported |
+| Share "send this photo to Zarvish" | built – not device-tested (FileProvider + ACTION_SEND, optional WhatsApp package) | tested code path: Web Share API with the attached file (needs a tap) | unit `prepare`; shown honestly when unsupported |
 | Latest photo via MediaStore (READ_MEDIA_IMAGES / READ_EXTERNAL_STORAGE ≤32) | built – not device-tested | not possible (web can't read the photo library) | unit (unavailable on web) |
 | Maps / navigation | built – not device-tested (`google.navigation:q=`, `geo:`, https fallback) | tested: Apple/Google choice, remembered; `daddr` / `dir/?api=1` | unit URLs; e2e |
 | Browser / open URL (http/https only) | built – not device-tested | tested | unit (javascript: rejected); Robolectric |

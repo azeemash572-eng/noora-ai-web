@@ -137,3 +137,9 @@ voice (Web Speech or Android SpeechRecognizer via NooraNative.sttStart) / typed 
 - `core.runAiChain(attempts, call)` stops at the first attempt that returns text or tool calls. Tool actions therefore come from one provider only and are never run twice. Failed attempts become `failureKind` values (busy, key rejected, server error, timed out, unreachable, empty reply) and are turned into `fallbackNotice` text, e.g. "Groq busy, answered with Gemini". This shows as a small `.aiNotice` line under the reply and is not spoken.
 - `AI.chat` (app.js) runs the chain, then the existing free Pollinations loop. Groq calls use a 20 s total deadline (headers plus stream), `reasoning_effort:"none"`, and the same messages and system prompt as every other provider. `cleanAi` strips any `<think>` text.
 - Keys live only in `noora.settings` on the phone (`groqApiKey`, `apiKey`). `redactKeys` scrubs provider error text before it is shown or logged.
+
+## 2.3.2: full contacts
+
+- `ContactsReader.kt` reads all of Phone.CONTENT_URI with one forward-only cursor (no cap). Each row carries CONTACT_ID, name, number, NORMALIZED_NUMBER, type/label and account. Numbers are deduplicated per contact on their normalized digits. The output keeps `raw` and an `e164`/`number`. Nicknames come from Data/Nickname. `op:"count"` is a cheap change check.
+- Permission: `contacts` requests READ_CONTACTS. `contactsPerm` reports its state. The permission event carries `blocked` (denied with "don't ask again"), and the web UI then offers `appSettings`.
+- Web: `loadAllContacts` caches in memory and in the separate IndexedDB `noora-contacts`. It re-reads when `op:count` changes, including on the `resume` event. `T.matchContacts` scores name and nicknames, shows a pick card for ties and never guesses. Numbers are never put in AI prompts.

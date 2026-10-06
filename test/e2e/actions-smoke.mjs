@@ -157,12 +157,12 @@ async function tapCard(page, value) {
   await page.fill('#mBody [data-field="to"]', 'not-an-email');
   await page.click('#mBtns button.go');
   assert.match(await page.locator('#mBody .ferr:not([hidden])').first().innerText(), /email/i);
-  await page.fill('#mBody [data-field="to"]', 'majo@example.com');
+  await page.fill('#mBody [data-field="to"]', 'zarvish@example.com');
   await page.fill('#mBody [data-field="subject"]', 'Hi');
   await page.click('#mBtns button.go');
   await tapCard(page, 'yes');
-  assert.match((await opens(page)).pop(), /^mailto:majo@example\.com\?subject=Hi/);
-  ok('Email: invalid address rejected inline; valid → mailto:majo@example.com?subject=Hi');
+  assert.match((await opens(page)).pop(), /^mailto:zarvish@example\.com\?subject=Hi/);
+  ok('Email: invalid address rejected inline; valid → mailto:zarvish@example.com?subject=Hi');
 
   // Shortcut
   await page.click('#bottomNav button[data-tab="tools"]');
@@ -197,33 +197,33 @@ async function tapCard(page, value) {
 {
   const page = await newPage();
   await page.click('#bottomNav button[data-tab="chat"]');
-  let r = await say(page, 'Janu Majo ko WhatsApp kar do ke main thori dair se aaunga');
+  let r = await say(page, 'Janu Zarvish ko WhatsApp kar do ke meeting 5 baje shuru hogi');
   assert.match(r, /contacts|number/i, r);
   assert.match(r, /iPhone\/web/i);
   r = await say(page, '+92 300 1112233');
   await page.waitForFunction(() => window.__noora.pending() && window.__noora.pending().type === 'confirm');
   const card = await page.locator('#tab-chat .actCard').last().innerText();
-  assert.match(card, /Majo/); assert.match(card, /thori dair se aaunga/);
+  assert.match(card, /Zarvish/); assert.match(card, /5 baje shuru hogi/);
   r = await say(page, 'haan');
   const wa = (await opens(page)).pop();
-  assert.equal(wa, 'https://wa.me/923001112233?text=' + encodeURIComponent('main thori dair se aaunga'));
-  ok('"Janu Majo ko WhatsApp kar do ke main thori dair se aaunga" → honest no-contacts ask → number → card → "haan" → ' + wa);
-  // offer to remember Majo, click it
-  await page.locator('#tab-chat button.act:has-text("Remember Majo")').last().click();
+  assert.equal(wa, 'https://wa.me/923001112233?text=' + encodeURIComponent('meeting 5 baje shuru hogi'));
+  ok('"Janu Zarvish ko WhatsApp kar do ke meeting 5 baje shuru hogi" → honest no-contacts ask → number → card → "haan" → ' + wa);
+  // offer to remember Zarvish, click it
+  await page.locator('#tab-chat button.act:has-text("Remember Zarvish")').last().click();
   await page.waitForTimeout(200);
   const rows = await page.evaluate(() => window.__noora.Store.memoryRows());
-  assert.ok(rows.some((m) => m.kind === 'nickname' && m.name === 'Majo' && m.value === '+923001112233' && m.category === 'contacts'));
-  ok('User-approved nickname saved to memory (contacts: Majo → +923001112233)');
+  assert.ok(rows.some((m) => m.kind === 'nickname' && m.name === 'Zarvish' && m.value === '+923001112233' && m.category === 'contacts'));
+  ok('User-approved nickname saved to memory (contacts: Zarvish → +923001112233)');
 
-  // multi-step: WhatsApp Majo (remembered) + route home (unknown → ask → remember) with maps provider choice
+  // multi-step: WhatsApp Zarvish (remembered) + route home (unknown → ask → remember) with maps provider choice
   const before = (await opens(page)).length;
-  r = await say(page, 'Majo ko WhatsApp kar do ke main nikal raha hoon aur phir ghar ka rasta lagao');
+  r = await say(page, 'Zarvish ko WhatsApp kar do ke main rasta mein hoon aur phir ghar ka rasta lagao');
   await page.waitForFunction(() => window.__noora.pending() && window.__noora.pending().type === 'confirm');
   assert.equal(await page.evaluate(() => window.__noora.plan().steps.length), 2);
   assert.match(await page.locator('#tab-chat .actCard').last().innerText(), /\(1\/2\)/);
   await tapCard(page, 'yes');
   await page.waitForFunction(() => window.__noora.pending() && window.__noora.pending().type === 'place', null, { timeout: 8000 });
-  assert.match((await opens(page))[before], /^https:\/\/wa\.me\/923001112233\?text=main%20nikal%20raha%20hoon/);
+  assert.match((await opens(page))[before], /^https:\/\/wa\.me\/923001112233\?text=main%20rasta%20mein%20hoon/);
   r = await say(page, 'House 12, DHA Phase 5, Lahore');
   await page.waitForFunction(() => window.__noora.pending() && window.__noora.pending().type === 'confirm');
   const btns = await page.$$eval('#tab-chat .actCard:last-of-type [data-card-btn]', (els) => els.map((e) => e.dataset.cardBtn));
@@ -236,23 +236,23 @@ async function tapCard(page, value) {
 
   // cancel via "nahi"
   const n0 = (await opens(page)).length;
-  await say(page, 'Majo ko call karo');
+  await say(page, 'Zarvish ko call karo');
   await page.waitForFunction(() => window.__noora.pending() && window.__noora.pending().type === 'confirm');
   r = await say(page, 'nahi');
   assert.match(r, /cancel/i);
   assert.equal((await opens(page)).length, n0, 'nothing opened after nahi');
-  ok('"Majo ko call karo" → confirm card → "nahi" cancels, nothing opened');
+  ok('"Zarvish ko call karo" → confirm card → "nahi" cancels, nothing opened');
 
   // alarm on iPhone → honest
-  r = await say(page, 'Noora meri kal 7 baje alarm laga do');
+  r = await say(page, 'Noora kal subah 7 baje alarm laga do');
   assert.match(r, /mumkin nahi|not possible|isn't possible/i); assert.match(r, /Shortcut|Clock|Siri/i);
-  ok('"Noora meri kal 7 baje alarm laga do" on iPhone → honest "not possible here" + Shortcuts/Siri alternative');
+  ok('"Noora kal subah 7 baje alarm laga do" on iPhone → honest "not possible here" + Shortcuts/Siri alternative');
 
   // Maps with saved provider runs as a tap card (iPhone needs the tap)
-  r = await say(page, 'Darling Google Maps kholo aur Lulu ka rasta lagao');
+  r = await say(page, 'Darling Google Maps kholo aur Testmall ka rasta lagao');
   await tapCard(page, 'yes');
-  assert.equal((await opens(page)).pop(), 'https://www.google.com/maps/dir/?api=1&destination=Lulu');
-  ok('"Darling Google Maps kholo aur Lulu ka rasta lagao" → single navigate step → Google Maps directions to Lulu');
+  assert.equal((await opens(page)).pop(), 'https://www.google.com/maps/dir/?api=1&destination=Testmall');
+  ok('"Darling Google Maps kholo aur Testmall ka rasta lagao" → single navigate step → Google Maps directions to Testmall');
 
   // web search with the network blocked → honest "nothing found", never invented results
   r = await say(page, 'search for biryani recipe');
@@ -273,13 +273,13 @@ async function tapCard(page, value) {
   const states = [];
   await page.exposeFunction('__vs', (s) => states.push(s));
   await page.evaluate(() => { new MutationObserver(() => window.__vs(document.body.dataset.voiceState)).observe(document.body, { attributes: true, attributeFilter: ['data-voice-state'] }); });
-  await page.evaluate(() => { window.__speech.push({ partial: 'Darling Google Maps', final: 'Darling Google Maps kholo aur Lulu ka rasta lagao' }); });
+  await page.evaluate(() => { window.__speech.push({ partial: 'Darling Google Maps', final: 'Darling Google Maps kholo aur Testmall ka rasta lagao' }); });
   await page.click('#btnMic');
   await page.waitForFunction(() => window.__noora.pending() && window.__noora.pending().type === 'confirm', null, { timeout: 8000 });
   assert.ok(states.includes('listening') && states.includes('thinking'), states.join(','));
   assert.match(await page.evaluate(() => window.__vsDuring), /Darling Google Maps …/);
-  assert.match(await page.locator('#vsTranscript').innerText(), /Lulu ka rasta lagao/);
-  assert.match(await page.locator('#vsAction').innerText(), /Lulu/);
+  assert.match(await page.locator('#vsTranscript').innerText(), /Testmall ka rasta lagao/);
+  assert.match(await page.locator('#vsAction').innerText(), /Testmall/);
   assert.ok(await page.locator('#voiceState').isVisible());
   // spoken confirmation "haan" by voice
   await page.evaluate(() => { window.__speech.push({ final: 'haan ji' }); });
@@ -327,7 +327,7 @@ async function tapCard(page, value) {
   const cases = [
     ['report.pdf', (b) => JSON.stringify(b).includes('NOORA PDF FIXTURE')],
     ['notes.docx', (b) => JSON.stringify(b).includes('NOORA DOCX FIXTURE')],
-    ['table.csv', (b) => JSON.stringify(b).includes('Majo,340')],
+    ['table.csv', (b) => JSON.stringify(b).includes('Zarvish,340')],
     ['hello.txt', (b) => JSON.stringify(b).includes('NOORA TXT FIXTURE')],
     ['photo.png', (b) => { const c = b.messages[b.messages.length - 1].content; return Array.isArray(c) && c.some((p) => p.type === 'image_url' && /^data:image\/jpeg;base64,/.test(p.image_url.url)); }],
     ['voice.wav', (b) => { const c = b.messages[b.messages.length - 1].content; return Array.isArray(c) && c.some((p) => p.type === 'input_audio' && p.input_audio.format === 'wav' && p.input_audio.data.length > 1000); }],
@@ -380,13 +380,13 @@ async function tapCard(page, value) {
     window.NooraNative = {
       isAndroid: () => true,
       action: () => 'legacy',
-      sttStart: (lang) => { window.__sttLang = lang; setTimeout(() => { window.__nooraNativeEvent({ type: 'stt', phase: 'partial', text: 'Noora meri kal' }); window.__nooraNativeEvent({ type: 'stt', phase: 'final', text: 'Noora meri kal 7 baje alarm laga do' }); }, 50); return JSON.stringify({ ok: true }); },
+      sttStart: (lang) => { window.__sttLang = lang; setTimeout(() => { window.__nooraNativeEvent({ type: 'stt', phase: 'partial', text: 'Noora meri kal' }); window.__nooraNativeEvent({ type: 'stt', phase: 'final', text: 'Noora kal subah 7 baje alarm laga do' }); }, 50); return JSON.stringify({ ok: true }); },
       sttStop: () => '{}',
       run: (json) => {
         const p = JSON.parse(json); window.__native.push(p);
         if (p.type === 'contacts') {
           if (!window.__contactsPerm) { setTimeout(() => { window.__contactsPerm = true; window.__nooraNativeEvent({ type: 'permission', perm: 'contacts', granted: true }); }, 50); return JSON.stringify({ ok: false, code: 'permission', message: 'Contacts permission requested' }); }
-          return JSON.stringify({ ok: true, results: [{ name: 'Ali Ahmed', number: '+923001111111' }, { name: 'Ali Khan', number: '+923002222222', label: 'Mobile' }, { name: 'Majo', number: '+923003333333' }] });
+          return JSON.stringify({ ok: true, results: [{ name: 'Ali Ahmed', number: '+923001111111' }, { name: 'Ali Khan', number: '+923002222222', label: 'Mobile' }, { name: 'Zarvish', number: '+923003333333' }] });
         }
         if (p.type === 'whatsapp' && !window.__waInstalled) return JSON.stringify({ ok: false, code: 'not_installed', message: 'WhatsApp is not installed' });
         return JSON.stringify({ ok: true, leftApp: !['torch', 'media', 'notify', 'reminder'].includes(p.type), message: p.type + ' ok' });
@@ -407,7 +407,7 @@ async function tapCard(page, value) {
   const alarm = (await nat()).find((p) => p.type === 'alarm');
   assert.equal(alarm.hour, 7); assert.equal(alarm.minute, 0);
   assert.ok(await page.evaluate(() => !!window.__sttLang));
-  ok('Android: native STT "Noora meri kal 7 baje alarm laga do" → set_alarm 07:00 via bridge without confirmation (low risk)');
+  ok('Android: native STT "Noora kal subah 7 baje alarm laga do" → set_alarm 07:00 via bridge without confirmation (low risk)');
   // contacts: permission flow then ambiguity, never guesses
   let r = await say(page, 'Ali ko call karo');
   await page.waitForFunction(() => window.__noora.pending() && window.__noora.pending().type === 'choose', null, { timeout: 6000 });
@@ -423,7 +423,7 @@ async function tapCard(page, value) {
   assert.equal(dial.number, '+923002222222');
   ok('Android contacts: permission requested → "Ali ko call karo" → "Janu, Ali Ahmed ya Ali Khan?" → choice → confirm → dial +923002222222');
   // WhatsApp not installed → honest message + browser fallback card
-  r = await say(page, 'Majo ko WhatsApp kar do ke main aa raha hoon');
+  r = await say(page, 'Zarvish ko WhatsApp kar do ke main aa raha hoon');
   await page.waitForFunction(() => window.__noora.pending() && window.__noora.pending().type === 'confirm');
   await tapCard(page, 'yes');
   await page.waitForFunction(() => window.__noora.msgs().some((m) => /installed nahi mil raha|isn't installed/.test(m.text || '')), null, { timeout: 5000 });

@@ -28,10 +28,10 @@ const ok = (name) => { passed++; console.log('  ✓ ' + name); };
 const PNG1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
 const CONTACTS = [
-  { name: 'Ammi', number: '+923001234567', label: 'Mobile' },
-  { name: 'Maryam Khan', number: '+923211112222' },
-  { name: 'Madhu Sharma', number: '+919876543210' },
-  { name: 'Toyota Service Center', number: '+924235550000' },
+  { name: 'Hoorain', number: '+923001234567', label: 'Mobile' },
+  { name: 'Zarnish Khan', number: '+923211112222' },
+  { name: 'Dureen Sharma', number: '+919876543210' },
+  { name: 'Ravish Workshop', number: '+924235550000' },
   { name: 'Ali Ahmed', number: '+923004445555' }
 ];
 

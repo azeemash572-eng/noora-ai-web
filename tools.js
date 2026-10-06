@@ -9,7 +9,7 @@
 (function (root) {
   'use strict';
   const Core = root.NooraCore || (typeof require === 'function' ? require('./core.js') : null);
-  const VERSION = '2.3.1';
+  const VERSION = '2.3.2';
   const ALL = ['android', 'ios-web', 'web'];
 
   class ToolError extends Error { constructor(code, message) { super(message); this.code = code; } }
@@ -316,7 +316,7 @@
   const SETTINGS_PANELS = ['bluetooth', 'wifi', 'internet', 'display', 'location', 'sound', 'volume', 'notifications', 'app', 'battery', 'tts', 'date', 'storage', 'settings'];
   const MESSENGERS = ['whatsapp', 'sms'];
   const MEDIA_ACTIONS = ['play', 'pause', 'play_pause', 'next', 'previous', 'volume_up', 'volume_down', 'mute'];
-  const contactProps = { number: str('Phone number exactly as the user said it (never invent one)', 32), contact: str('Contact name / nickname as the user said it, e.g. "Majo"', 80) };
+  const contactProps = { number: str('Phone number exactly as the user said it (never invent one)', 32), contact: str('Contact name / nickname as the user said it, e.g. "Zarvish"', 80) };
   const isAndroid = (ctx) => !!ctx && ctx.platform === 'android';
   const notOnWeb = (what, siri) => 'an iPhone / web app cannot ' + what + ' (Apple/browsers do not allow it)' + (siri ? '. Use Siri: "' + siri + '"' : '') + '. The Android NOORA app can.';
   const who = (a, num) => (a.contactName ? a.contactName + ' (' + num + ')' : num);
@@ -353,7 +353,7 @@
         return { summary: 'WhatsApp to ' + who(a, '+' + digits), details: [['To', '+' + digits], ['Message', a.message || '(empty)']], what: 'WhatsApp',
           action: isAndroid(ctx) ? { kind: 'native', payload: { type: 'whatsapp', digits, text: a.message || '' }, fallbackUrl: url, fallbackOn: 'not_installed' } : { kind: 'url', url, external: true } };
       } },
-    { name: 'send_message', group: 'Messaging', label: 'Message', description: 'Send a message to a contact when the user did not say which app ("Ammi ko likho …", "send a message to Mariam"). app = whatsapp or sms if the user said it; otherwise leave it out and NOORA asks. The user presses Send.',
+    { name: 'send_message', group: 'Messaging', label: 'Message', description: 'Send a message to a contact when the user did not say which app ("<name> ko likho …", "send a message to <name>"). app = whatsapp or sms if the user said it; otherwise leave it out and NOORA asks. The user presses Send.',
       params: S(Object.assign({}, contactProps, { message: str('Message text in the user\'s words', 1000), app: { type: 'string', enum: MESSENGERS } }), [], [['number'], ['contact']]), confirm: true, risk: 'contact',
       prepare(a, ctx) {
         const pref = a.app || (ctx && ctx.settings && MESSENGERS.includes(ctx.settings.defaultMessenger) ? ctx.settings.defaultMessenger : '');
@@ -470,7 +470,7 @@
     { name: 'get_datetime', group: 'Utility', label: 'Date / time', description: 'Current local date and time.', params: S({}), info: true,
       prepare(a, ctx) { const d = ctx && ctx.now ? new Date(ctx.now) : new Date(); const t = d.toLocaleString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }); return { summary: t, action: { kind: 'result', data: d.toISOString(), text: '🕒 ' + t } }; } },
     { name: 'remember', group: 'Memory', label: 'Remember', description: 'Save a fact, a nickname → phone number, or a place name → address in memory (user-approved).',
-      params: S({ fact: str('Fact to remember', 500), nickname: str('Nickname / place name, e.g. Majo, home, Lulu', 80), value: str('Phone number or address for the nickname', 300), category: { type: 'string', enum: ['preferences', 'facts', 'projects', 'context', 'user', 'contacts', 'places'] } }, [], [['fact'], ['nickname', 'value']]),
+      params: S({ fact: str('Fact to remember', 500), nickname: str('Nickname / place name, e.g. Zarvish, home, Testmall', 80), value: str('Phone number or address for the nickname', 300), category: { type: 'string', enum: ['preferences', 'facts', 'projects', 'context', 'user', 'contacts', 'places'] } }, [], [['fact'], ['nickname', 'value']]),
       prepare(a) {
         if (a.nickname && a.value) {
           const p = normalizePhone(a.value);
@@ -585,22 +585,24 @@
     return { text: stripped, calls };
   }
   function toolPromptNative() {
-    return 'ACTIONS: you can call NOORA functions for phone/app actions (call, SMS, WhatsApp, email, maps, alarms, timers, reminders, calendar, camera, apps, settings, media, shortcuts, web search, calculator, memory, images). Call a function ONLY when the user clearly asks for an action; several functions in order for multi-step requests. Use the contact name exactly as spoken (e.g. contact:"Majo", contact:"Ammi Jaan") — NEVER invent phone numbers or email addresses, and never ask the user for a number when they gave a name: the app looks the name up in the phone\'s own contacts privately (names/numbers are never sent to you). To message someone use send_whatsapp (WhatsApp mentioned), send_sms (SMS mentioned) or send_message (app not said); to call use call_phone; find_contact is ONLY for "show me X\'s number". If the message text is missing, call the function without "message" — the app asks. Speech-to-text often mishears the wake word (Nora / Navra / Noura / Nura = Noora) — ignore it. If the user asks to edit / change / remove something in an attached photo, call edit_image — never say you have no image editing tools. Never answer "I can\'t do that" for anything these functions cover — call the function instead. Write message text in the user\'s own language/style. Never say an action is already done — the app confirms with the user and reports the real result. Keep your text reply to one warm short sentence when calling functions.';
+    return 'ACTIONS: you can call NOORA functions for phone/app actions (call, SMS, WhatsApp, email, maps, alarms, timers, reminders, calendar, camera, apps, settings, media, shortcuts, web search, calculator, memory, images). Call a function ONLY when the user clearly asks for an action; several functions in order for multi-step requests. Use the contact name exactly as spoken (include relation words / honorifics as said, e.g. contact:"<name> bhai") — NEVER invent phone numbers or email addresses, and never ask the user for a number when they gave a name: the app looks the name up in the phone\'s own contacts privately (names/numbers are never sent to you). To message someone use send_whatsapp (WhatsApp mentioned), send_sms (SMS mentioned) or send_message (app not said); to call use call_phone; find_contact is ONLY for "show me X\'s number". If the message text is missing, call the function without "message" — the app asks. Speech-to-text often mishears the wake word (any sound-alike of "Noora" at the start) — ignore it. If the user asks to edit / change / remove something in an attached photo, call edit_image — never say you have no image editing tools. Never answer "I can\'t do that" for anything these functions cover — call the function instead. Write message text in the user\'s own language/style. Never say an action is already done — the app confirms with the user and reports the real result. Keep your text reply to one warm short sentence when calling functions.';
   }
   function toolPromptFallback(platform) {
     const lines = TOOLS.filter((t) => availability(t, platform).ok && t.name !== 'generate_video').map((t) => '- ' + t.name + '(' + Object.keys(t.params.properties || {}).join(', ') + '): ' + t.description);
-    return 'ACTIONS: when (and only when) the user clearly asks you to DO a phone/app action, reply with one short warm sentence and then a fenced block exactly like:\n```noora-action\n{"actions":[{"tool":"send_whatsapp","args":{"contact":"Majo","message":"Main thori dair se aaunga"}}]}\n```\nMultiple steps go in order in "actions". Allowed tools:\n' + lines.join('\n') +
+    return 'ACTIONS: when (and only when) the user clearly asks you to DO a phone/app action, reply with one short warm sentence and then a fenced block exactly like:\n```noora-action\n{"actions":[{"tool":"send_whatsapp","args":{"contact":"Zarvish","message":"Main 5 baje shuru hogi"}}]}\n```\nMultiple steps go in order in "actions". Allowed tools:\n' + lines.join('\n') +
       '\nRules: use contact names exactly as spoken — NEVER invent numbers or emails, never ask for a number when a name was given (the app looks it up in the phone contacts); send_message when the app (WhatsApp/SMS) was not said; edit_image for any change to an attached photo (never say you cannot edit images); times as ISO 8601 or exactly as the user said them; never claim the action is already done (the app asks the user to confirm and reports the real result). No block for normal conversation.';
   }
 
   // ---------------- natural-language command parser ----------------
-  // 2.3.0: speech-to-text often mishears the wake word → Nora / Navra / Noura / Nura / Nowra / Naura / Norah are all "Noora".
-  const WAKE_WORDS = 'noora|nora|nura|noura|nowra|navra|naura|norah|noorah|nooraa|nuura|nurah|نورا|نورہ|नूरा|नोरा';
+  // Speech-to-text often mishears the wake word. Known spellings are listed; any other n-vowel(s)-r-vowel sound-alike at the very
+  // start is also treated as the wake word (WAKE_LIKE), unless it is clearly the object of the sentence ("<name> ko …").
+  const WAKE_WORDS = 'noora|nora|nura|noura|norah|noorah|nooraa|nuura|nurah|نورا|نورہ|नूरा|नोरा';
+  const WAKE_LIKE = /^n[aeiou]{1,3}[vw]?r[aeiou]{1,2}h?[\s,!.]+(?!(?:ko|kou|ka|ki|ke|se|to|and|aur|ne)\b)/i;
   const ADDR_WORDS = 'janu|jaanu|jaan|jan|janoo|jani|darling|baby|babu|sweetheart|love|' + WAKE_WORDS + '|meri jaan|yaar|yar|ji|jee|hey|hi|oye|suno|sunno|please|plz|pls|zara|acha|achha|ok|okay';
   const ADDRESS_RX = new RegExp('^(?:(?:' + ADDR_WORDS + ')[\\s,!.]+)+', 'i');
   const TRAIL_RX = /(?:[\s,]+(?:please|plz|pls|na|naa|jaanu|janu|darling|yaar|ji|jee))*[\s.!?۔]*$/i;
   function cleanCommand(text) {
-    return String(text || '').trim().replace(/[“”]/g, '"').replace(ADDRESS_RX, '').replace(TRAIL_RX, '').replace(/^(?:meri|mera|mere|my)\s+(?=(?:kal|aaj|tomorrow|today|\d))/i, '').trim();
+    return String(text || '').trim().replace(/[“”]/g, '"').replace(WAKE_LIKE, '').replace(ADDRESS_RX, '').replace(TRAIL_RX, '').replace(/^(?:meri|mera|mere|my)\s+(?=(?:kal|aaj|tomorrow|today|\d))/i, '').trim();
   }
   const DO = '(?:kar do|kardo|kar dein|kar den|karo|kar dena|kar de|krdo|kro|kar|bhej do|bhejdo|bhejo|bhej dena|send kar do|send karo|kardain)';
   const SAY = '(?:\\s*,?\\s*(?:ke|keh|k|kay|ki|that|saying|bolo ke|bol do ke|likho ke|likh do ke)\\s+|\\s*[:\\-–]\\s*)';
@@ -638,9 +640,9 @@
       if (!/^(?:send|write|type|bhejo|whats|wats|sms|message|msg|mesg|messege|massage|text)/i.test(t)) return null;
       return [{ tool: msgTool(m[1] || m[3]), args: Object.assign(whoArgs(m[2]), msg(m[4])) }];
     }],
-    // "Ammi jaan ko likho Assalamu Alaikum" / "Ali ko WhatsApp pe likh do ke …"
-    [new RegExp('^' + WHO + '\\s+(?:ko|kou|to)\\s+(?:(' + WA + '|sms)\\s+(?:pe|par|per|on)?\\s*)?(?:' + MSGW + '\\s+)?' + LIKHO + '(?:\\s+(?:ke|ki|k|kay|that))?(?:\\s*[:\\-–]\\s*|\\s+)?(.*)$', 'iu'), (m) => [{ tool: msgTool(m[2]), args: Object.assign(whoArgs(m[1]), m[3] && m[3].trim() ? msg(m[3]) : {}) }]],
-    // "Toyota message" / "Ammi message" (two words, no verb) → message the contact, app asked / default
+    // "<name> ko likho <text>" / "<name> ko WhatsApp pe likh do ke …"
+    [new RegExp('^' + WHO + '\\s+(?:ko|kou|to)\\s+(?:(' + WA + '|sms)\\s+(?:pe|par|per|on)?\\s*)?(?:' + MSGW + '\\s+)?' + LIKHO + '(?:\\s+(?:ke|ki|k|kay|that)(?=[\\s:]|$))?(?:\\s*[:\\-–]\\s*|\\s+)?(.*)$', 'iu'), (m) => [{ tool: msgTool(m[2]), args: Object.assign(whoArgs(m[1]), m[3] && m[3].trim() ? msg(m[3]) : {}) }]],
+    // "<name> message" (no verb) → message the contact, app asked / default
     [new RegExp('^([\\p{L}][\\p{L}\\p{N}.\'’-]*(?:\\s+[\\p{L}][\\p{L}\\p{N}.\'’-]*)?)\\s+(?:ko\\s+)?' + MSGW + '$', 'iu'), (m) => [{ tool: 'send_message', args: whoArgs(m[1]) }]],
     // remember nickname → number / place
     [new RegExp('^(?:yaad rakho|yaad rakhna|remember|save|note karo)(?:\\s+(?:ke|that|k))?\\s+(.+?)(?:\'s|’s|\\s+ka|\\s+ki|\\s+ke)\\s+(?:number|phone|no\\.?|mobile|address|location|pata)\\s*(?:is|hai|=|:)?\\s+(.+?)(?:\\s+hai)?$', 'iu'), (m) => [{ tool: 'remember', args: { nickname: m[1].trim(), value: m[2].trim() } }]],
@@ -745,7 +747,7 @@
       if (!r) return null;
       r.forEach((x) => steps.push(x));
     }
-    // "open WhatsApp and send a message to Mariam" → ONE WhatsApp message (not open-app + SMS)
+    // "open WhatsApp and send a message to <name>" → ONE WhatsApp message (not open-app + SMS)
     for (let i = 0; i + 1 < steps.length; i++) {
       const a = steps[i], b = steps[i + 1];
       if (a.tool === 'open_app' && new RegExp('^' + WA + '$', 'iu').test(String(a.args.name || '').trim()) && /^send_(?:message|sms|whatsapp)$/.test(b.tool)) {
@@ -772,15 +774,18 @@
     return null;
   }
   const squash = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
-  // ---- 2.3.0 contact matching: spelling variants (Mariam/Maryam), honorifics (Ammi Jaan → Ammi), Urdu / Hindi script names ----
-  const HONORIFICS = new Set(['jaan', 'jan', 'jani', 'ji', 'jee', 'sahab', 'sahib', 'saab', 'sb', 'sahiba', 'mere', 'meri', 'mera', 'my', 'dear', 'pyari', 'pyare']);
+  // ---- contact matching: spelling variants, honorific prefixes/suffixes, nicknames, Urdu / Hindi / Gurmukhi script names ----
+  const HONORIFICS = new Set(['jaan', 'jan', 'jani', 'ji', 'jee', 'sahab', 'sahib', 'saab', 'sb', 'sahiba', 'mere', 'meri', 'mera', 'my', 'dear', 'pyari', 'pyare',
+    'bhai', 'bhaijaan', 'bhaiya', 'bhayya', 'paaji', 'paji', 'baji', 'baaji', 'apa', 'aapa', 'aapi', 'behan', 'behna', 'didi', 'sir', 'madam', 'mam', 'maam', 'mr', 'mrs', 'ms', 'miss', 'dr', 'doctor',
+    'uncle', 'aunty', 'auntie', 'sahb', 'janab', 'mohtarma', 'begum', 'saheb', 'g',
+    'جان', 'جی', 'صاحب', 'بھائی', 'باجی', 'آپا', 'بہن', 'जी', 'साहब', 'भाई', 'दीदी', 'ਜੀ', 'ਭਾਜੀ']);
   const TRANSLIT = { 'ا': 'a', 'آ': 'a', 'أ': 'a', 'إ': 'i', 'ب': 'b', 'پ': 'p', 'ت': 't', 'ٹ': 't', 'ث': 's', 'ج': 'j', 'چ': 'ch', 'ح': 'h', 'خ': 'kh', 'د': 'd', 'ڈ': 'd', 'ذ': 'z', 'ر': 'r', 'ڑ': 'r', 'ز': 'z', 'ژ': 'zh',
     'س': 's', 'ش': 'sh', 'ص': 's', 'ض': 'z', 'ط': 't', 'ظ': 'z', 'ع': 'a', 'غ': 'gh', 'ف': 'f', 'ق': 'q', 'ک': 'k', 'ك': 'k', 'گ': 'g', 'ل': 'l', 'م': 'm', 'ن': 'n', 'ں': 'n', 'و': 'o', 'ہ': 'h', 'ھ': 'h', 'ة': 'h', 'ۃ': 'h', 'ء': '', 'ی': 'i', 'ي': 'i', 'ى': 'a', 'ے': 'e', 'ۓ': 'e', 'ئ': 'i', 'ؤ': 'o',
     'अ': 'a', 'आ': 'a', 'इ': 'i', 'ई': 'i', 'उ': 'u', 'ऊ': 'u', 'ए': 'e', 'ऐ': 'ai', 'ओ': 'o', 'औ': 'au', 'क': 'k', 'ख': 'kh', 'ग': 'g', 'घ': 'gh', 'च': 'ch', 'छ': 'ch', 'ज': 'j', 'झ': 'jh', 'ट': 't', 'ठ': 'th', 'ड': 'd', 'ढ': 'dh', 'ण': 'n', 'त': 't', 'थ': 'th', 'द': 'd', 'ध': 'dh', 'न': 'n',
     'प': 'p', 'फ': 'ph', 'ब': 'b', 'भ': 'bh', 'म': 'm', 'य': 'y', 'र': 'r', 'ल': 'l', 'व': 'v', 'श': 'sh', 'ष': 'sh', 'स': 's', 'ह': 'h', 'ा': 'a', 'ि': 'i', 'ी': 'i', 'ु': 'u', 'ू': 'u', 'े': 'e', 'ै': 'ai', 'ो': 'o', 'ौ': 'au', 'ं': 'n', 'ँ': 'n', 'ज़': 'z', 'फ़': 'f',
     'ਅ': 'a', 'ਆ': 'a', 'ਕ': 'k', 'ਖ': 'kh', 'ਗ': 'g', 'ਚ': 'ch', 'ਜ': 'j', 'ਟ': 't', 'ਡ': 'd', 'ਤ': 't', 'ਦ': 'd', 'ਨ': 'n', 'ਪ': 'p', 'ਬ': 'b', 'ਮ': 'm', 'ਯ': 'y', 'ਰ': 'r', 'ਲ': 'l', 'ਵ': 'v', 'ਸ': 's', 'ਹ': 'h', 'ਾ': 'a', 'ਿ': 'i', 'ੀ': 'i', 'ੁ': 'u', 'ੂ': 'u', 'ੇ': 'e', 'ੋ': 'o', 'ੰ': 'n' };
   function translit(s) { return Array.from(String(s || '')).map((ch) => (TRANSLIT[ch] != null ? TRANSLIT[ch] : ch)).join(''); }
-  /** Rough sound key: "Mariam" = "Maryam" = "مریم" → "mrm"; "Ammi" = "Ami" = "امی" → "am". */
+  /** Rough sound key: "Zarvish" = "Zarwish" = "زروش" → "zrvs" (vowels dropped after the first letter, doubled letters collapsed). */
   function phoneticKey(word) {
     let w = squash(translit(word)).replace(/[^a-z]/g, '');
     if (!w) return '';
@@ -802,7 +807,7 @@
     if (words.includes(q)) return 80;
     const qw = q.split(' ').filter(Boolean);
     const core = qw.filter((w) => !HONORIFICS.has(w)); const cq = core.length ? core : qw;
-    if (qw.length > 1 && cq.every((w) => words.includes(w))) return 75;       // "Ammi jaan" → contact "Ammi"
+    if (qw.length > 1 && cq.every((w) => words.includes(w))) return 75;       // "<name> jaan" / "<name> bhai" → contact "<name>"
     if (n.startsWith(q)) return 70;
     if (words.some((w) => w.startsWith(q))) return 60;
     const tw = squash(translit(name)).split(' ').filter(Boolean);
@@ -811,7 +816,17 @@
     if (pq.length && pq.every((k) => k.length >= 2 && pw.includes(k))) return 50;  // sound-alike / other script
     if (q.length >= 3 && n.includes(q)) return 40;
     if (cq[0] && cq[0].length >= 4 && tw.some((w) => w.length >= 4 && lev(w, cq[0]) <= 1)) return 35;
+    if (cq[0] && cq[0].length >= 7 && tw.some((w) => w.length >= 6 && lev(w, cq[0]) <= 2)) return 30;
+    const sq = cq.map((w) => squash(translit(w))).join(' ');
+    if (sq && sq !== cq.join(' ') && sq.length >= 3 && tw.some((w) => w === sq || (sq.length >= 4 && w.startsWith(sq)))) return 45;  // other-script query
     return 0;
+  }
+  /** Best score over the display name and every nickname (nicknames come from the phone's Contacts app). */
+  function contactScoreAll(c, query) {
+    if (!c) return 0;
+    let best = contactScore(c.name, query);
+    String(c.nick || '').split(' / ').filter(Boolean).forEach((n) => { const s2 = contactScore(n, query); if (s2 > best) best = s2; });
+    return best;
   }
   /** Closest contact NAMES for a "not found" hint (no numbers). */
   function suggestContacts(list, query, max) {
@@ -828,7 +843,7 @@
   /** Rank phone contacts for a spoken name. Returns ALL equally-good matches (caller asks when >1 — never guesses). */
   function matchContacts(list, query) {
     const q = squash(query); if (!q) return [];
-    const scored = (list || []).map((c) => ({ c, s: contactScore(c && c.name, query) })).filter((x) => x.s > 0).sort((a, b) => b.s - a.s);
+    const scored = (list || []).map((c) => ({ c, s: contactScoreAll(c, query) })).filter((x) => x.s > 0).sort((a, b) => b.s - a.s);
     if (!scored.length) return [];
     const top = scored[0].s;
     const seen = new Set();
@@ -937,7 +952,7 @@
     calculate, calcEvaluate, parseWhen, fmtWhen, validateArgs, TOOLS, GROUPS, getTool, availability, needsConfirm, prepare, listTools, parseDateArg,
     toolsForApi, parseToolCalls, accumulateToolCalls, extractActionBlock, toolPromptNative, toolPromptFallback,
     cleanCommand, parseCommand, parseSingle, parseYesNo, matchContacts, pickChoice, nicknameRecord, findNickname, describeChoices, squash,
-    translit, phoneticKey, contactScore, suggestContacts, isImageEditRequest, WAKE_WORDS, MESSENGERS,
+    translit, phoneticKey, contactScore, contactScoreAll, suggestContacts, lev, HONORIFICS, isImageEditRequest, WAKE_WORDS, MESSENGERS,
     classifyFile, audioFormat, audioRoute, visionReady, buildAttachmentContent, WEB_APP_LINKS
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.NooraTools = api;

@@ -1,4 +1,4 @@
-/* NOORA AI 2.3.1 command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
+/* NOORA AI 2.3.2 command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
 (function () {
   'use strict';
   const C = window.NooraCore, L = C.Lang;
@@ -762,7 +762,7 @@
     if (a.op === 'edit_image') return openImageEditor(a.instruction, lang);
     return reply(T.say('action_failed', { reason: 'unknown local action' }, lang), lang);
   }
-  /** "What is Ammi's number" → real card with the FULL numbers from the phone (never a fake "Done: 0 contact numbers"). */
+  /** "What is <name>'s number" → real card with the FULL numbers from the phone (never a fake "Done"). */
   async function showContactsResult(query, lang) {
     const name = String(query || '').trim();
     const r = loadAllContacts(true);
@@ -773,7 +773,8 @@
     if (!matches.length) {
       const close = T.suggestContacts(list, name, 3);
       const txt = T.say('no_contact', { name, close: close.length ? T.say('close_names', { names: close.join(', ') }, lang) : '' }, lang).replace(/ Tell me the number.*$| Number bata do.*$|۔ نمبر بتا دیں.*$/, '.');
-      return reply(txt + (list.length ? '' : ' (' + (T.langKey(lang) === 'en' ? 'your phone returned no contacts' : 'phone ne koi contact nahi diya') + ')'), lang, { meta: { via: 'Contacts · ' + list.length + ' on phone' } });
+      const typeHint = T.langKey(lang) === 'en' ? ' You can also type the number and I\'ll call or message it.' : ' Aap number type kar dein to main us par call / message kar dun gi.';
+      return reply(txt + (list.length ? '' : ' (' + (T.langKey(lang) === 'en' ? 'your phone returned no contacts' : 'phone ne koi contact nahi diya') + ')') + typeHint, lang, { meta: { via: 'Contacts · ' + list.length + ' numbers on phone' } });
     }
     const shown = matches.slice(0, 8);
     const id = 'card' + (++cardSeq) + '_' + Date.now().toString(36);
@@ -781,7 +782,7 @@
     const buttons = [];
     shown.slice(0, 3).forEach((c, i) => { buttons.push({ label: '📞 ' + c.name, value: 'c' + i, go: i === 0 }); buttons.push({ label: '💬 ' + c.name, value: 'm' + i }); });
     buttons.push({ label: 'Close', value: 'x' });
-    const card = { id, title: '📇 ' + name, details: shown.map((c) => [c.name + (c.label ? ' (' + c.label + ')' : ''), c.number]), buttons };
+    const card = { id, title: '📇 ' + name, details: shown.map((c) => [c.name + (c.nick ? ' “' + c.nick + '”' : '') + (c.label ? ' (' + c.label + ')' : ''), c.number + (c.raw && c.raw.replace(/\D/g, '') !== String(c.number).replace(/\D/g, '') ? '  ·  saved as ' + c.raw : '')]), buttons };
     return reply(T.say('contacts_found', { n: matches.length, name }, lang), lang, { meta: { card, via: 'Contacts · ' + list.length + ' on phone' }, speakText: T.say('contacts_found', { n: matches.length, name }, lang) + ' ' + shown.slice(0, 2).map((c) => c.name).join(', ') });
   }
   async function saveNickname(name, value, category) {
@@ -792,15 +793,70 @@
   }
   const CONTACT_TOOLS = ['call_phone', 'send_sms', 'send_whatsapp', 'send_message'];
   const MSG_TOOLS = ['send_sms', 'send_whatsapp', 'send_message'];
-  // 2.3.0: the whole phone book (names + full numbers) is read once on the phone and cached here — it is NEVER sent to the AI.
+  // 2.3.2: the WHOLE phone book (every contact, every number, nicknames — no cap) is read on the phone and cached here and in a
+  // separate on-device IndexedDB ("noora-contacts"). It is NEVER sent to any AI provider. Refreshed on app resume when the count changes.
   let contactsCache = null;
+  const ContactsIdb = {
+    open() { return new Promise((res) => { try { const r = indexedDB.open('noora-contacts', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => res(null); } catch (e) { res(null); } }); },
+    async put(v) { const db = await this.open(); if (!db) return; try { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, 'book'); tx.oncomplete = () => db.close(); } catch (e) {} },
+    async get() { const db = await this.open(); if (!db) return null; return new Promise((res) => { try { const q = db.transaction('kv').objectStore('kv').get('book'); q.onsuccess = () => { res(q.result || null); db.close(); }; q.onerror = () => res(null); } catch (e) { res(null); } }); },
+    async clear() { const db = await this.open(); if (!db) return; try { db.transaction('kv', 'readwrite').objectStore('kv').delete('book'); } catch (e) {} }
+  };
+  function contactsCount() {
+    if (!bridge()) return -1;
+    const r = nativeRun({ type: 'contacts', op: 'count' });
+    return r && r.ok ? r.count : -1;
+  }
   function loadAllContacts(force) {
     if (!bridge()) return { ok: false, code: 'no_bridge', message: 'Contacts are only available in the Android app.' };
-    if (contactsCache && !force && Date.now() - contactsCache.at < 5 * 60 * 1000) return { ok: true, results: contactsCache.list, cached: true };
-    const r = nativeRun({ type: 'contacts', all: true, limit: 5000 });
-    if (r.ok && Array.isArray(r.results)) contactsCache = { at: Date.now(), list: r.results };
+    if (contactsCache && !force) {
+      // cheap change check instead of a timer: same number of rows → same phone book
+      const n = Date.now() - (contactsCache.checked || 0) < 15000 ? contactsCache.count : contactsCount();
+      if (n === contactsCache.count) { contactsCache.checked = Date.now(); return { ok: true, results: contactsCache.list, cached: true }; }
+    }
+    const r = nativeRun({ type: 'contacts', all: true, cc: S.defaultCountryCode || '' });
+    if (r.ok && Array.isArray(r.results)) {
+      contactsCache = { at: Date.now(), checked: Date.now(), list: r.results, count: contactsCount() };
+      ContactsIdb.put({ at: contactsCache.at, count: contactsCache.count, list: r.results });
+      renderContactsAccess();
+    }
     return r;
   }
+  function contactsPermState() {
+    if (!bridge()) return { granted: false, android: false };
+    const r = nativeRun({ type: 'contactsPerm' });
+    return { granted: !!(r && r.granted), android: true };
+  }
+  let contactsBlocked = false;
+  function renderContactsAccess() {
+    const st = $('contactsAccessState'); if (!st) return;
+    const p = contactsPermState();
+    const btn = $('btnContactsAccess'), ref = $('btnContactsRefresh'), op = $('btnContactsAppSettings');
+    if (!p.android) { st.textContent = 'Contacts access is only available in the NOORA Android app.'; if (btn) btn.hidden = true; if (ref) ref.hidden = true; if (op) op.hidden = true; return; }
+    if (p.granted) {
+      contactsBlocked = false;
+      const n = contactsCache ? contactsCache.list.length : 0;
+      const people = contactsCache ? new Set(contactsCache.list.map((c) => c.id != null ? c.id : c.name)).size : 0;
+      st.textContent = '✅ Allowed' + (contactsCache ? ' · ' + people + ' contacts · ' + n + ' numbers on this phone' : '') + '. Names and numbers stay on this phone — never sent to the AI.';
+      if (btn) btn.hidden = true; if (ref) ref.hidden = false; if (op) op.hidden = true;
+    } else if (contactsBlocked) {
+      st.textContent = '🚫 Contacts access was denied with "Don\'t ask again", so Android won\'t show the dialog any more. Open app settings → Permissions → Contacts → Allow.';
+      if (btn) btn.hidden = true; if (ref) ref.hidden = true; if (op) op.hidden = false;
+    } else {
+      st.textContent = 'Not allowed yet. NOORA needs Contacts to call or message people by name. Numbers never leave this phone.';
+      if (btn) btn.hidden = false; if (ref) ref.hidden = true; if (op) op.hidden = true;
+    }
+  }
+  function onResumeContacts() {
+    if (!bridge() || !contactsCache) return renderContactsAccess();
+    if (!contactsPermState().granted) { contactsCache = null; ContactsIdb.clear(); return renderContactsAccess(); }
+    contactsCache.checked = 0;
+    const n = contactsCount();
+    if (n !== contactsCache.count) loadAllContacts(true);
+    renderContactsAccess();
+  }
+  // warm start: last on-device copy (used until the first count check says it changed)
+  if (bridge()) ContactsIdb.get().then((v) => { if (v && Array.isArray(v.list) && !contactsCache) { contactsCache = { at: v.at, checked: 0, list: v.list, count: v.count }; } }).catch(() => {});
   async function askContactsPermission(name, lang) {
     pending = { type: 'perm', perm: 'contacts', name };
     setVoiceState('IDLE', 'waiting for Contacts permission');
@@ -1344,7 +1400,7 @@
   const FIELD_LABEL = { number: 'Phone number', contact: 'Contact name (from your phone contacts)', message: 'Message', to: 'Email address(es)', subject: 'Subject', body: 'Message', query: 'Place or address', navigate: 'Directions / route', provider: 'Maps app',
     'open_app.name': 'App name', 'run_shortcut.name': 'Shortcut name (exactly as in the Shortcuts app)', input: 'Text to pass (optional)', url: 'Web address', title: 'Title', start: 'Start (e.g. kal 3 baje / 2026-10-06 15:00)', end: 'End (optional)',
     location: 'Location', notes: 'Notes', text: 'Text', at: 'When (e.g. in 10 minutes / kal 9 baje)', hour: 'Hour (0–23)', minute: 'Minute', seconds: 'Seconds', label: 'Label', mode: 'Mode', where: 'Where', source: 'What to share', app: 'Share to', panel: 'Settings screen', action: 'Action', on: 'Turn on', expression: 'Expression' };
-  const FIELD_HINT = { number: '+92 300 1234567', to: 'name@example.com', query: 'e.g. Lulu Hypermarket, Lahore', url: 'example.com', at: 'in 10 minutes', start: 'kal 3 baje' };
+  const FIELD_HINT = { number: '+92 300 1234567', to: 'name@example.com', query: 'e.g. Testmall Plaza, Lahore', url: 'example.com', at: 'in 10 minutes', start: 'kal 3 baje' };
   function formModal(tool, preset) {
     const t = T.getTool(tool); if (!t) return;
     const form = document.createElement('form'); form.className = 'toolForm'; form.noValidate = true;
@@ -1483,6 +1539,13 @@
     renderContactsList();
   };
   if ($('contactsSearch')) $('contactsSearch').addEventListener('input', () => { if (contactsCache) renderContactsList(); });
+  if ($('btnContactsAccess')) $('btnContactsAccess').onclick = () => {
+    const r = loadAllContacts(true);
+    if (r.code === 'permission') { $('contactsAccessState').textContent = 'Asking for Contacts permission… choose Allow.'; return; }
+    renderContactsAccess(); toast(r.ok ? (r.message || 'Contacts loaded') : (r.message || 'Could not read contacts'));
+  };
+  if ($('btnContactsRefresh')) $('btnContactsRefresh').onclick = () => { const r = loadAllContacts(true); renderContactsAccess(); toast(r.ok ? 'Contacts refreshed — ' + (r.message || '') : (r.message || 'Could not read contacts')); };
+  if ($('btnContactsAppSettings')) $('btnContactsAppSettings').onclick = () => { const r = nativeRun({ type: 'appSettings' }); if (r && r.message) toast(r.message); };
   if ($('btnPrefSave')) $('btnPrefSave').onclick = () => {
     const mp = $('prefMaps').value; const cc = String($('prefCc').value || '').replace(/[^\d]/g, '').slice(0, 4);
     S.mapsProvider = mp; S.defaultCountryCode = cc;
@@ -1534,7 +1597,7 @@
       if (ev.type === 'tts') return onNativeTts(ev);
       if (ev.type === 'permission') {
         if (ev.perm === 'mic') { if (ev.granted) startNativeListening(); else { const m = T.say('mic_denied', {}, prefLang() || L.ROMAN_URDU); setListening(false, m); setVoiceState('ERROR', m); continuous = false; } return; }
-        if (ev.perm === 'contacts') contactsCache = null;
+        if (ev.perm === 'contacts') { contactsCache = null; contactsBlocked = !ev.granted && !!ev.blocked; renderContactsAccess(); if (!ev.granted && ev.blocked) toast('Contacts blocked — Settings → Contacts access → Open app settings'); }
         if (ev.perm === 'contacts' && !(pending && pending.type === 'perm')) { if (ev.granted && $('contactsList')) renderContactsList(); return; }
         if (ev.perm === 'contacts' && pending && pending.type === 'perm') {
           const was = pending; pending = null;
@@ -1547,6 +1610,7 @@
         if (ev.perm === 'notifications' || ev.perm === 'media') { toast(ev.granted ? 'Permission allowed — ask me again.' : 'Permission not allowed.'); }
       }
       if (ev.type === 'assist') { window.__nooraStartVoice(); }
+      if (ev.type === 'resume') { onResumeContacts(); }
     } catch (e) { /* never surface raw errors */ }
   };
   window.__nooraStartVoice = () => {
@@ -2700,6 +2764,7 @@
     };
   }
   function openSettings() {
+    try { renderContactsAccess(); } catch (e) {}
     $('sName').value = S.userName;
     $('sTts').checked = S.ttsOn;
     $('sTtsProvider').value = S.ttsProvider || 'auto';

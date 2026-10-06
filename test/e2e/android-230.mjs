@@ -28,10 +28,10 @@ const ok = (name) => { passed++; console.log('  ✓ ' + name); };
 const PNG1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
 const CONTACTS = [
-  { name: 'Ammi', number: '+923001234567', label: 'Mobile' },
-  { name: 'Maryam Khan', number: '+923211112222' },
-  { name: 'Madhu Sharma', number: '+919876543210' },
-  { name: 'Toyota Service Center', number: '+924235550000' },
+  { name: 'Hoorain', number: '+923001234567', label: 'Mobile' },
+  { name: 'Zarnish Khan', number: '+923211112222' },
+  { name: 'Dureen Sharma', number: '+919876543210' },
+  { name: 'Ravish Workshop', number: '+924235550000' },
   { name: 'Ali Ahmed', number: '+923004445555' }
 ];
 
@@ -97,13 +97,13 @@ const noFalseDone = async (page) => { const t = await allBot(page); assert.ok(!/
 {
   const page = await androidPage();
   await page.click('#bottomNav button[data-tab="chat"]');
-  // "Noora Toyota message" → contact lookup → WhatsApp or SMS? → message → confirm → WhatsApp intent
-  await send(page, 'Noora Toyota message');
+  // "Noora Ravish message" → contact lookup → WhatsApp or SMS? → message → confirm → WhatsApp intent
+  await send(page, 'Noora Ravish message');
   await waitPending(page, 'app');
   assert.match(await bot(page), /WhatsApp karun ya SMS|WhatsApp or SMS/);
   await tapCard(page, 'whatsapp');
   await waitPending(page, 'message');
-  assert.match(await bot(page), /Toyota Service Center ko kya likhun|What should I write to Toyota Service Center/);
+  assert.match(await bot(page), /Ravish Workshop ko kya likhun|What should I write to Ravish Workshop/);
   await send(page, 'Gaari ki service kab ho gi?');
   await waitPending(page, 'confirm');
   let card = await page.locator('#tab-chat .actCard').last().innerText();
@@ -114,24 +114,24 @@ const noFalseDone = async (page) => { const t = await allBot(page); assert.ok(!/
   let wa = (await nat(page)).filter((p) => p.type === 'whatsapp').pop();
   assert.equal(wa.digits, '924235550000'); assert.equal(wa.text, 'Gaari ki service kab ho gi?');
   await noFalseDone(page);
-  ok('"Noora Toyota message" → finds Toyota Service Center (+924235550000) → asks WhatsApp/SMS → asks text → confirm → WhatsApp intent (no "Done: 0 contact numbers")');
-  // remembered messenger → "Ammi jaan ko likho Assalamu Alaikum" goes straight to the confirm card
+  ok('"Noora Ravish message" → finds Ravish Workshop (+924235550000) → asks WhatsApp/SMS → asks text → confirm → WhatsApp intent (no "Done: 0 contact numbers")');
+  // remembered messenger → "Hoorain baji ko likho kal milte hain" goes straight to the confirm card
   assert.equal(await page.evaluate(() => window.__noora.S.defaultMessenger), 'whatsapp');
-  await send(page, 'Ammi jaan ko likho Assalamu Alaikum');
+  await send(page, 'Hoorain baji ko likho kal milte hain');
   await waitPending(page, 'confirm');
   card = await page.locator('#tab-chat .actCard').last().innerText();
-  assert.match(card, /\+923001234567/); assert.match(card, /Assalamu Alaikum/);
+  assert.match(card, /\+923001234567/); assert.match(card, /kal milte hain/);
   await tapCard(page, 'yes');
   await page.waitForFunction(() => window.__native.filter((p) => p.type === 'whatsapp').length === 2);
   wa = (await nat(page)).filter((p) => p.type === 'whatsapp').pop();
-  assert.equal(wa.digits, '923001234567'); assert.equal(wa.text, 'Assalamu Alaikum');
+  assert.equal(wa.digits, '923001234567'); assert.equal(wa.text, 'kal milte hain');
   await noFalseDone(page);
-  ok('"Ammi jaan ko likho Assalamu Alaikum" → contact "Ammi" (honorific jaan tolerated) → confirm card with message → WhatsApp +923001234567');
-  // misheard wake word + "open WhatsApp and send a message to" (Mariam ≈ Maryam)
+  ok('"Hoorain baji ko likho kal milte hain" → contact "Hoorain" (honorific jaan tolerated) → confirm card with message → WhatsApp +923001234567');
+  // misheard wake word + "open WhatsApp and send a message to" (Zarnesh ≈ Zarnish)
   for (const [phrase, num, name] of [
-    ['Navra open WhatsApp and send a message to Mariam', '923211112222', 'Maryam Khan'],
-    ['open WhatsApp write a message to Ammi Jaan', '923001234567', 'Ammi'],
-    ['Nora open WhatsApp and write a message to Madhu', '919876543210', 'Madhu Sharma']
+    ['Nawra open WhatsApp and send a message to Zarnesh', '923211112222', 'Zarnish Khan'],
+    ['open WhatsApp write a message to Hoorain Baji', '923001234567', 'Hoorain'],
+    ['Nora open WhatsApp and write a message to Dureen', '919876543210', 'Dureen Sharma']
   ]) {
     const before = (await nat(page)).filter((p) => p.type === 'whatsapp').length;
     await send(page, phrase);
@@ -161,12 +161,12 @@ const noFalseDone = async (page) => { const t = await allBot(page); assert.ok(!/
 {
   const page = await androidPage({ contactsPerm: false, settings: { provider: 'Google Gemini', baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', apiKey: 'test-key-not-real', chatModel: 'gemini-2.5-flash' },
     ai: (route, body) => {
-      const sse = 'data: ' + JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: 'c1', type: 'function', function: { name: 'find_contact', arguments: '{"name":"Ammi"}' } }] } }] }) + '\n\ndata: [DONE]\n\n';
+      const sse = 'data: ' + JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: 'c1', type: 'function', function: { name: 'find_contact', arguments: '{"name":"Hoorain"}' } }] } }] }) + '\n\ndata: [DONE]\n\n';
       return route.fulfill({ status: 200, contentType: 'text/event-stream', body: sse });
     } });
   await page.click('#bottomNav button[data-tab="chat"]');
-  await send(page, 'meri ammi ka number kya hai bhala?');
-  await page.waitForFunction(() => window.__noora.msgs().some((m) => m.meta && m.meta.card && /Ammi/.test(m.meta.card.title || '')), null, { timeout: 8000 });
+  await send(page, 'meri hoorain ka number kya hai bhala?');
+  await page.waitForFunction(() => window.__noora.msgs().some((m) => m.meta && m.meta.card && /Hoorain/.test(m.meta.card.title || '')), null, { timeout: 8000 });
   const card = await page.locator('#tab-chat .actCard').last().innerText();
   assert.match(card, /\+923001234567/);
   const p = (await nat(page)).find((x) => x.type === 'contacts');
@@ -180,10 +180,10 @@ const noFalseDone = async (page) => { const t = await allBot(page); assert.ok(!/
   await page.click('#btnContactsLoad');
   await page.locator('#contactsList .contactRow').first().waitFor();
   assert.equal(await page.locator('#contactsList .contactRow').count(), CONTACTS.length);
-  await page.fill('#contactsSearch', 'mariam');
+  await page.fill('#contactsSearch', 'zarnesh');
   await page.waitForTimeout(100);
-  assert.match(await page.locator('#contactsList').innerText(), /Maryam Khan[\s\S]*\+923211112222/);
-  ok('Tools → Phone contacts: all ' + CONTACTS.length + ' contacts listed with full numbers; search "mariam" finds Maryam Khan');
+  assert.match(await page.locator('#contactsList').innerText(), /Zarnish Khan[\s\S]*\+923211112222/);
+  ok('Tools → Phone contacts: all ' + CONTACTS.length + ' contacts listed with full numbers; search "zarnesh" finds Zarnish Khan');
   assert.deepEqual(page.errors, []);
   await page.context().close();
 }

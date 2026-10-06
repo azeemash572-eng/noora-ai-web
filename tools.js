@@ -9,7 +9,7 @@
 (function (root) {
   'use strict';
   const Core = root.NooraCore || (typeof require === 'function' ? require('./core.js') : null);
-  const VERSION = '2.3.0';
+  const VERSION = '2.3.1';
   const ALL = ['android', 'ios-web', 'web'];
 
   class ToolError extends Error { constructor(code, message) { super(message); this.code = code; } }
@@ -910,6 +910,8 @@
   function visionReady(settings) {
     const s = settings || {};
     if (s.serverUrl) return { ok: true, via: 'server' };
+    // 2.3.1: Groq qwen/qwen3.8-27b accepts images too (max 3 per request); Gemini stays first for photos when it is configured
+    if (!keyed(s) && String(s.groqApiKey || '').trim()) return { ok: true, via: 'Groq' };
     if (!keyed(s)) return { ok: false, reason: 'Photo understanding needs a vision-capable model — the free Pollinations model is text-only (its public model list says vision:false). Add a Gemini key in Settings → AI model.' };
     return { ok: true, via: s.provider };
   }

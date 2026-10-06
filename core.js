@@ -377,7 +377,7 @@
     `Hune AI model naal rabta nahi ho sakeya (${reason}). Free (bina key) AI server limited/busy ae. Pakke jawab layi Settings → AI provider vich apni API key pao.`);
 
   const visionNeedsKey = (l) => pick(l,
-    'To understand photos I need a vision-capable AI model, and the free keyless servers refuse image input (tested: HTTP 400/401/402). Please add your own API key in Settings → AI provider (e.g. OpenAI gpt-4o-mini, Gemini, Groq Llama-4 Scout, OpenRouter), then send the photo again.',
+    'To understand photos I need a vision-capable AI model, and the free keyless servers refuse image input (tested: HTTP 400/401/402). Please add your own API key in Settings → AI provider (e.g. OpenAI gpt-4o-mini, Gemini, Groq Qwen 3.8 27B, OpenRouter), then send the photo again.',
     'تصویر سمجھنے کے لیے vision والا AI ماڈل چاہیے، اور مفت سرور تصویر قبول نہیں کرتے (ٹیسٹ: HTTP 400/401/402)۔ Settings → AI provider میں اپنی API key ڈالیں اور تصویر دوبارہ بھیجیں۔',
     'Tasveer samajhne ke liye vision wala AI model chahiye, aur free server tasveer accept nahi karte (test: HTTP 400/401/402). Settings → AI provider mein apni API key dalein aur tasveer dobara bhejein.',
     'तस्वीर समझने के लिए vision वाला AI मॉडल चाहिए, और मुफ़्त सर्वर तस्वीर स्वीकार नहीं करते (टेस्ट: HTTP 400/401/402)। Settings → AI provider में अपनी API key डालें और तस्वीर दोबारा भेजें।',
@@ -575,6 +575,7 @@
     return t.trim() || null;
   }
   function cleanAi(t) {
+    t = String(t || '').replace(/<think>[\s\S]*?<\/think>\s*/gi, '').replace(/^\s*<think>[\s\S]*$/i, '');
     const idx = t.indexOf('\n---');
     return (idx > 0 && /pollinations/i.test(t.slice(idx)) ? t.slice(0, idx) : t).trim();
   }
@@ -607,10 +608,11 @@
       'Local/private': ['', '']
     },
     'Groq': {
-      Fast: ['llama-3.3-70b-versatile', 'meta-llama/llama-4-scout-17b-16e-instruct'],
-      'Advanced reasoning': ['llama-3.3-70b-versatile', 'meta-llama/llama-4-scout-17b-16e-instruct'],
-      Creative: ['llama-3.3-70b-versatile', 'meta-llama/llama-4-scout-17b-16e-instruct'],
-      Coding: ['llama-3.3-70b-versatile', 'meta-llama/llama-4-scout-17b-16e-instruct'],
+      // 2.3.1: Qwen 3.8 27B — text + image input, tool use, streaming (console.groq.com/docs/models, checked 2026-10-06; Preview tier)
+      Fast: ['qwen/qwen3.8-27b', 'qwen/qwen3.8-27b'],
+      'Advanced reasoning': ['qwen/qwen3.8-27b', 'qwen/qwen3.8-27b'],
+      Creative: ['qwen/qwen3.8-27b', 'qwen/qwen3.8-27b'],
+      Coding: ['qwen/qwen3.8-27b', 'qwen/qwen3.8-27b'],
       'Local/private': ['', '']
     },
     'OpenRouter': {
@@ -680,7 +682,7 @@
     'Free (Pollinations, no key)': ['', '', ''],
     'OpenAI': ['https://api.openai.com/v1', 'gpt-4o-mini', 'gpt-4o-mini'],
     'Google Gemini': ['https://generativelanguage.googleapis.com/v1beta/openai', 'gemini-2.5-flash', 'gemini-2.5-flash'],
-    'Groq': ['https://api.groq.com/openai/v1', 'llama-3.3-70b-versatile', 'meta-llama/llama-4-scout-17b-16e-instruct'],
+    'Groq': ['https://api.groq.com/openai/v1', 'qwen/qwen3.8-27b', 'qwen/qwen3.8-27b'],
     'OpenRouter': ['https://openrouter.ai/api/v1', 'openai/gpt-4o-mini', 'openai/gpt-4o-mini'],
     'Pollinations (with key)': ['https://gen.pollinations.ai/v1', 'openai', 'openai'],
     'Custom (OpenAI-compatible)': ['', '', '']
@@ -688,8 +690,93 @@
   const PROVIDER_FREE = 'Free (Pollinations, no key)';
 
 
+
+  // ---------------- 2.3.1: Groq primary + automatic fallback ----------------
+  const GROQ_BASE = 'https://api.groq.com/openai/v1';
+  const GROQ_MODEL = 'qwen/qwen3.8-27b';
+  const GROQ_TIMEOUT_MS = 20000;
+  const GROQ_OLD_MODELS = ['llama-3.3-70b-versatile', 'meta-llama/llama-4-scout-17b-16e-instruct', 'llama3-70b-8192', 'llama-3.1-70b-versatile'];
+  const isGroqUrl = (u) => /api\.groq\.com/i.test(String(u || ''));
+  const isGeminiUrl = (u) => /generativelanguage\.googleapis\.com/i.test(String(u || ''));
+  function groqKeyOf(S) {
+    const s = S || {};
+    return String(s.groqApiKey || (s.provider === 'Groq' && isGroqUrl(s.baseUrl) ? s.apiKey : '') || '').trim();
+  }
+  /** The user's own configured provider (Gemini for most users). Exactly the 2.3.0 rule. */
+  function ownProviderOf(S) {
+    const s = S || {};
+    if (!(s.provider && s.provider !== PROVIDER_FREE && s.apiKey && s.baseUrl && s.chatModel)) return null;
+    return { id: isGeminiUrl(s.baseUrl) ? 'gemini' : (isGroqUrl(s.baseUrl) ? 'groq' : 'own'), label: isGeminiUrl(s.baseUrl) ? 'Gemini' : s.provider,
+      url: String(s.baseUrl).replace(/\/+$/, '') + '/chat/completions', model: s.chatModel, visionModel: s.visionModel || s.chatModel, key: String(s.apiKey).trim() };
+  }
+  /**
+   * Ordered list of keyed attempts for one request. Pollinations (free) is always the last resort and is run by the app after these.
+   * - Groq key present → Groq (Qwen) first, then the user's own provider (Gemini).
+   * - Vision with a Gemini key → Gemini first (unchanged behaviour), Groq Qwen (vision-capable) second.
+   * - No Groq key → exactly the 2.3.0 behaviour (own provider only).
+   */
+  function aiRoute(S, opts) {
+    const o = opts || {};
+    const gk = groqKeyOf(S);
+    const own = ownProviderOf(S);
+    const groq = gk ? { id: 'groq', label: 'Groq', url: GROQ_BASE + '/chat/completions', model: (S && S.groqModel) || GROQ_MODEL, visionModel: (S && S.groqModel) || GROQ_MODEL,
+      key: gk, timeout: GROQ_TIMEOUT_MS, extra: { reasoning_effort: 'none' } } : null;
+    const list = [];
+    const ownIsGroq = own && own.id === 'groq';
+    if (o.vision && own && own.id === 'gemini') { list.push(own); if (groq) list.push(groq); return list; }
+    if (groq) list.push(groq);
+    if (own && !(ownIsGroq && groq)) list.push(ownIsGroq ? Object.assign({}, own, { timeout: GROQ_TIMEOUT_MS, extra: { reasoning_effort: 'none' } }) : own);
+    return list;
+  }
+  /** Short, honest reason for a failed attempt (never contains a key). */
+  function failureKind(r) {
+    const st = r && r.status; const f = String((r && r.failure) || '');
+    if (st === 429) return 'busy';
+    if (st === 401 || st === 403) return 'key rejected';
+    if (st >= 500) return 'server error';
+    if (/timeout|timed out/i.test(f)) return 'timed out';
+    if (/network|no internet|cors/i.test(f) || st === -1) return 'unreachable';
+    if (/empty/i.test(f)) return 'empty reply';
+    return st ? 'HTTP ' + st : 'failed';
+  }
+  function fallbackNotice(fromLabel, kind, toLabel) {
+    return (fromLabel || 'AI') + ' ' + kind + ', answered with ' + (toLabel || 'free Pollinations');
+  }
+  /** Status line for Settings → AI. */
+  function routeSummary(S) {
+    const gk = groqKeyOf(S); const own = ownProviderOf(S);
+    const backup = own && own.id !== 'groq' ? own.label : 'free Pollinations';
+    if (gk) return 'Primary: Groq (Qwen 27B), Backup: ' + backup;
+    if (own) return 'Primary: ' + own.label + ' (' + own.model + '), Backup: free Pollinations — add a Groq key to make Groq (Qwen 27B) primary';
+    return 'Primary: free Pollinations — add a Groq key (and/or Gemini) for a faster, smarter NOORA';
+  }
+  /** Remove anything that looks like an API key from text that may be shown or logged. */
+  function redactKeys(text, keys) {
+    let t = String(text == null ? '' : text);
+    (keys || []).filter((k) => k && String(k).length >= 6).forEach((k) => { t = t.split(String(k)).join('***'); });
+    return t.replace(/\bgsk_[A-Za-z0-9]{8,}/g, 'gsk_***').replace(/\bAIza[0-9A-Za-z_-]{10,}/g, 'AIza***').replace(/\b(sk|xai)-[A-Za-z0-9_-]{10,}/g, '$1-***').replace(/Bearer\s+[A-Za-z0-9._-]{6,}/g, 'Bearer ***');
+  }
+  /**
+   * Runs attempts in order; `call(attempt)` returns {text, toolCalls, status, failure}. Stops at the first success, so tool calls are
+   * returned from exactly one provider (never executed twice). Returns { result, attempt, notices[], failures[] }.
+   */
+  async function runAiChain(attempts, call) {
+    const failures = [];
+    for (const a of attempts || []) {
+      let r;
+      try { r = await call(a); } catch (e) { r = { failure: 'error: ' + ((e && e.message) || e) }; }
+      const ok = r && ((r.text && String(r.text).trim()) || (r.toolCalls && r.toolCalls.length));
+      if (ok) {
+        const notices = failures.map((f) => fallbackNotice(f.label, f.kind, a.label));
+        return { result: r, attempt: a, notices, failures };
+      }
+      failures.push({ id: a.id, label: a.label, kind: failureKind(r || {}), status: r && r.status, failure: redactKeys((r && r.failure) || 'failed', [a.key]) });
+    }
+    return { result: null, attempt: null, notices: [], failures };
+  }
+
   // ---------------- Voice / TTS helpers (shared, unit-testable) ----------------
-  const VERSION = '2.3.0';
+  const VERSION = '2.3.1';
   // 2.3.0: ElevenLabs removed (paid; silent fallback in the Android WebView). Saved ElevenLabs keys are left untouched but unused.
   // 'native' = Android TextToSpeech through the NooraNative bridge (free, offline-capable, Google voices incl. ur-PK / hi-IN / pa-IN).
   const TTS_PROVIDERS = [
@@ -914,6 +1001,13 @@
     if (!['auto', 'online', 'offline'].includes(out.netMode)) out.netMode = 'auto';
     if (!['ask', 'whatsapp', 'sms'].includes(out.defaultMessenger)) out.defaultMessenger = 'ask';
     if (out.serverUrl === undefined) out.serverUrl = '';
+    if (typeof out.groqApiKey !== 'string') out.groqApiKey = '';
+    if (!out.groqModel) out.groqModel = GROQ_MODEL;
+    // 2.3.1: users already on the Groq preset move from retired Llama ids to Qwen 3.8 27B (provider selection itself is untouched)
+    if (out.provider === 'Groq') {
+      if (GROQ_OLD_MODELS.includes(out.chatModel)) out.chatModel = GROQ_MODEL;
+      if (GROQ_OLD_MODELS.includes(out.visionModel)) out.visionModel = GROQ_MODEL;
+    }
     if (out.videoProvider === undefined) out.videoProvider = '';
     if (out.videoApiKey === undefined) out.videoApiKey = '';
     if (out.videoBaseUrl === undefined) out.videoBaseUrl = '';
@@ -1156,6 +1250,7 @@
     keywords, questionRx, wikiLang, greetingReply, medicalWarning, noAi, visionNeedsKey, remembered, memoryList, forgot, help, word, notOnIphone, t4,
     money, perTola, perGram, fxText, metalText, cryptoText, weatherCode, weatherText, askPlace, failed,
     parseRss2Json, parseWikiSearch, parseChatCompletion, cleanAi, tones, modes, modelPresets, MODEL_MAP, systemPrompt, systemPromptLegacy, recent, searchPrompt, PRESETS, PROVIDER_FREE,
+    GROQ_BASE, GROQ_MODEL, GROQ_TIMEOUT_MS, groqKeyOf, ownProviderOf, aiRoute, failureKind, fallbackNotice, routeSummary, redactKeys, runAiChain,
     VERSION, TTS_PROVIDERS, DEFAULT_VOICE_SETTINGS, XAI_TTS_URL, XAI_VOICES, TTS_CHUNK, effectiveTtsProvider, ttsLocalesFor, rankNativeVoices, buildXaiTtsRequest, mapXaiTtsError, cleanSpeakText, chunkSpeakText, scoreDeviceVoice, pickBestDeviceVoice, describeDefaultVoice, mergeVoiceSettings, ttsProviderReady, speechErrorMessage, assertNoHardcodedSecrets,
     MEMORY_CATEGORIES, FILE_LIMITS, migrateSettings, searchConversations, renameConversationRecord, validateUpload, fileMetadata,
     parseSSEChunk, parseStreamBuffer, selectAiProvider, selectImageProvider, selectVideoProvider,

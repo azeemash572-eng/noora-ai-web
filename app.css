@@ -278,3 +278,9 @@ body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans","Noto Nas
 .ieTools button.go{background:linear-gradient(135deg,var(--violet),#6D3FE6);border-color:transparent;color:#fff}
 #modal .box{max-height:92vh;overflow-y:auto}
 @media (max-width:370px){.voiceOrb.bigOrb{width:150px;height:150px}.gridActions{gap:6px}.actTile{font-size:13px;padding:14px 10px}}
+
+/* 2.3.1 Groq primary card */
+.groqCard .routeLine { margin: 0 0 8px; padding: 8px 12px; border-radius: 12px; font-weight: 600; font-size: 14px;
+  background: linear-gradient(90deg, rgba(139,92,246,.22), rgba(20,184,166,.18)); border: 1px solid rgba(139,92,246,.35); }
+.groqCard .urduHint { font-family: 'Noto Naskh Arabic', 'Noto Sans', sans-serif; font-size: 15px; line-height: 1.9; text-align: right; }
+.meta.aiNotice { color: #f5c26b; opacity: .9; font-size: 11px; margin-top: 2px; }

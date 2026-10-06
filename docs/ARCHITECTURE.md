@@ -130,3 +130,10 @@ voice (Web Speech or Android SpeechRecognizer via NooraNative.sttStart) / typed 
 - **Image edit**: `edit_image` tool / `isImageEditRequest` → Gemini `generateContent` with responseModalities IMAGE (user key), or a local canvas eraser/inpaint. Results go to `saveToMedia` or native share.
 - **Net mode**: `netMode` auto/online/offline. Offline uses the rule engine, `offlineReply`, and STT with `EXTRA_PREFER_OFFLINE`.
 - **Persona**: `systemPrompt` CONVERSATION STYLE carries the user-approved "GAALI / PROFANITY" rule with its hard limits. Cloud provider filters still apply.
+
+## 2.3.1: Groq primary + automatic fallback
+
+- `core.aiRoute(S, {vision})` returns the keyed attempts in order. With a Groq key: Groq `qwen/qwen3.8-27b` first, then the user's own provider (Gemini). For a photo with a Gemini key: Gemini, then Groq (Qwen 3.8 27B accepts images, max 3). With no Groq key the route is unchanged from 2.3.0.
+- `core.runAiChain(attempts, call)` stops at the first attempt that returns text or tool calls. Tool actions therefore come from one provider only and are never run twice. Failed attempts become `failureKind` values (busy, key rejected, server error, timed out, unreachable, empty reply) and are turned into `fallbackNotice` text, e.g. "Groq busy, answered with Gemini". This shows as a small `.aiNotice` line under the reply and is not spoken.
+- `AI.chat` (app.js) runs the chain, then the existing free Pollinations loop. Groq calls use a 20 s total deadline (headers plus stream), `reasoning_effort:"none"`, and the same messages and system prompt as every other provider. `cleanAi` strips any `<think>` text.
+- Keys live only in `noora.settings` on the phone (`groqApiKey`, `apiKey`). `redactKeys` scrubs provider error text before it is shown or logged.

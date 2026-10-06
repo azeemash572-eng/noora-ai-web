@@ -276,6 +276,7 @@ const noFalseDone = async (page) => { const t = await allBot(page); assert.ok(!/
   // Save
   await page.click('#attachChips [data-attach-act="save"]');
   await page.waitForFunction(() => window.__native.some((p) => p.type === 'saveImage'));
+  await page.waitForFunction(() => window.__noora.msgs().some((m) => m.role === 'assistant' && /Saved|Save ho gaya/.test(m.text || '')), null, { timeout: 8000 });
   assert.match(await bot(page), /Saved|Save ho gaya/);
   // Edit with text instruction → Gemini image model (not the chat model) → preview → Save
   const n0 = page.__ai.length;

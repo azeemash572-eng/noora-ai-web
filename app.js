@@ -1,4 +1,4 @@
-/* NOORA AI 2.3.0 command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
+/* NOORA AI 2.3.1 command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
 (function () {
   'use strict';
   const C = window.NooraCore, L = C.Lang;
@@ -29,7 +29,8 @@
     pinOn: false, pinHash: '', continuousVoice: false, activeAssistantId: null,
     serverUrl: '', videoProvider: '', videoApiKey: '', videoBaseUrl: '',
     mapsProvider: '', defaultCountryCode: '', handsFree: false,
-    netMode: 'auto', defaultMessenger: 'ask', imageEditModel: ''
+    netMode: 'auto', defaultMessenger: 'ask', imageEditModel: '',
+    groqApiKey: '', groqModel: C.GROQ_MODEL
   }, C.DEFAULT_VOICE_SETTINGS);
   let S = Object.assign({}, DEF);
   try {
@@ -38,6 +39,7 @@
   } catch (e) {}
   const saveS = () => { try { localStorage.setItem('noora.settings', JSON.stringify(S)); } catch (e) {} };
   const hasOwnKey = () => S.provider !== C.PROVIDER_FREE && S.apiKey && S.baseUrl && S.chatModel;
+  const hasAnyKey = () => !!(hasOwnKey() || C.groqKeyOf(S));
   const prefLang = () => (S.voiceLang ? L[S.voiceLang] : null);
   const aiName = () => (S.aiName && S.aiName.trim()) || 'Noora';
 
@@ -287,13 +289,16 @@
       const body = { model, messages, temperature: S.modelPreset === 'Creative' ? 0.95 : S.modelPreset === 'Advanced reasoning' ? 0.4 : 0.7 };
       if (stream) body.stream = true;
       if (opts.tools && opts.tools.length) { body.tools = opts.tools; body.tool_choice = 'auto'; }
+      if (opts.extra) Object.assign(body, opts.extra);
       if (!key) body.referrer = 'noora-ai-web';
       const headers = { 'Content-Type': 'application/json' };
       if (key) headers.Authorization = 'Bearer ' + key;
-      const r = await http(url, { method: 'POST', headers, body: JSON.stringify(body) }, 90000);
+      const total = opts.timeout || 90000;
+      const deadline = Date.now() + total;
+      const r = await http(url, { method: 'POST', headers, body: JSON.stringify(body) }, total);
       if (!r.ok) {
         let detail = '';
-        if (r.res) { try { const j = await r.res.json(); const m = (j.error && (j.error.message || j.error)) || j.message; if (m && typeof m === 'string') detail = ' (' + m.slice(0, 90) + ')'; } catch (e) {} }
+        if (r.res) { try { const j = await r.res.json(); const m = (j.error && (j.error.message || j.error)) || j.message; if (m && typeof m === 'string') detail = ' (' + C.redactKeys(m, [key]).slice(0, 90) + ')'; } catch (e) {} }
         return { failure: reasonOf(r) + detail, status: r.status };
       }
       if (stream && r.res && r.res.body && typeof r.res.body.getReader === 'function') {
@@ -303,7 +308,12 @@
           let buf = '', full = '';
           const acc = [];
           while (true) {
-            const { done, value } = await reader.read();
+            const left = deadline - Date.now();
+            if (left <= 0) { try { reader.cancel(); } catch (e) {} return { failure: 'timeout (stream)', status: -1 }; }
+            const { done, value } = await Promise.race([reader.read(), new Promise((res) => setTimeout(() => res({ timeout: true }), left))]).then((x) => {
+              if (x && x.timeout) { try { reader.cancel(); } catch (e) {} throw new Error('timeout'); }
+              return x;
+            });
             if (done) break;
             const parsed = C.parseStreamBuffer(buf, dec.decode(value, { stream: true }));
             buf = parsed.buffer;
@@ -320,7 +330,7 @@
           if (full.trim() || toolCalls.length) return { text: full, streamed: true, toolCalls };
           return { failure: 'empty stream' };
         } catch (e) {
-          return { failure: 'stream failed: ' + (e.message || e) };
+          return { failure: (/timeout/.test(String(e && e.message)) ? 'timeout' : 'stream failed: ' + (e.message || e)), status: -1 };
         }
       }
       try {
@@ -355,24 +365,42 @@
         if (r.text || (r.toolCalls && r.toolCalls.length)) return done(r, 'Server proxy · ' + model);
         reasons.push('server: ' + r.failure);
       }
-      if (hasOwnKey()) {
-        const model = vision && S.visionModel ? S.visionModel : S.chatModel;
-        const url = S.baseUrl.replace(/\/+$/, '') + '/chat/completions';
+      // 2.3.1: keyed attempts in order — Groq (Qwen 3.8 27B) first when a Groq key exists, then the user's own provider (Gemini).
+      // Stops at the first provider that answers, so tool calls come from exactly one provider and are never run twice.
+      const attempts = C.aiRoute(S, { vision });
+      const tryProvider = async (a) => {
+        const model = vision ? (a.visionModel || a.model) : a.model;
+        const po = { timeout: a.timeout, extra: a.extra };
         const nativeMsgs = withTools ? sysAppend(messages, T.toolPromptNative(PLATFORM)) : messages;
-        let r = await this.openAi(url, model, nativeMsgs, S.apiKey, { stream: tryStream, onDelta, tools: apiTools });
-        if (r.text || (r.toolCalls && r.toolCalls.length)) return done(r, `${S.provider} · ${model}`);
+        let r = await this.openAi(a.url, model, nativeMsgs, a.key, Object.assign({ stream: tryStream, onDelta, tools: apiTools }, po));
+        if (r.text || (r.toolCalls && r.toolCalls.length)) return Object.assign(r, { model });
+        // a 429 / 401 / 403 / timeout / network error won't get better by asking the same provider again → move on
+        // (Groq only — Gemini keeps its exact 2.3.0 retry behaviour)
+        if (a.id === 'groq' && (r.status === 429 || r.status === 401 || r.status === 403 || r.status === -1 || r.status >= 500 || /empty/.test(String(r.failure || ''))))
+          return Object.assign(r, { failure: r.failure || 'empty reply' });
         // provider rejected `tools` (HTTP 400/422) → retry without native tools, JSON-block fallback prompt
         if (withTools && (r.status === 400 || r.status === 422)) {
-          r = await this.openAi(url, model, fallbackMsgs, S.apiKey, { stream: tryStream, onDelta });
-          if (r.text) return done(r, `${S.provider} · ${model} · json-tools`);
+          const rj = await this.openAi(a.url, model, fallbackMsgs, a.key, Object.assign({ stream: tryStream, onDelta }, po));
+          if (rj.text) return Object.assign(rj, { model, jsonTools: true });
         }
         if (tryStream) {
-          const r2 = await this.openAi(url, model, withTools && r.status !== 400 ? nativeMsgs : (withTools ? fallbackMsgs : messages), S.apiKey, { stream: false, tools: withTools && r.status !== 400 && r.status !== 422 ? apiTools : null });
-          if (r2.text || (r2.toolCalls && r2.toolCalls.length)) return done(r2, `${S.provider} · ${model}`);
-          reasons.push(`${S.provider}: ${r.failure || r2.failure}`);
-        } else reasons.push(`${S.provider}: ${r.failure}`);
+          const r2 = await this.openAi(a.url, model, withTools && r.status !== 400 ? nativeMsgs : (withTools ? fallbackMsgs : messages), a.key, Object.assign({ stream: false, tools: withTools && r.status !== 400 && r.status !== 422 ? apiTools : null }, po));
+          if (r2.text || (r2.toolCalls && r2.toolCalls.length)) return Object.assign(r2, { model });
+          return { failure: r.failure || r2.failure, status: r.status || r2.status };
+        }
+        return r;
+      };
+      const chain = await C.runAiChain(attempts, tryProvider);
+      if (chain.result) {
+        const a = chain.attempt; const res = chain.result;
+        const lbl = a.id === 'groq' ? 'Groq · ' + res.model : `${a.id === 'gemini' ? S.provider : a.label} · ${res.model}${res.jsonTools ? ' · json-tools' : ''}`;
+        const notice = chain.notices.length ? '↪︎ ' + chain.notices.join(' · ') : null;
+        if (notice) { try { status(notice); } catch (e) {} }
+        return done(res, lbl, notice ? { notice } : {});
       }
-      const warning = reasons.length ? `⚠️ Your ${S.provider || 'provider'} key/model failed (${reasons[0].split(': ').slice(1).join(': ').slice(0, 100)}). Answered with the free server instead — check Settings.` : null;
+      chain.failures.forEach((f) => reasons.push(`${f.label}: ${f.kind} — ${f.failure}`));
+      const keyed = chain.failures;
+      const warning = keyed.length ? '↪︎ ' + keyed.map((f) => f.label + ' ' + f.kind).join(', ') + ', answered with free Pollinations — check Settings → AI.' : null;
       for (let attempt = 0; attempt < 2; attempt++) {
         if (attempt === 1) await new Promise((r) => setTimeout(r, opts.fastFail ? 500 : 6000));
         const freeModel = 'openai';
@@ -384,7 +412,7 @@
         if (c.text) return done(c, 'Pollinations (free)', { warning });
         if (attempt === 1 || vision) { reasons.push(`free AI: ${a.failure} / ${b.failure} / ${c.failure}`); break; }
       }
-      return { text: null, failure: reasons.join('; '), network: reasons.some((x) => /network|no internet|timeout/i.test(x)) };
+      return { text: null, failure: C.redactKeys(reasons.join('; '), [S.apiKey, S.groqApiKey]), network: reasons.some((x) => /network|no internet|timeout/i.test(x)) };
     }
   };
 
@@ -1073,7 +1101,7 @@
     if (!calls.length) return false;
     const good = calls.filter((c) => !c.badArgs);
     removePending();
-    if (shown.trim()) await reply(shown.trim(), lang, { speak: false, meta: { via: r.via + ' · tools' } });
+    if (shown.trim()) await reply(shown.trim(), lang, { speak: false, meta: { notice: r.notice || null, via: r.via + ' · tools' } });
     if (!good.length) { await reply(T.say('action_failed', { reason: 'the AI sent an action I could not read — please say it again' }, lang), lang); return true; }
     await runPlan(good.map((c) => ({ tool: c.name, args: c.args })), lang, { source: 'ai' });
     return true;
@@ -1306,7 +1334,7 @@
     const messages = await buildMessages(lang, false, null);
     messages[messages.length - 1] = { role: 'user', content };
     const r = await AI.chat(messages, Array.isArray(content), { stream: !Array.isArray(content) });
-    if (r.text) return reply((skipped ? '⚠️ ' + skipped + '\n\n' : '') + (r.warning ? r.warning + '\n\n' : '') + r.text, lang, { meta: { via: r.via + ' · ' + processed.length + ' file(s)' } });
+    if (r.text) return reply((skipped ? '⚠️ ' + skipped + '\n\n' : '') + (r.warning ? r.warning + '\n\n' : '') + r.text, lang, { meta: { notice: r.notice || null, via: r.via + ' · ' + processed.length + ' file(s)' } });
     const why = short(r.failure);
     return reply((Array.isArray(content) ? (hasAudio ? 'I couldn\'t get the audio understood: ' : C.visionNeedsKey(lang) + '\n') : C.noAi(lang, why) + '\n') + '(' + why + ')', lang, { meta: { via: 'offline' } });
   }
@@ -1558,6 +1586,7 @@
     $('dot').classList.toggle('off', !navigator.onLine);
     const base = S.netMode === 'offline' ? 'Offline mode — phone actions & small talk'
       : !navigator.onLine ? (S.netMode === 'online' ? 'No internet — Online mode needs a connection' : 'Offline — phone actions & small talk')
+      : C.groqKeyOf(S) ? `AI: Groq · ${S.groqModel || C.GROQ_MODEL}` + (hasOwnKey() && !/groq/i.test(S.baseUrl || '') ? ` (backup ${/generativelanguage/.test(S.baseUrl || '') ? 'Gemini' : S.provider})` : '')
       : hasOwnKey() ? `AI: ${S.provider} · ${S.chatModel}` : 'AI: free Pollinations (no key, rate-limited)';
     status(continuous ? ('🎙 Voice' + (S.muted ? ' (muted)' : '') + ' · ' + base) : base);
   }
@@ -1623,6 +1652,7 @@
       b.appendChild(a);
     }
     row.appendChild(b);
+    if (!m.pending && m.role !== 'user' && meta.notice) { const nt = document.createElement('div'); nt.className = 'meta aiNotice'; nt.textContent = meta.notice; row.appendChild(nt); }
     if (!m.pending) { const mt = document.createElement('div'); mt.className = 'meta'; mt.textContent = fmtTime(m.ts) + (m.role !== 'user' && meta.via ? ' · ' + meta.via : ''); row.appendChild(mt); }
     return row;
   }
@@ -1836,7 +1866,7 @@
     const r = await AI.chat(await buildMessages(lang, medical, override), false, { stream: true, onDelta, tools: !medical });
     const warn = medical ? C.medicalWarning(lang, emergency) + '\n\n' : '';
     if (r.text != null && !medical && await handleAiToolCalls(r, lang, refs)) return;
-    if (r.text) return reply((r.warning ? r.warning + '\n\n' : '') + warn + r.text, lang, { sources: refs.slice(0, 3).map((x) => x.source), meta: { via: r.via + (refs.length ? ' + Wikipedia' : '') + (r.streamed ? ' · stream' : '') } });
+    if (r.text) return reply((r.warning ? r.warning + '\n\n' : '') + warn + r.text, lang, { sources: refs.slice(0, 3).map((x) => x.source), meta: { notice: r.notice || null, via: r.via + (refs.length ? ' + Wikipedia' : '') + (r.streamed ? ' · stream' : '') } });
     const note = C.noAi(lang, short(r.failure));
     if (medical) return reply(warn + note, lang, { meta: { via: 'offline' } });
     if (r.network || !navigator.onLine) {
@@ -1861,7 +1891,7 @@
     status('Summarizing…');
     const prompt = C.searchPrompt(original, sources, wiki.slice(0, 2).map((x) => `${x.source.title}: ${x.snippet}`), lang, numeric);
     const r = await AI.chat(await buildMessages(lang, false, prompt));
-    if (r.text) return reply((r.warning ? r.warning + '\n\n' : '') + r.text, lang, { sources, meta: { via: r.via + ' + live search' } });
+    if (r.text) return reply((r.warning ? r.warning + '\n\n' : '') + r.text, lang, { sources, meta: { notice: r.notice || null, via: r.via + ' + live search' } });
     const listTxt = sources.map((s, i) => `${i + 1}. ${s.title}` + (s.date ? ` (${s.date.slice(0, 16)})` : '')).join('\n');
     reply(C.word(lang, 'headlines') + '\n' + listTxt + `\n\n(AI summary unavailable: ${short(r.failure).slice(0, 80)})`, lang,
       { sources, meta: { via: 'live search' }, speakText: C.word(lang, 'headlines') });
@@ -1897,7 +1927,7 @@
   async function generateImage(promptRaw, lang, seedIn, change) {
     showPending(C.word(lang, 'drawing')); status('Generating image…');
     let prompt = promptRaw;
-    if (hasOwnKey() && /[\u0600-\u0A7F]/.test(prompt)) {
+    if (hasAnyKey() && /[\u0600-\u0A7F]/.test(prompt)) {
       const tr = await AI.chat([{ role: 'user', content: 'Translate to a short English image prompt only: ' + prompt }]);
       if (tr.text) prompt = tr.text.split('\n').find((x) => x.trim()).trim().replace(/^"|"$/g, '');
     }
@@ -1994,10 +2024,10 @@
         const messages = [{ role: 'system', content: C.systemPrompt({ userName: S.userName, aiName: aiName(), tone: S.tone, mode: S.mode, formality: S.formality, gender: S.gender, languagePrompt: lang.prompt, memories: mems, platform: PLATFORM }) },
           { role: 'user', content: [{ type: 'text', text: q }, { type: 'image_url', image_url: { url: dataUrl } }] }];
         const r = await AI.chat(messages, true);
-        if (r.text) return reply(r.text, lang, { meta: { via: r.via } });
+        if (r.text) return reply(r.text, lang, { meta: { notice: r.notice || null, via: r.via } });
         const enhanced = await enhanceImageCanvas(dataUrl);
         await Store.addFile({ name: 'enhanced-' + name, mime: 'image/jpeg', kind: 'image', ts: Date.now(), dataUrl: enhanced });
-        return reply((hasOwnKey() ? `⚠️ Your ${S.provider} vision model failed.\n` : '') + C.visionNeedsKey(lang) + `\n(${short(r.failure)})\n\nSaved a simple canvas enhance (brightness/upscale) in Files — not AI vision.`, lang, { image: enhanced, meta: { via: 'offline + canvas enhance' } });
+        return reply((hasAnyKey() ? `⚠️ Your vision model (${C.aiRoute(S, { vision: true }).map((a) => a.label).join(' → ') || S.provider}) failed.\n` : '') + C.visionNeedsKey(lang) + `\n(${short(r.failure)})\n\nSaved a simple canvas enhance (brightness/upscale) in Files — not AI vision.`, lang, { image: enhanced, meta: { via: 'offline + canvas enhance' } });
       }
       let extracted = '', kind = 'doc';
       if (mime === 'application/pdf' || /\.pdf$/i.test(name)) extracted = await parsePdf(f);
@@ -2526,6 +2556,8 @@
     $('sPreset').innerHTML = C.modelPresets.map((p) => `<option${p === S.modelPreset ? ' selected' : ''}>${p}</option>`).join('');
     $('sProvider').innerHTML = Object.keys(C.PRESETS).map((p) => `<option${p === S.provider ? ' selected' : ''}>${p}</option>`).join('');
     $('sBase').value = S.baseUrl; $('sKey').value = S.apiKey; $('sModel').value = S.chatModel; $('sVision').value = S.visionModel;
+    if ($('sGroqKey')) $('sGroqKey').value = S.groqApiKey || '';
+    renderRouteLine();
     $('sWeb').checked = S.webSearchOn !== false;
     if ($('sServerUrl')) $('sServerUrl').value = S.serverUrl || '';
     $('sAiName').value = S.aiName || 'Noora';
@@ -2583,7 +2615,9 @@
     $('assistPanel').hidden = true; renderAssistants();
   } }, { label: 'Cancel' }]);
 
+  function renderRouteLine() { const el = $('aiRouteLine'); if (el) el.textContent = C.routeSummary(S); }
   function saveAiFields() {
+    if ($('sGroqKey')) S.groqApiKey = $('sGroqKey').value.trim();
     S.modelPreset = $('sPreset').value; S.provider = $('sProvider').value;
     S.baseUrl = $('sBase').value.trim().replace(/\/+$/, ''); S.apiKey = $('sKey').value.trim();
     S.chatModel = $('sModel').value.trim(); S.visionModel = $('sVision').value.trim();
@@ -2591,16 +2625,16 @@
     S.tone = $('sTone').value; S.mode = $('sMode').value; S.formality = $('sFormality').value;
     S.gender = $('sGender').value; S.voiceLang = $('sPrefLang').value || null;
     if ($('sServerUrl')) S.serverUrl = ($('sServerUrl').value || '').trim().replace(/\/+$/, '');
-    saveS(); updateEmpty(); refreshStatus();
+    saveS(); updateEmpty(); refreshStatus(); renderRouteLine();
   }
-  ['sBase', 'sKey', 'sModel', 'sVision', 'sWeb', 'sAiName', 'sTone', 'sMode', 'sFormality', 'sGender', 'sPrefLang', 'sServerUrl'].forEach((id) => {
+  ['sGroqKey', 'sBase', 'sKey', 'sModel', 'sVision', 'sWeb', 'sAiName', 'sTone', 'sMode', 'sFormality', 'sGender', 'sPrefLang', 'sServerUrl'].forEach((id) => {
     const el = $(id); if (el) el.addEventListener('change', saveAiFields);
   });
   $('sProvider').addEventListener('change', () => {
     const p = C.PRESETS[$('sProvider').value];
     $('sBase').value = p[0]; $('sModel').value = p[1]; $('sVision').value = p[2];
     S.provider = $('sProvider').value; S.baseUrl = p[0]; S.chatModel = p[1]; S.visionModel = p[2];
-    applyModelPreset(); $('sModel').value = S.chatModel; $('sVision').value = S.visionModel; saveS(); refreshStatus();
+    applyModelPreset(); $('sModel').value = S.chatModel; $('sVision').value = S.visionModel; saveS(); refreshStatus(); renderRouteLine();
   });
   $('sPreset').addEventListener('change', () => {
     S.modelPreset = $('sPreset').value; applyModelPreset();
@@ -2609,7 +2643,7 @@
   $('sTest').onclick = async () => {
     saveAiFields(); $('sTestResult').textContent = 'Testing…';
     const r = await AI.chat([{ role: 'user', content: 'Reply with exactly: NOORA OK' }]);
-    $('sTestResult').textContent = r.text ? (r.warning ? r.warning + '\n' : '') + `✅ ${r.via}: ${r.text.slice(0, 80)}` : '❌ ' + r.failure;
+    $('sTestResult').textContent = r.text ? (r.warning ? r.warning + '\n' : '') + (r.notice ? r.notice + '\n' : '') + `✅ ${r.via}: ${r.text.slice(0, 80)}` : '❌ ' + r.failure;
   };
 
   async function openFiles() {
@@ -2795,7 +2829,7 @@
   async function openHomeDash() {
     if ($('homeGreeting')) $('homeGreeting').textContent = (S.userName ? ('Hi, ' + S.userName) : ('Hi — ' + aiName()));
     if ($('homeStatus')) {
-      const base = hasOwnKey() ? (S.provider + ' · ' + (S.chatModel || '')) : (S.serverUrl ? 'Server proxy' : 'Free Pollinations');
+      const base = C.groqKeyOf(S) ? ('Groq · ' + (S.groqModel || C.GROQ_MODEL)) : hasOwnKey() ? (S.provider + ' · ' + (S.chatModel || '')) : (S.serverUrl ? 'Server proxy' : 'Free Pollinations');
       $('homeStatus').textContent = base;
     }
     if ($('homeDot')) $('homeDot').classList.toggle('off', !navigator.onLine);

@@ -1,12 +1,12 @@
-# NOORA AI 2.3.0 — Test checklist (Android)
+# NOORA AI 2.3.1 — Test checklist (Android)
 
-2.3.0 targets Android only. Statuses mean the same as in the 2.2.0 section below. **No emulator or phone was available**, so anything that needs a real device is marked *built – not device-tested*.
+2.3.0 / 2.3.1 target Android only. Statuses mean the same as in the 2.2.0 section below. **No emulator or phone was available**, so anything that needs a real device is marked *built – not device-tested*.
 
-Test commands (all passed on 2026-10-06):
+Test commands (all passed on 2026-10-06, 2.3.1):
 
-- `npm test`: 48 Node unit tests (`core` 18, `cc` 9, `tools` 21).
-- `npm run test:e2e`: `cc-smoke`, `voice-smoke`, `actions-smoke` (27 checks), and the new `android-230` (19 checks, NooraNative bridge mocked).
-- Android: `./gradlew testReleaseUnitTest --tests NativeActionsTest --tests Noora230Test` (7 + 9 Robolectric tests). Then `assembleRelease`, `aapt dump`, and `apksigner verify`. The legacy `UiSmokeTest` tests the 1.0.0-proto native UI that was replaced in 2.0. It is stale and fails on purpose (it expects the old EditText and the "1.0.0-proto" about text), so it is excluded.
+- `npm test`: 60 Node unit tests (`core` 18, `cc` 9, `tools` 21, `groq` 12).
+- `npm run test:e2e`: `cc-smoke`, `voice-smoke`, `actions-smoke` (27 checks), `android-230` (19 checks, NooraNative bridge mocked), and `groq-231` (8 checks; every Groq / Gemini / Pollinations HTTP call is mocked).
+- Android: the full `./gradlew testReleaseUnitTest --continue` run gives NativeActionsTest 7, Noora230Test 9, Noora231Test 3, LangDetectorTest 7, ParsersTest 8 and RouterTest 12, all passing. LiveIntegrationTest (13) and UiScreenshotTest (1) are skipped by design. Then `assembleRelease`, `aapt dump`, and `apksigner verify`. The legacy `UiSmokeTest` tests the 1.0.0-proto native UI that was replaced in 2.0. It is stale and fails on purpose (it expects the old EditText and the "1.0.0-proto" about text), so it is excluded.
 
 | # | Item | Status | How tested |
 |---|---|---|---|
@@ -22,6 +22,8 @@ Test commands (all passed on 2026-10-06):
 | D | Phone control (apps, call, SMS, WhatsApp, email, camera, gallery, files, share, maps, calendar, alarms/timers, reminders + BOOT_COMPLETED, media, volume, torch, settings panels) | partly tested (Robolectric intents, reminders reboot) / built – not device-tested | Android 10+ can't toggle Wi-Fi/BT directly; NOORA opens the panel and says so |
 | E | Design refresh: big voice orb, cleaner bubbles, chips, RTL fonts, 360–412 px | tested (screenshots) | `/workspace/noora-2.3.0-screens/before-*` / `after-*` |
 | 14 | Conversation style: user-approved strong profanity/gaali as friendly banter, mirrors the user, drops it when the user is serious or upset; limits: no hateful slurs, threats, third-party abuse, or minors | tested (prompt text) | core.test asserts the rule and its limits. Gemini/Pollinations have their own safety filters that NOORA can't override, so some replies may still be softened or refused |
+
+| 15 | Groq primary (`qwen/qwen3.8-27b`, api.groq.com/openai/v1, streaming, `reasoning_effort:"none"`) with automatic fallback to Gemini and then Pollinations on no key / network / 401 / 403 / 429 / 5xx / ~20 s timeout / empty reply. Honest notice line under the reply. Tool calls are taken from exactly one provider. Photos go to Gemini first. The masked Groq key field shows the Urdu hint and "Primary: Groq (Qwen 27B), Backup: Gemini" | tested (mocked HTTP) / **live Groq untested** (no real key) | `groq.test.js` (chain order, notice texts, same system prompt incl. item 14, no keys in logs, migration). `groq-231` e2e (the real app with routes mocked: OK, 429, 401, 500, empty, no key, both fail → Pollinations, torch tool runs once, vision routing, Settings + screenshots `after-231-*`). Noora231Test checks that the bundled assets have no keys. The stream timeout path is unit-level only |
 
 ---
 

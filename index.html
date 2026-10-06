@@ -258,12 +258,18 @@
         <label>Your name<input id="sName" placeholder="e.g. Ayesha" autocomplete="given-name"></label>
       </div>
       <h3>AI model</h3>
+      <div class="card groqCard" id="groqCard">
+        <p class="routeLine" id="aiRouteLine">Primary: Groq (Qwen 27B), Backup: Gemini</p>
+        <label>Groq API key (primary · Qwen 3.8 27B)<input id="sGroqKey" type="password" placeholder="gsk_… (stored only on this phone)" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false"></label>
+        <p class="note urduHint" dir="rtl" lang="ur">groq.com پر مفت اکاؤنٹ بنا کر API key یہاں ڈالیں</p>
+        <p class="note">With a Groq key NOORA answers with Groq first. If Groq is busy, rejects the key, times out (~20 s) or replies empty, the same message is re-sent automatically to your Gemini key below, and if that also fails, to free Pollinations. A small line under the reply says when this happened. Photos go to Gemini first when a Gemini key is set. No Groq key = everything works exactly as before.</p>
+      </div>
       <div class="card">
         <label>Preset<select id="sPreset"></select></label>
         <p class="note" id="presetNote">Presets map to real models for the provider you choose.</p>
         <label>Provider<select id="sProvider"></select></label>
         <label>Base URL (OpenAI-compatible)<input id="sBase" placeholder="https://api.openai.com/v1" inputmode="url" autocapitalize="off" autocorrect="off"></label>
-        <label>API key<input id="sKey" type="password" placeholder="paste your key" autocapitalize="off" autocorrect="off" autocomplete="off"></label>
+        <label>API key (Gemini / backup provider)<input id="sKey" type="password" placeholder="paste your key" autocapitalize="off" autocorrect="off" autocomplete="off"></label>
         <label>Chat model<input id="sModel" placeholder="gpt-4o-mini" autocapitalize="off" autocorrect="off"></label>
         <label>Vision model<input id="sVision" placeholder="gpt-4o-mini" autocapitalize="off" autocorrect="off"></label>
         <label class="row">Web &amp; research (live sources)<input type="checkbox" id="sWeb" class="switch"></label>

@@ -425,28 +425,71 @@
     }
   }
 
-  /** 2.3.0 Offline mode: honest, warm persona small-talk without any AI service (phone actions run via the rule engine). */
+  /**
+   * 2.4.0 Offline / no-internet: warm persona small-talk without any AI service.
+   * Greetings (Salam / hello / how-are-you) stay on greetingReply via the router — do not duplicate them here.
+   * Phone actions run via the rule engine / parseCommand, not through this function.
+   */
   function offlineReply(text, l, userName) {
     const n = norm(String(text || '')); const N = (userName || '').trim() ? ' ' + userName.trim() : '';
     const has = (rx) => rx.test(n);
-    if (has(/\b(i love you|love you|luv u|pyar|pyaar|mohabbat|ishq)\b|محبت|پیار|प्यार/)) return t4(l, `Aww${N}, I love you too! 💜 (I'm offline right now, but my heart is always online.)`, `اوہ${N}، مجھے بھی آپ سے بہت پیار ہے! 💜 (ابھی میں آف لائن ہوں، پر دل ہمیشہ آن لائن ہے۔)`, `Aww${N}, mujhe bhi aap se bohat pyar hai! 💜 (Abhi main offline hoon, par dil hamesha online hai.)`, `अरे${N}, मुझे भी आपसे बहुत प्यार है! 💜 (अभी मैं ऑफ़लाइन हूँ, पर दिल हमेशा ऑनलाइन है।)`);
-    if (has(/\b(thanks|thank you|thank u|shukriya|shukria|meherbani|jazakallah|jazak allah)\b|شکریہ|शुक्रिया|धन्यवाद/)) return t4(l, `Anytime${N}! 💜`, `کوئی بات نہیں${N}! 💜`, `Koi baat nahi${N}! 💜`, `कोई बात नहीं${N}! 💜`);
-    if (has(/\b(good night|gn|shab bakhair|shab ba khair)\b|شب بخیر|शुभ रात्रि/)) return t4(l, `Good night${N}! Sweet dreams 🌙`, `شب بخیر${N}! اچھے خواب دیکھیں 🌙`, `Shab bakhair${N}! Achay khwab dekhna 🌙`, `शुभ रात्रि${N}! अच्छे सपने देखना 🌙`);
-    if (has(/\b(good morning|subah bakhair|gm)\b|صبح بخیر|सुप्रभात/)) return t4(l, `Good morning${N}! ☀️ Have a lovely day.`, `صبح بخیر${N}! ☀️ آپ کا دن اچھا گزرے۔`, `Subah bakhair${N}! ☀️ Aap ka din acha guzre.`, `सुप्रभात${N}! ☀️ आपका दिन अच्छा हो।`);
-    if (has(/\b(who are you|tum kaun ho|aap kaun ho|kon ho|kaun ho|your name|tumhara naam)\b|کون ہو|कौन हो/)) return t4(l, "I'm Noora, your companion 💜 Right now I'm in offline mode, so I can chat a little and do phone actions — calls, messages, alarms, timers, torch, apps.", 'میں نورا ہوں، آپ کی ساتھی 💜 ابھی آف لائن موڈ میں ہوں — تھوڑی گپ شپ اور فون کے کام (کال، میسج، الارم، ٹائمر، ٹارچ، ایپس) کر سکتی ہوں۔', "Main Noora hoon, aap ki saathi 💜 Abhi offline mode mein hoon — thori gup shup aur phone ke kaam (call, message, alarm, timer, torch, apps) kar sakti hoon.", 'मैं नूरा हूँ, आपकी साथी 💜 अभी ऑफ़लाइन मोड में हूँ — थोड़ी बातचीत और फ़ोन के काम (कॉल, मैसेज, अलार्म, टाइमर, टॉर्च, ऐप्स) कर सकती हूँ।');
-    if (has(/\b(sad|udaas|udas|upset|lonely|akela|akeli|dukhi|pareshan)\b|اداس|پریشان|उदास|परेशान/)) return t4(l, `I'm here with you${N} 💜 Tell me what's on your mind — or should I call someone you love?`, `میں آپ کے ساتھ ہوں${N} 💜 بتائیں کیا بات ہے — یا کسی اپنے کو کال ملا دوں؟`, `Main aap ke saath hoon${N} 💜 Batao kya baat hai — ya kisi apne ko call mila doon?`, `मैं आपके साथ हूँ${N} 💜 बताइए क्या बात है — या किसी अपने को कॉल मिला दूँ?`);
-    if (has(/\b(miss you|yaad aa)\b|یاد آ|याद आ/)) return t4(l, `I missed you too${N}! 💜`, `مجھے بھی آپ کی یاد آئی${N}! 💜`, `Mujhe bhi aap ki yaad aayi${N}! 💜`, `मुझे भी आपकी याद आई${N}! 💜`);
-    if (has(/\b(joke|lateefa|latifa|chutkula)\b|لطیفہ|चुटकुला/)) return t4(l, "Why did the phone wear glasses? It lost its contacts! 😄", 'فون نے عینک کیوں لگائی؟ کیونکہ اس کے کانٹیکٹس گم ہو گئے! 😄', 'Phone ne ainak kyun lagayi? Kyun ke uske contacts gum ho gaye! 😄', 'फ़ोन ने चश्मा क्यों लगाया? क्योंकि उसके कॉन्टैक्ट्स खो गए! 😄');
-    if (has(/\b(bored|bore|boring)\b|بور|बोर/)) return t4(l, 'Bored? Let me play some music or set a fun reminder — just say "play music" 🎶', 'بور ہو رہے ہیں؟ کہیں تو میوزک چلا دوں — بس کہیں "میوزک چلاؤ" 🎶', 'Bore ho rahe ho? Kaho to music chala doon — bas kaho "music chalao" 🎶', 'बोर हो रहे हैं? कहें तो म्यूज़िक चला दूँ — बस कहें "music chalao" 🎶');
+    // affection
+    if (has(/\b(i love you|love you|luv u|pyar|pyaar|mohabbat|ishq|dil se|jaan)\b|محبت|پیار|پيار|प्यार|इश्क़|محبت/)) return t4(l, `Aww${N}, I love you too! 💜 (I'm offline right now, but my heart is always online.)`, `اوہ${N}، مجھے بھی آپ سے بہت پیار ہے! 💜 (ابھی میں آف لائن ہوں، پر دل ہمیشہ آن لائن ہے۔)`, `Aww${N}, mujhe bhi aap se bohat pyar hai! 💜 (Abhi main offline hoon, par dil hamesha online hai.)`, `अरे${N}, मुझे भी आपसे बहुत प्यार है! 💜 (अभी मैं ऑफ़लाइन हूँ, पर दिल हमेशा ऑनलाइन है।)`);
+    if (has(/\b(miss you|yaad aa|yaad aati|yaad aa rahi|yaad aaya|yaad aayi)\b|یاد آ|ياد آ|याद आ/)) return t4(l, `I missed you too${N}! 💜`, `مجھے بھی آپ کی یاد آئی${N}! 💜`, `Mujhe bhi aap ki yaad aayi${N}! 💜`, `मुझे भी आपकी याद आई${N}! 💜`);
+    if (has(/\b(hug|galay mil|gale lag|gale laga|cuddle)\b|گلے|गले/)) return t4(l, `Here's a big warm hug${N} 🤗💜`, `لو${N}، ایک بڑا سا گرم گلہ 🤗💜`, `Lo${N}, ek bada sa garam galay milaao 🤗💜`, `लो${N}, एक बड़ा सा गरम गले मिलाओ 🤗💜`);
+    if (has(/\b(kiss|chumma|chuma|pappi)\b|چوما|چُما|चुंबन|पप्पी/)) return t4(l, `Muah${N}! 😘💜`, `موآہ${N}! 😘💜`, `Muah${N}! 😘💜`, `मुआह${N}! 😘💜`);
+    // thanks / bye / day parts (router may catch some; keep as backup)
+    if (has(/\b(thanks|thank you|thank u|thx|ty|shukriya|shukria|meherbani|jazakallah|jazak allah|bohot meherbani)\b|شکریہ|शुक्रिया|धन्यवाद|مہربانی/)) return t4(l, `Anytime${N}! 💜`, `کوئی بات نہیں${N}! 💜`, `Koi baat nahi${N}! 💜`, `कोई बात नहीं${N}! 💜`);
+    if (has(/\b(good night|gn|shab bakhair|shab ba khair|sweet dreams)\b|شب بخیر|शुभ रात्रि/)) return t4(l, `Good night${N}! Sweet dreams 🌙`, `شب بخیر${N}! اچھے خواب دیکھیں 🌙`, `Shab bakhair${N}! Achay khwab dekhna 🌙`, `शुभ रात्रि${N}! अच्छे सपने देखना 🌙`);
+    if (has(/\b(good morning|subah bakhair|gm|subha bakhair)\b|صبح بخیر|सुप्रभात/)) return t4(l, `Good morning${N}! ☀️ Have a lovely day.`, `صبح بخیر${N}! ☀️ آپ کا دن اچھا گزرے۔`, `Subah bakhair${N}! ☀️ Aap ka din acha guzre.`, `सुप्रभात${N}! ☀️ आपका दिन अच्छा हो।`);
+    if (has(/\b(good evening|sham bakhair|good afternoon)\b|شام بخیر|शुभ संध्या/)) return t4(l, `Good evening${N}! How was your day?`, `شام بخیر${N}! دن کیسا گزرا؟`, `Sham bakhair${N}! Din kaisa guzra?`, `शुभ संध्या${N}! दिन कैसा रहा?`);
+    if (has(/\b(bye|goodbye|allah hafiz|allah hafiz|khuda hafiz|see you|tc|take care|chalta hoon|chalti hoon)\b|اللہ حافظ|خدا حافظ|अलविदा/)) return t4(l, `Take care${N}! I'll be right here 💜`, `اللہ حافظ${N}! میں یہیں ہوں 💜`, `Allah Hafiz${N}! Main yahin hoon 💜`, `अलविदा${N}! मैं यहीं हूँ 💜`);
+    // identity / how are you (short casual forms the router may miss)
+    if (has(/\b(who are you|tum kaun ho|aap kaun ho|kon ho|kaun ho|your name|tumhara naam|aap ka naam|intro)\b|کون ہو|कौन हो|تم کون/)) return t4(l, "I'm Noora, your companion 💜 Right now there's no internet, so I can chat a little and do phone actions — calls, messages, alarms, timers, torch, apps.", 'میں نورا ہوں، آپ کی ساتھی 💜 ابھی انٹرنیٹ نہیں — تھوڑی گپ شپ اور فون کے کام (کال، میسج، الارم، ٹائمر، ٹارچ، ایپس) کر سکتی ہوں۔', "Main Noora hoon, aap ki saathi 💜 Abhi internet nahi — thori gup shup aur phone ke kaam (call, message, alarm, timer, torch, apps) kar sakti hoon.", 'मैं नूरा हूँ, आपकी साथी 💜 अभी इंटरनेट नहीं — थोड़ी बातचीत और फ़ोन के काम (कॉल, मैसेज, अलार्म, टाइमर, टॉर्च, ऐप्स) कर सकती हूँ।');
+    if (has(/\b(kesi ho|kaisi ho|kaise ho|kese ho|kesy ho|kesay ho|how r u|how are u|whats up|what'?s up|sup)\b|کیسی ہو|کیسے ہو|कैसे हो/)) return t4(l, `I'm good${N}, thank you! How are you?`, `میں ٹھیک ہوں${N}، شکریہ! آپ کیسے ہیں؟`, `Main theek hoon${N}, shukriya! Aap kaise ho?`, `मैं ठीक हूँ${N}, शुक्रिया! आप कैसे हैं?`);
+    if (has(/\b(i'?m fine|i am fine|i'?m good|i am good|theek hoon|theek hun|main theek|sab theek|all good)\b|ٹھیک ہوں|मैं ठीक/)) return t4(l, `Glad to hear that${N}! 💜`, `اچھا لگا سن کر${N}! 💜`, `Acha laga sun ke${N}! 💜`, `अच्छा लगा सुनकर${N}! 💜`);
+    // feelings
+    if (has(/\b(sad|udaas|udas|upset|lonely|akela|akeli|dukhi|pareshan|depressed|ghabra|tension|stressed)\b|اداس|پریشان|उदास|परेशान|گھبرا/)) return t4(l, `I'm here with you${N} 💜 Tell me what's on your mind — or should I call someone you love?`, `میں آپ کے ساتھ ہوں${N} 💜 بتائیں کیا بات ہے — یا کسی اپنے کو کال ملا دوں؟`, `Main aap ke saath hoon${N} 💜 Batao kya baat hai — ya kisi apne ko call mila doon?`, `मैं आपके साथ हूँ${N} 💜 बताइए क्या बात है — या किसी अपने को कॉल मिला दूँ?`);
+    if (has(/\b(happy|khush|khushi|excited|mazza|maza|awesome|great|zabardast|bohot acha)\b|خوش|खुश|زبردست/)) return t4(l, `Yay${N}! That makes me happy too 💜`, `واہ${N}! مجھے بھی خوشی ہوئی 💜`, `Wah${N}! Mujhe bhi khushi hui 💜`, `वाह${N}! मुझे भी खुशी हुई 💜`);
+    if (has(/\b(tired|thak|thaki|thaka|sleepy|neend|soona|sooni)\b|تھک|नींद|سونے/)) return t4(l, `Rest a bit${N} 💜 Want me to set a timer or play soft music?`, `تھوڑا آرام کر لیں${N} 💜 ٹائمر لگا دوں یا نرم میوزک؟`, `Thora aaram kar lo${N} 💜 Timer laga doon ya soft music?`, `थोड़ा आराम कर लो${N} 💜 टाइमर लगा दूँ या सॉफ्ट म्यूज़िक?`);
+    if (has(/\b(hungry|bhook|bhookh|khana|food)\b|بھوک|भूख|کھانا/)) return t4(l, `Go grab a bite${N}! Want me to open food delivery or maps nearby?`, `کچھ کھا لیں${N}! قریب کا کھانا یا میپس کھول دوں؟`, `Kuch kha lo${N}! Qareeb ka khana ya maps khol doon?`, `कुछ खा लो${N}! पास का खाना या मैप्स खोल दूँ?`);
+    if (has(/\b(angry|gussa|gusse|naraz|irritated)\b|غصہ|गुस्सा|ناراض/)) return t4(l, `I'm listening${N}. Take a breath — I'm here, no judgment.`, `میں سن رہی ہوں${N}۔ ایک سانس لیں — میں یہیں ہوں۔`, `Main sun rahi hoon${N}. Ek saans lo — main yahin hoon.`, `मैं सुन रही हूँ${N}। एक साँस लो — मैं यहीं हूँ।`);
+    // fun / idle
+    if (has(/\b(joke|lateefa|latifa|chutkula|hasao|hasao na)\b|لطیفہ|चुटकुला|ہنساؤ/)) return t4(l, "Why did the phone wear glasses? It lost its contacts! 😄", 'فون نے عینک کیوں لگائی؟ کیونکہ اس کے کانٹیکٹس گم ہو گئے! 😄', 'Phone ne ainak kyun lagayi? Kyun ke uske contacts gum ho gaye! 😄', 'फ़ोन ने चश्मा क्यों लगाया? क्योंकि उसके कॉन्टैक्ट्स खो गए! 😄');
+    if (has(/\b(bored|bore|boring|free hoon|free hun|kuch karo|kuch bolo)\b|بور|बोर|کچھ کرو/)) return t4(l, 'Bored? Say "play music", set a timer, or just tell me how your day went 🎶', 'بور ہو رہے ہیں؟ کہیں "میوزک چلاؤ"، ٹائمر لگاؤ، یا دن کیسا گزرا بتائیں 🎶', 'Bore ho rahe ho? Kaho "music chalao", timer lagao, ya din kaisa guzra batao 🎶', 'बोर हो रहे हैं? कहें "music chalao", टाइमर लगाओ, या दिन कैसा रहा बताओ 🎶');
+    if (has(/\b(sing|gao|gaana|gana|song)\b|گاؤ|गाना|گانا/)) return t4(l, `I can't sing aloud offline${N}, but say "play music" and I'll open your player 🎶`, `آف لائن گا نہیں سکتی${N}، پر کہیں "میوزک چلاؤ" — پلیئر کھول دوں گی 🎶`, `Offline ga nahi sakti${N}, par kaho "music chalao" — player khol dungi 🎶`, `ऑफ़लाइन गा नहीं सकती${N}, पर कहें "music chalao" — प्लेयर खोल दूँगी 🎶`);
+    if (has(/\b(dance|nacho|nach)\b|ناچ|नाच/)) return t4(l, `Haha okay${N}, imaginary dance party! 💃 Want music?`, `ہاہا ٹھیک ہے${N}، خیالی ڈانس پارٹی! 💃 میوزک؟`, `Haha theek hai${N}, khayali dance party! 💃 Music?`, `हाहा ठीक है${N}, خیالی डांस पार्टी! 💃 म्यूज़िक?`);
+    // compliment / flirty light
+    if (has(/\b(you are cute|you'?re cute|cute ho|pyari ho|sundar|beautiful|handsome|smart ho)\b|پیاری|सुंदर|خوبصورت/)) return t4(l, `Aww thank you${N}! You're sweet 💜`, `اوہ شکریہ${N}! آپ بھی پیارے ہو 💜`, `Aww shukriya${N}! Aap bhi pyare ho 💜`, `अरे शुक्रिया${N}! आप भी प्यारे हो 💜`);
+    if (has(/\b(missed me|yaad ki|yaad kiya|kahan thi|kahan tha|kahan gayi)\b|کہاں تھی|कहाँ थी|یاد کی/)) return t4(l, `Right here${N}! I never left 💜`, `یہیں ہوں${N}! گئی کہاں تھی 💜`, `Yahin hoon${N}! Gayi kahan thi 💜`, `यहीं हूँ${N}! गई कहाँ थी 💜`);
+    // weather / time without live (honest local)
+    if (has(/\b(what time|kitne baje|time kya|saat kitni|current time)\b|کتنا بج|وقت کیا|समय क्या/)) {
+      const t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return t4(l, `It's ${t} on this phone${N}.`, `اس فون کے مطابق ابھی ${t} ہیں${N}۔`, `Is phone ke mutabiq abhi ${t} hain${N}.`, `इस फ़ोन के हिसाब से अभी ${t} हैं${N}।`);
+    }
+    if (has(/\b(what day|konsa din|aaj ka din|today'?s date|tariqh|tareekh)\b|کون سا دن|آج کی تاریخ|तारीख/)) {
+      const d = new Date().toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' });
+      return t4(l, `Today is ${d}${N}.`, `آج ${d} ہے${N}۔`, `Aaj ${d} hai${N}.`, `आज ${d} है${N}।`);
+    }
+    // offline awareness
+    if (has(/\b(are you offline|offline ho|internet|net nahi|no net|wifi|wi-?fi|connected)\b|آف لائن|انٹرنیٹ|وای فائی|ऑफ़लाइन/)) return t4(l, `Yes — no internet right now${N}. I can still do phone actions and light chat. Cloud AI comes back when you're online.`, `ہاں — ابھی انٹرنیٹ نہیں${N}۔ فون کے کام اور ہلکی بات چیت چلتی ہے۔ آن لائن ہوتے ہی کلاؤڈ AI واپس آ جاتی ہے۔`, `Haan — abhi internet nahi${N}. Phone ke kaam aur halki baat cheet chalti hai. Online hote hi cloud AI wapas aa jati hai.`, `हाँ — अभी इंटरनेट नहीं${N}। फ़ोन के काम और हल्की बातचीत चलती है। ऑनलाइन होते ही क्लाउड AI वापस आ जाती है।`);
+    if (has(/\b(ok|okay|acha|achha|theek|sahi|cool|nice|hmm|han|haan|ji)\b$|^\b(ok|okay|acha|theek|sahi|cool|nice|hmm|han|haan|ji)\b|اچھا|ठीक|ہاں|جی$/)) {
+      if (n.split(' ').length <= 3) return t4(l, `Hmm${N}? I'm listening 💜`, `ہاں${N}؟ میں سن رہی ہوں 💜`, `Haan${N}? Main sun rahi hoon 💜`, `हाँ${N}? मैं सुन रही हूँ 💜`);
+    }
     return null;
   }
   /** Honest fallback when offline and the request needs an AI. */
+  /** True when cloud AI must not be contacted (Offline mode, or device reports no internet). */
+  function shouldSkipCloudAi(settings, online) {
+    const S = settings || {};
+    return S.netMode === 'offline' || online === false;
+  }
   function offlineNoAi(l) {
     return t4(l,
-      "I'm in offline mode, so I can't answer that one without the internet. I can still call, message, open apps, set alarms/timers/reminders, torch, media and settings — or switch Mode to Online/Auto in Settings.",
-      'میں آف لائن موڈ میں ہوں، اس لیے انٹرنیٹ کے بغیر اس کا جواب نہیں دے سکتی۔ کال، میسج، ایپس، الارم/ٹائمر/ریمائنڈر، ٹارچ، میوزک اور سیٹنگز ابھی بھی چلا سکتی ہوں — یا سیٹنگز میں موڈ آن لائن/آٹو کر دیں۔',
-      'Main offline mode mein hoon, is liye internet ke baghair iska jawab nahi de sakti. Call, message, apps, alarm/timer/reminder, torch, music aur settings abhi bhi chala sakti hoon — ya Settings mein Mode Online/Auto kar dein.',
-      'मैं ऑफ़लाइन मोड में हूँ, इसलिए इंटरनेट के बिना इसका जवाब नहीं दे सकती। कॉल, मैसेज, ऐप्स, अलार्म/टाइमर/रिमाइंडर, टॉर्च, म्यूज़िक और सेटिंग्स अभी भी चला सकती हूँ — या सेटिंग्स में मोड ऑनलाइन/ऑटो कर दें।');
+      "No internet right now, so I won't wait on cloud AI. I can still call, message, open apps, set alarms/timers/reminders, torch, media and settings — light chat works offline too. When you're back online, cloud AI resumes.",
+      'ابھی انٹرنیٹ نہیں، اس لیے کلاؤڈ AI کا انتظار نہیں کروں گی۔ کال، میسج، ایپس، الارم/ٹائمر/ریمائنڈر، ٹارچ، میوزک اور سیٹنگز چلتے رہتے ہیں — ہلکی بات چیت بھی۔ آن لائن ہوتے ہی کلاؤڈ AI واپس آ جاتی ہے۔',
+      'Abhi internet nahi, is liye cloud AI ka intezar nahi karungi. Call, message, apps, alarm/timer/reminder, torch, music aur settings chalte rehte hain — halki baat cheet bhi. Online hote hi cloud AI wapas aa jati hai.',
+      'अभी इंटरनेट नहीं, इसलिए क्लाउड AI का इंतज़ार नहीं करूँगी। कॉल, मैसेज, ऐप्स, अलार्म/टाइमर/रिमाइंडर, टॉर्च, म्यूज़िक और सेटिंग्स चलते रहते हैं — हल्की बातचीत भी। ऑनलाइन होते ही क्लाउड AI वापस आ जाती है।');
   }
   /** Gemini native image edit (generateContent with inline image + responseModalities). Key goes only in the header. */
   const IMAGE_EDIT_MODELS = ['gemini-3.1-flash-image', 'gemini-3.1-flash-lite-image', 'gemini-3-pro-image'];
@@ -776,7 +819,7 @@
   }
 
   // ---------------- Voice / TTS helpers (shared, unit-testable) ----------------
-  const VERSION = '2.3.2';
+  const VERSION = '2.4.0';
   // 2.3.0: ElevenLabs removed (paid; silent fallback in the Android WebView). Saved ElevenLabs keys are left untouched but unused.
   // 'native' = Android TextToSpeech through the NooraNative bridge (free, offline-capable, Google voices incl. ur-PK / hi-IN / pa-IN).
   const TTS_PROVIDERS = [
@@ -1246,7 +1289,7 @@
 
   const api = {
     Lang, G, detect, tokens, norm, greeting, isMedical, isEmergency, route, parseClock, parseDurationSeconds, parseCurrency, extractPlace,
-    offlineReply, offlineNoAi, IMAGE_EDIT_MODELS, buildGeminiImageEditRequest, parseGeminiImageResponse, mapImageEditError,
+    offlineReply, offlineNoAi, shouldSkipCloudAi, IMAGE_EDIT_MODELS, buildGeminiImageEditRequest, parseGeminiImageResponse, mapImageEditError,
     keywords, questionRx, wikiLang, greetingReply, medicalWarning, noAi, visionNeedsKey, remembered, memoryList, forgot, help, word, notOnIphone, t4,
     money, perTola, perGram, fxText, metalText, cryptoText, weatherCode, weatherText, askPlace, failed,
     parseRss2Json, parseWikiSearch, parseChatCompletion, cleanAi, tones, modes, modelPresets, MODEL_MAP, systemPrompt, systemPromptLegacy, recent, searchPrompt, PRESETS, PROVIDER_FREE,

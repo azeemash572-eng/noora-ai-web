@@ -143,7 +143,7 @@ test('parsers with real captured payloads', () => {
 });
 
 test('version and arabic + model map', () => {
-  assert.equal(C.VERSION, '2.3.2');
+  assert.equal(C.VERSION, '2.4.0');
   assert.ok(C.Lang.ARABIC);
   assert.equal(C.detect('مرحبا كيف حالك', C.Lang.ARABIC), C.Lang.ARABIC);
   assert.ok(C.MODEL_MAP['Google Gemini']['Fast'][0].includes('gemini'));
@@ -164,7 +164,7 @@ test('version and arabic + model map', () => {
 
 
 test('voice settings persistence helpers + provider config without keys in repo', () => {
-  assert.equal(C.VERSION, '2.3.2');
+  assert.equal(C.VERSION, '2.4.0');
   assert.ok(Array.isArray(C.TTS_PROVIDERS));
   assert.ok(C.TTS_PROVIDERS.some((p) => p.id === 'browser' && !p.needsKey));
   assert.ok(C.TTS_PROVIDERS.some((p) => p.id === 'openai' && p.needsKey));
@@ -291,11 +291,16 @@ test('conversation style avoids repetitive filter talk', () => {
   assert.ok(!/always remind|constantly warn|mention your restrictions every/i.test(sp));
 });
 
-test('2.3.0 offline small talk + Gemini image edit helpers', () => {
+test('2.4.0 offline small talk + Gemini image edit helpers', () => {
   assert.match(C.offlineReply('I love you Noora', C.Lang.ENGLISH, 'Ayesha'), /love you too/);
   assert.match(C.offlineReply('shukriya jaanu', C.Lang.ROMAN_URDU), /Koi baat nahi/);
+  assert.match(C.offlineReply('bored hoon', C.Lang.ROMAN_URDU), /music|timer|din/i);
+  assert.match(C.offlineReply('میں تھک گئی', C.Lang.URDU), /آرام|ٹائمر|میوزک/);
+  assert.match(C.offlineReply('kesi ho', C.Lang.ROMAN_URDU), /theek hoon/i);
+  assert.match(C.offlineReply('what time is it', C.Lang.ENGLISH), /on this phone/);
+  assert.match(C.offlineReply('internet nahi hai', C.Lang.ROMAN_URDU), /internet nahi|cloud AI/i);
   assert.equal(C.offlineReply('capital of france', C.Lang.ENGLISH), null);
-  assert.match(C.offlineNoAi(C.Lang.ROMAN_URDU), /offline mode/);
+  assert.match(C.offlineNoAi(C.Lang.ROMAN_URDU), /internet nahi|cloud AI/i);
   const req = C.buildGeminiImageEditRequest('k-not-real', '', 'remove the text', 'image/png', 'AAAA');
   assert.match(req.url, /models\/gemini-3\.1-flash-image:generateContent$/);
   assert.equal(req.headers['x-goog-api-key'], 'k-not-real');

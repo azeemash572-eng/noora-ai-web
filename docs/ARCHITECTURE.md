@@ -143,3 +143,11 @@ voice (Web Speech or Android SpeechRecognizer via NooraNative.sttStart) / typed 
 - `ContactsReader.kt` reads all of Phone.CONTENT_URI with one forward-only cursor (no cap). Each row carries CONTACT_ID, name, number, NORMALIZED_NUMBER, type/label and account. Numbers are deduplicated per contact on their normalized digits. The output keeps `raw` and an `e164`/`number`. Nicknames come from Data/Nickname. `op:"count"` is a cheap change check.
 - Permission: `contacts` requests READ_CONTACTS. `contactsPerm` reports its state. The permission event carries `blocked` (denied with "don't ask again"), and the web UI then offers `appSettings`.
 - Web: `loadAllContacts` caches in memory and in the separate IndexedDB `noora-contacts`. It re-reads when `op:count` changes, including on the `resume` event. `T.matchContacts` scores name and nicknames, shows a pick card for ties and never guesses. Numbers are never put in AI prompts.
+
+## 2.4.0 Phase 1: offline instant path
+
+- `shouldSkipCloudAi(settings, online)` — true when `netMode === 'offline'` OR the device reports no internet (including Online mode with Wi-Fi down).
+- `send()` still runs `parseCommand` → `runPlan` first (phone actions offline). Then `offlineMode()` → `offlineHandle` (router OK types + expanded `offlineReply` / `offlineNoAi`). Never starts Groq/Gemini/Pollinations.
+- `AI.chat` early-returns `{ skippedCloud: true, network: true }` when `shouldSkipCloudAi` so attachment/vision callers also skip the ~20s chain.
+- Status banner (`refreshStatus`) unchanged: "Offline mode — …" / "No internet — Online mode needs a connection" / "Offline — phone actions & small talk".
+- Phase 2 (LiteRT / on-device model / voice-ID) not started.

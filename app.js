@@ -1,4 +1,4 @@
-/* NOORA AI 2.3.2 command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
+/* NOORA AI 2.4.0 command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
 (function () {
   'use strict';
   const C = window.NooraCore, L = C.Lang;
@@ -358,6 +358,10 @@
       const sysAppend = (msgsIn, extra) => msgsIn.map((m, i) => (i === 0 && m.role === 'system' && typeof m.content === 'string') ? Object.assign({}, m, { content: m.content + '\n\n' + extra }) : m);
       const fallbackMsgs = withTools ? sysAppend(messages, T.toolPromptFallback(PLATFORM)) : messages;
       const done = (r, via, extra) => Object.assign({ text: C.cleanAi(r.text || ''), via, streamed: r.streamed, toolCalls: r.toolCalls || [] }, extra || {});
+      // 2.4.0: never burn ~20s on Groq / Gemini / Pollinations when offline or Offline mode is forced
+      if (C.shouldSkipCloudAi(S, navigator.onLine)) {
+        return { text: null, failure: 'no internet', network: true, skippedCloud: true };
+      }
       const server = (S.serverUrl || '').trim().replace(/\/+$/, '');
       if (server) {
         const model = vision && S.visionModel ? S.visionModel : (S.chatModel || 'gemini-2.5-flash');
@@ -1829,8 +1833,10 @@
     handle(C.route(text, !!lastGen), text, lang, lastGen);
   }
 
-  // ---- 2.3.0 Online / Offline mode ----
-  const offlineMode = () => S.netMode === 'offline' || (S.netMode !== 'online' && !navigator.onLine);
+  // ---- 2.4.0 Online / Offline mode ----
+  // Force-offline setting OR no internet (including Online mode with Wi-Fi down) → never wait on Groq/Gemini/Pollinations.
+  // Banner / refreshStatus text is unchanged. Phone actions still run via parseCommand → runPlan before this path.
+  const offlineMode = () => C.shouldSkipCloudAi(S, navigator.onLine);
   const OFFLINE_OK = ['Greeting', 'Help', 'Remember', 'RecallMemory', 'ForgetMemory', 'Flashlight', 'Alarm', 'Timer', 'OpenApp', 'Call', 'Sms', 'Maps', 'OpenUrl'];
   function offlineHandle(text, lang, lastGen) {
     const r = C.route(text, !!lastGen);
@@ -1838,7 +1844,8 @@
     busy = true;
     const small = C.offlineReply(text, lang, S.userName);
     setVoiceState('THINKING');
-    return reply(small || C.offlineNoAi(lang), lang, { meta: { via: 'offline mode' + (small ? ' · small talk' : '') } });
+    const via = S.netMode === 'offline' ? 'offline mode' : 'no internet';
+    return reply(small || C.offlineNoAi(lang), lang, { meta: { via: via + (small ? ' · small talk' : '') } });
   }
   function handle(r, text, lang, lastGen) {
     busy = true;

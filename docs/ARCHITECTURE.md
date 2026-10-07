@@ -151,3 +151,11 @@ voice (Web Speech or Android SpeechRecognizer via NooraNative.sttStart) / typed 
 - `AI.chat` early-returns `{ skippedCloud: true, network: true }` when `shouldSkipCloudAi` so attachment/vision callers also skip the ~20s chain.
 - Status banner (`refreshStatus`) unchanged: "Offline mode — …" / "No internet — Online mode needs a connection" / "Offline — phone actions & small talk".
 - Phase 2 (LiteRT / on-device model / voice-ID) not started.
+
+## 2.4.1 Phase 2: optional on-device Qwen 0.5B
+
+- Model: `litert-community/Qwen2.5-0.5B-Instruct` **multi-prefill q8 `.task`** (~521 MB). Not a `.litertlm` (LiteRT-LM Engine format) — those are not published for this Qwen yet. Inference: MediaPipe `tasks-genai` (LiteRT runtime), documented Android path for `.task`.
+- Never in APK. `LocalLlm.kt` downloads via `DownloadManager` (Wi‑Fi default) into app storage `filesDir/models/…`. Cancel / delete supported. Metered / low-storage / low-RAM warnings in Settings.
+- Online: Groq → Gemini → Pollinations unchanged; local model not used.
+- Offline: `offlineReply` first; else `NooraNative.localChat` if downloaded; else `offlineNoAi`. No tool-calling from the local LLM.
+- Phase 3 (voice-ID) not started.

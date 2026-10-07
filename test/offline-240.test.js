@@ -1,10 +1,10 @@
-// 2.4.0 Phase 1: offline / no-internet → instant local path (no cloud wait)
+// 2.4.1 Phase 1: offline / no-internet → instant local path (no cloud wait)
 const test = require('node:test');
 const assert = require('node:assert');
 const C = require('../core.js');
 
-test('VERSION is 2.4.0', () => {
-  assert.equal(C.VERSION, '2.4.0');
+test('VERSION is 2.4.1', () => {
+  assert.equal(C.VERSION, '2.4.1');
 });
 
 test('offlineReply covers expanded casual lines (EN / Roman Urdu / Urdu / Hindi)', () => {

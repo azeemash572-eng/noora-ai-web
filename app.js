@@ -1,4 +1,4 @@
-/* NOORA AI 2.4.0 command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
+/* NOORA AI 2.4.1 command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
 (function () {
   'use strict';
   const C = window.NooraCore, L = C.Lang;
@@ -1615,6 +1615,7 @@
       }
       if (ev.type === 'assist') { window.__nooraStartVoice(); }
       if (ev.type === 'resume') { onResumeContacts(); }
+      if (ev.type === 'localLlm') { onLocalLlmEvent(ev); return; }
     } catch (e) { /* never surface raw errors */ }
   };
   window.__nooraStartVoice = () => {
@@ -1845,7 +1846,75 @@
     const small = C.offlineReply(text, lang, S.userName);
     setVoiceState('THINKING');
     const via = S.netMode === 'offline' ? 'offline mode' : 'no internet';
-    return reply(small || C.offlineNoAi(lang), lang, { meta: { via: via + (small ? ' · small talk' : '') } });
+    if (small) return reply(small, lang, { meta: { via: via + ' · small talk' } });
+    // 2.4.1: optional on-device Qwen if downloaded — never when online cloud path is active (this function only runs offline)
+    return tryLocalLlmChat(text, lang, via);
+  }
+  function localLlmBridge() {
+    return (bridge() && typeof window.NooraNative.localLlmStatus === 'function') ? window.NooraNative : null;
+  }
+  function localLlmStatus() {
+    const n = localLlmBridge(); if (!n) return { ok: false, state: 'unavailable' };
+    try { return JSON.parse(n.localLlmStatus() || '{}'); } catch (e) { return { ok: false, state: 'error' }; }
+  }
+  function renderLocalLlmCard() {
+    const stEl = $('localLlmState'); if (!stEl) return;
+    const s = localLlmStatus();
+    const dl = $('btnLocalLlmDownload'), dlm = $('btnLocalLlmDownloadMobile'), cancel = $('btnLocalLlmCancel'), del = $('btnLocalLlmDelete');
+    if (!localLlmBridge()) {
+      stEl.textContent = 'On-device AI is only in the NOORA Android app.';
+      [dl, dlm, cancel, del].forEach((b) => { if (b) b.hidden = true; });
+      return;
+    }
+    const low = s.lowRamWarn ? ' ⚠ This phone reports under ~4 GB RAM — the model may fail to load.' : '';
+    if (s.state === 'downloading') {
+      stEl.textContent = '⬇ Downloading Qwen 0.5B (' + (s.progress || 0) + '%) · ' + (s.sizeLabel || '~0.5 GB') + '…' + low;
+      if (dl) dl.hidden = true; if (dlm) dlm.hidden = true; if (cancel) cancel.hidden = false; if (del) del.hidden = true;
+    } else if (s.downloaded) {
+      stEl.textContent = '✅ On-device model ready (' + (s.modelId || 'Qwen') + '). Used only when offline / no internet. ' + (s.note || '') + low;
+      if (dl) dl.hidden = true; if (dlm) dlm.hidden = true; if (cancel) cancel.hidden = true; if (del) del.hidden = false;
+    } else {
+      stEl.textContent = 'Not downloaded. Optional ~0.5 GB Wi‑Fi download of Qwen2.5-0.5B for offline chat (never bundled in the APK). Phone actions still work without it.' + low;
+      if (dl) dl.hidden = false; if (dlm) dlm.hidden = false; if (cancel) cancel.hidden = true; if (del) del.hidden = true;
+    }
+    const lic = $('localLlmLicense'); if (lic) lic.textContent = s.license || '';
+  }
+  const localChatWaiters = {};
+  function tryLocalLlmChat(text, lang, via) {
+    const n = localLlmBridge();
+    if (!n) return reply(C.offlineNoAi(lang), lang, { meta: { via } });
+    let st; try { st = JSON.parse(n.localLlmStatus() || '{}'); } catch (e) { st = {}; }
+    if (!st.downloaded) return reply(C.offlineNoAi(lang), lang, { meta: { via } });
+    showPending(C.word(lang, 'thinking')); status('On-device AI…');
+    const id = 'lc' + Date.now().toString(36);
+    return new Promise((resolve) => {
+      localChatWaiters[id] = { resolve, lang, via, text };
+      let r; try { r = JSON.parse(n.localChat(JSON.stringify({ id, prompt: text, system: '' })) || '{}'); } catch (e) { r = { ok: false, message: String(e) }; }
+      if (!r.ok) {
+        delete localChatWaiters[id];
+        resolve(reply((r.message || C.offlineNoAi(lang)), lang, { meta: { via: via + ' · on-device unavailable' } }));
+      }
+      // safety timeout 90s
+      setTimeout(() => {
+        if (!localChatWaiters[id]) return;
+        delete localChatWaiters[id];
+        resolve(reply(C.offlineNoAi(lang) + '\n\n(On-device model timed out.)', lang, { meta: { via: via + ' · on-device timeout' } }));
+      }, 90000);
+    });
+  }
+  function onLocalLlmEvent(ev) {
+    if (!ev || ev.type !== 'localLlm') return;
+    if (ev.phase === 'download_start' || ev.phase === 'download_done' || ev.phase === 'download_error' || ev.phase === 'download_cancel' || ev.phase === 'deleted') {
+      renderLocalLlmCard();
+      if (ev.phase === 'download_done') toast('On-device model downloaded ✓');
+      if (ev.phase === 'download_error') toast(ev.message || 'Download failed');
+    }
+    if (ev.phase === 'chat_done' || ev.phase === 'chat_error') {
+      const w = localChatWaiters[ev.id]; if (!w) return;
+      delete localChatWaiters[ev.id];
+      if (ev.phase === 'chat_done' && ev.text) w.resolve(reply(String(ev.text), w.lang, { meta: { via: w.via + ' · on-device Qwen 0.5B' } }));
+      else w.resolve(reply((ev.message || C.offlineNoAi(w.lang)), w.lang, { meta: { via: w.via + ' · on-device failed' } }));
+    }
   }
   function handle(r, text, lang, lastGen) {
     busy = true;
@@ -2772,6 +2841,7 @@
   }
   function openSettings() {
     try { renderContactsAccess(); } catch (e) {}
+    try { renderLocalLlmCard(); } catch (e) {}
     $('sName').value = S.userName;
     $('sTts').checked = S.ttsOn;
     $('sTtsProvider').value = S.ttsProvider || 'auto';
@@ -3132,6 +3202,6 @@
     }
     window.__noora = { send, Store, S, route: C.route, msgs: () => msgs, showTab, AI, Live, VERSION: C.VERSION, speak, stopVoiceMode, replayLast, updateVoiceBar, continuous: () => continuous, tools: toolRegistry,
       T, runPlan, pending: () => pending, plan: () => plan, voiceState: () => voiceState, addChatFiles, chatPending: () => chatPending, setVoiceState, platform: PLATFORM,
-      lastAttachment: () => lastAttachment, attachAction, ttsProvider: () => activeTtsProvider(), offlineMode };
+      lastAttachment: () => lastAttachment, attachAction, ttsProvider: () => activeTtsProvider(), offlineMode, localLlmStatus, tryLocalLlmChat };
   })();
 })();

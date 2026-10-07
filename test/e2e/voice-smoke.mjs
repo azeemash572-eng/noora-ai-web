@@ -116,7 +116,7 @@ await page.locator('#sVoiceTest').scrollIntoViewIfNeeded();
 await page.screenshot({ path: path.join(ROOT, 'docs/voice-settings.png'), fullPage: true });
 
 const ver = await page.evaluate(() => window.__noora.VERSION);
-assert.equal(ver, '2.4.0');
+assert.equal(ver, '2.4.1');
 
 await browser.close();
 server.close();

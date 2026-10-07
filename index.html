@@ -342,7 +342,18 @@
           <option value="online">Online — always use the AI service</option>
           <option value="offline">Offline — phone actions + small talk, no internet needed</option>
         </select></label>
-        <p class="note" id="netModeNote">Offline: phone actions (call, message, alarms, timers, reminders, torch, apps, media, settings) run on the built-in rule engine, speech recognition prefers the on-device model, replies use the phone voice. Open questions need Online.</p>
+        <p class="note" id="netModeNote">Offline: phone actions (call, message, alarms, timers, reminders, torch, apps, media, settings) run on the built-in rule engine, speech recognition prefers the on-device model, replies use the phone voice. Open questions need Online — or the optional on-device model below.</p>
+      </div>
+      <h3>On-device AI (optional)</h3>
+      <div class="card" id="localLlmCard">
+        <p class="note" id="localLlmState">Checking…</p>
+        <p class="note"><strong>Qwen2.5-0.5B-Instruct</strong> · ~0.5 GB · not inside the APK. Download on Wi‑Fi only (default). Used only when offline / no internet, after small-talk rules; never replaces Groq/Gemini when online. Phone actions stay on the rule engine (this model has no tool calling in v1).</p>
+        <p class="note">Roman Urdu &amp; English work better than heavy Nastaliq Urdu script on this small model. Low-RAM phones may fail to load (~1.3 GB peak reported for this build).</p>
+        <button type="button" class="primary" id="btnLocalLlmDownload" hidden>⬇ Download on Wi‑Fi (~0.5 GB)</button>
+        <button type="button" class="outline" id="btnLocalLlmDownloadMobile" hidden>Download on mobile data…</button>
+        <button type="button" class="outline" id="btnLocalLlmCancel" hidden>Cancel download</button>
+        <button type="button" class="outline" id="btnLocalLlmDelete" hidden>🗑 Remove model</button>
+        <p class="note" id="localLlmLicense"></p>
       </div>
       <h3>Memory</h3>
       <div class="card">

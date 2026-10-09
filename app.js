@@ -1,4 +1,4 @@
-/* NOORA AI 2.4.1 command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
+/* NOORA AI 2.4.2 command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
 (function () {
   'use strict';
   const C = window.NooraCore, L = C.Lang;
@@ -30,7 +30,8 @@
     serverUrl: '', videoProvider: '', videoApiKey: '', videoBaseUrl: '',
     mapsProvider: '', defaultCountryCode: '', handsFree: false,
     netMode: 'auto', defaultMessenger: 'ask', imageEditModel: '',
-    groqApiKey: '', groqModel: C.GROQ_MODEL
+    groqApiKey: '', groqModel: C.GROQ_MODEL,
+    ownerOnly: false, voiceIdSens: C.VOICEID.SENS_DEFAULT
   }, C.DEFAULT_VOICE_SETTINGS);
   let S = Object.assign({}, DEF);
   try {
@@ -1562,6 +1563,9 @@
   let nativeListening = false;
   function startNativeListening() {
     stopSpeaking();
+    // 2.4.2: owner-only → speaker check FIRST (own AudioRecord, released before SpeechRecognizer starts), then STT.
+    if (ownerOnlyActive() && !voiceIdPassed) return startOwnerCheck();
+    voiceIdPassed = false;
     const lang = prefLang() ? prefLang().speech : (navigator.language || 'ur-PK');
     try {
       const preferOffline = offlineMode();
@@ -1574,6 +1578,119 @@
       nativeListening = true; setListening(true); setVoiceState('LISTENING'); setTranscript('');
     } catch (e) { setListening(false, 'Could not start the microphone.'); setVoiceState('ERROR', 'mic'); }
   }
+
+  // ======== 2.4.2 Phase 3: owner voice identification (Android only; on-device; not security-grade) ========
+  let voiceIdPassed = false, voiceIdChecking = false, voiceIdEnrolling = false, voiceIdTesting = false;
+  function vidBridge() { return (bridge() && typeof window.NooraNative.voiceIdStatus === 'function') ? window.NooraNative : null; }
+  function vidStatus() { const n = vidBridge(); if (!n) return { ok: false, state: 'unavailable' }; try { return JSON.parse(n.voiceIdStatus() || '{}'); } catch (e) { return { ok: false, state: 'error' }; } }
+  function vidCall(fn, arg) { const n = vidBridge(); if (!n || typeof n[fn] !== 'function') return { ok: false, message: 'Not available' }; try { return JSON.parse((arg === undefined ? n[fn]() : n[fn](JSON.stringify(arg))) || '{}'); } catch (e) { return { ok: false, message: 'Error' }; } }
+  function ownerOnlyActive() { if (!S.ownerOnly || !NATIVE_STT) return false; const s = vidStatus(); return !!(s.modelReady && s.enrolled); }
+  function showOwnerRefusal() {
+    // Do nothing else (no command handling, no AI). Only show (and say, if voice replies are on) the one sentence.
+    const m = C.VOICEID_REFUSAL;
+    busy = false; setListening(false); setVoiceState('IDLE'); toast(m, 5000);
+    const el = $('listening'); if (el) { el.hidden = false; el.classList.add('err'); el.textContent = m; clearTimeout(setListening._t); setListening._t = setTimeout(() => { el.hidden = true; el.classList.remove('err'); refreshStatus(); }, 5000); }
+    try { if (S.ttsOn && !S.muted) speak(m, L.URDU, null); } catch (e) {}
+    if (continuous) setTimeout(() => { if (continuous && !busy && !listening) startListening(); }, 3500);
+  }
+  function startOwnerCheck() {
+    voiceIdChecking = true;
+    const r = vidCall('voiceIdCheck', { sens: S.voiceIdSens });
+    if (!r.ok) {
+      voiceIdChecking = false;
+      if (r.code === 'permission') { setVoiceState('LISTENING', 'asking for microphone permission'); return; }
+      const msg = r.message || 'Voice check could not start.'; setListening(false, msg); setVoiceState('ERROR', msg); continuous = false; updateVoiceBar(); return;
+    }
+    setListening(true);
+    const el = $('listening'); if (el) el.textContent = '🔒 Voice check — say a few words (e.g. “Noora, suno”)…';
+  }
+  function onVoiceIdEvent(ev) {
+    if (ev.phase === 'download_progress' || ev.phase === 'download_done' || ev.phase === 'download_error' || ev.phase === 'download_cancel' || ev.phase === 'deleted') {
+      renderVoiceIdCard();
+      if (ev.phase === 'download_done') toast('Voice model downloaded ✓');
+      if (ev.phase === 'download_error') toast(ev.message || 'Voice model download failed', 6000);
+      return;
+    }
+    if (ev.phase === 'enroll_recording') { const h = $('voiceIdHint'); if (h) h.textContent = '🎤 Listening… read the sentence now.'; return; }
+    if (ev.phase === 'enroll_result') {
+      voiceIdEnrolling = false;
+      const h = $('voiceIdHint'); const b = $('btnVoiceIdRecord'); if (b) b.disabled = false;
+      if (ev.ok) {
+        if (ev.done) { toast('Voice enrolled ✓'); renderVoiceIdCard(); return; }
+        renderVoiceIdCard();
+      } else if (h) h.textContent = '⚠ ' + (ev.message || 'Try that sentence again.');
+      return;
+    }
+    if (ev.phase === 'test_result') {
+      voiceIdTesting = false;
+      const o = $('voiceIdTestOut'); if (o) o.textContent = ev.ok ? ('Score ' + Number(ev.score).toFixed(2) + ' vs threshold ' + Number(ev.threshold).toFixed(2) + ' → ' + ({ match: '✅ would pass', confirm: '🟡 would ask you to confirm', reject: '⛔ would be refused' }[ev.decision] || ev.decision)) : ('⚠ ' + (ev.message || 'Test failed'));
+      const b = $('btnVoiceIdTest'); if (b) b.disabled = false;
+      return;
+    }
+    if (ev.phase === 'check_result' && voiceIdChecking) {
+      voiceIdChecking = false; setListening(false);
+      if (ev.decision === 'match') { voiceIdPassed = true; toast('✓ Aap hi hain — ab boliye', 2500); setVoiceState('LISTENING'); setTimeout(() => startNativeListening(), 350); return; }
+      if (ev.decision === 'confirm') {
+        setVoiceState('IDLE');
+        return modal('Is this you?', 'Your voice is close but not certain. Tap “Yes, it\'s me” to continue.', [
+          { label: 'Yes, it\'s me', go: true, fn: () => { voiceIdPassed = true; startNativeListening(); } },
+          { label: 'No', fn: () => { showOwnerRefusal(); } }]);
+      }
+      if (ev.decision === 'reject') return showOwnerRefusal();
+      // short / no speech / error: do nothing
+      const msg = ev.message || 'didn\'t catch that';
+      setVoiceState('IDLE', msg); if (ev.message) toast(msg, 4000);
+      if (continuous && ev.code !== 'permission') setTimeout(() => { if (continuous && !busy && !listening) startListening(); }, 1200);
+    }
+  }
+  function renderVoiceIdCard() {
+    const st = $('voiceIdState'); if (!st) return;
+    const bm = $('btnVoiceIdModel'), bc = $('btnVoiceIdModelCancel'), be = $('btnVoiceIdEnroll'), en = $('voiceIdEnroll'), op = $('voiceIdOptions');
+    const hide = () => [bm, bc, be, en, op].forEach((x) => { if (x) x.hidden = true; });
+    if (!vidBridge()) { st.textContent = 'Owner voice is only in the NOORA Android app.'; hide(); return; }
+    const s = vidStatus(); hide();
+    if (s.state === 'downloading') { st.textContent = '⬇ Downloading voice model (' + (s.progress || 0) + '%)…'; bc.hidden = false; return; }
+    if (!s.modelReady) { st.textContent = 'Voice model not downloaded yet (~28 MB, one time). ' + (s.lastError ? '⚠ ' + s.lastError : ''); bm.hidden = false; return; }
+    if (s.enrolling) {
+      en.hidden = false;
+      $('voiceIdStep').textContent = 'Sentence ' + (s.enrollIndex + 1) + ' of ' + s.sentenceCount;
+      $('voiceIdSentence').textContent = (s.sentences || [])[s.enrollIndex] || '';
+      if (!voiceIdEnrolling) $('voiceIdHint').textContent = 'Needs about 3–6 seconds of speech.';
+      st.textContent = 'Enrolling your voice…'; return;
+    }
+    if (!s.enrolled) { st.textContent = 'Voice model ready. Enroll your voice to use owner-only mode.'; be.hidden = false; return; }
+    st.textContent = '✅ Voice enrolled (' + s.sampleCount + ' sentences) · stored only on this phone.';
+    op.hidden = false; $('sOwnerOnly').checked = !!S.ownerOnly; $('sVoiceIdSens').value = S.voiceIdSens; $('sVoiceIdSensVal').textContent = S.voiceIdSens;
+    be.hidden = false; be.textContent = 'Re-enroll my voice';
+  }
+  function wireVoiceId() {
+    if (!$('voiceIdCard')) return;
+    $('btnVoiceIdModel').onclick = () => { const r = vidCall('voiceIdDownloadModel'); toast(r.message || (r.ok ? 'Downloading…' : 'Could not start')); renderVoiceIdCard(); };
+    $('btnVoiceIdModelCancel').onclick = () => { vidCall('voiceIdCancelDownload'); renderVoiceIdCard(); };
+    $('btnVoiceIdEnroll').onclick = () => { const r = vidCall('voiceIdEnrollStart'); if (!r.ok) toast(r.message || 'Could not start'); renderVoiceIdCard(); };
+    $('btnVoiceIdEnrollCancel').onclick = () => { vidCall('voiceIdEnrollCancel'); voiceIdEnrolling = false; renderVoiceIdCard(); };
+    $('btnVoiceIdRecord').onclick = () => {
+      if (voiceIdEnrolling) return;
+      if (listening) stopMic();
+      const r = vidCall('voiceIdEnrollRecord');
+      if (!r.ok) { if (r.code === 'permission') $('voiceIdHint').textContent = 'Allow the microphone, then tap Record again.'; else $('voiceIdHint').textContent = '⚠ ' + (r.message || 'Could not record'); return; }
+      voiceIdEnrolling = true; $('btnVoiceIdRecord').disabled = true; $('voiceIdHint').textContent = '🎤 Listening… read the sentence now.';
+    };
+    $('sOwnerOnly').onchange = () => { S.ownerOnly = $('sOwnerOnly').checked; saveS(); toast(S.ownerOnly ? 'Owner-only mode ON' : 'Owner-only mode OFF'); };
+    $('sVoiceIdSens').oninput = () => { S.voiceIdSens = Number($('sVoiceIdSens').value); $('sVoiceIdSensVal').textContent = S.voiceIdSens; };
+    $('sVoiceIdSens').onchange = () => saveS();
+    $('btnVoiceIdTest').onclick = () => {
+      if (voiceIdTesting) return; if (listening) stopMic();
+      const r = vidCall('voiceIdTest', { sens: S.voiceIdSens });
+      if (!r.ok) { $('voiceIdTestOut').textContent = '⚠ ' + (r.message || 'Could not start'); return; }
+      voiceIdTesting = true; $('btnVoiceIdTest').disabled = true; $('voiceIdTestOut').textContent = '🎤 Say a few words…';
+    };
+    $('btnVoiceIdDelete').onclick = () => modal('Delete your voiceprint?', 'Owner-only mode will turn off.', [
+      { label: 'Delete', go: true, fn: () => { vidCall('voiceIdDeleteVoiceprint'); S.ownerOnly = false; saveS(); renderVoiceIdCard(); toast('Voiceprint deleted'); } },
+      { label: 'Cancel' }]);
+    renderVoiceIdCard();
+  }
+  // ======== end 2.4.2 Phase 3 ========
   function onNativeStt(ev) {
     if (ev.phase === 'partial') { input.value = ev.text || ''; autoGrow(); setTranscript(ev.text, false); return; }
     if (ev.phase === 'ready') { setVoiceState('LISTENING'); return; }
@@ -1616,8 +1733,10 @@
       if (ev.type === 'assist') { window.__nooraStartVoice(); }
       if (ev.type === 'resume') { onResumeContacts(); }
       if (ev.type === 'localLlm') { onLocalLlmEvent(ev); return; }
+      if (ev.type === 'voiceid') { onVoiceIdEvent(ev); return; }
     } catch (e) { /* never surface raw errors */ }
   };
+  try { wireVoiceId(); } catch (e) {}
   window.__nooraStartVoice = () => {
     showTab('chat'); unlockSpeech();
     continuous = true; S.continuousVoice = true; saveS(); updateVoiceBar(); refreshStatus();
@@ -1847,7 +1966,7 @@
     setVoiceState('THINKING');
     const via = S.netMode === 'offline' ? 'offline mode' : 'no internet';
     if (small) return reply(small, lang, { meta: { via: via + ' · small talk' } });
-    // 2.4.1: optional on-device Qwen if downloaded — never when online cloud path is active (this function only runs offline)
+    // 2.4.2: optional on-device Qwen if downloaded — never when online cloud path is active (this function only runs offline)
     return tryLocalLlmChat(text, lang, via);
   }
   function localLlmBridge() {
@@ -2569,6 +2688,7 @@
   updateMicIcon();
 
   function stopMic() {
+    if (voiceIdChecking) { voiceIdChecking = false; try { vidCall('voiceIdCancel'); } catch (e) {} }
     if (nativeListening) { try { window.NooraNative.sttStop(); } catch (e) {} nativeListening = false; }
     if (rec) { try { rec.stop(); } catch (e) {} }
     setListening(false);
@@ -2842,6 +2962,7 @@
   function openSettings() {
     try { renderContactsAccess(); } catch (e) {}
     try { renderLocalLlmCard(); } catch (e) {}
+    try { renderVoiceIdCard(); } catch (e) {}
     $('sName').value = S.userName;
     $('sTts').checked = S.ttsOn;
     $('sTtsProvider').value = S.ttsProvider || 'auto';

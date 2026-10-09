@@ -355,6 +355,31 @@
         <button type="button" class="outline" id="btnLocalLlmDelete" hidden>🗑 Remove model</button>
         <p class="note" id="localLlmLicense"></p>
       </div>
+      <h3>Owner voice (optional)</h3>
+      <div class="card" id="voiceIdCard">
+        <p class="note" id="voiceIdState">Checking…</p>
+        <p class="note">On-device speaker check (sherpa-onnx + CAM++ model, ~28 MB, downloaded once over HTTPS — not inside the APK). Your voiceprint stays in the app's private storage on this phone and is never uploaded. <b>Not security-grade</b>: a recording or a similar voice can fool it. It never protects typed messages.</p>
+        <button type="button" class="outline" id="btnVoiceIdModel" hidden>⬇ Download voice model (~28 MB)</button>
+        <button type="button" class="outline" id="btnVoiceIdModelCancel" hidden>Cancel download</button>
+        <div id="voiceIdEnroll" hidden>
+          <p class="note"><b id="voiceIdStep">Sentence 1 of 5</b> — tap Record and read this aloud (any accent, normal voice, quiet room):</p>
+          <p id="voiceIdSentence" dir="auto" style="font-size:1.1em;margin:8px 0"></p>
+          <p class="note" id="voiceIdHint"></p>
+          <button type="button" class="primary" id="btnVoiceIdRecord">🎤 Record</button>
+          <button type="button" class="outline" id="btnVoiceIdEnrollCancel">Cancel enrollment</button>
+        </div>
+        <button type="button" class="primary" id="btnVoiceIdEnroll" hidden>Enroll my voice (5 sentences, ~30 s)</button>
+        <div id="voiceIdOptions" hidden>
+          <label class="row">Owner-only mode<input type="checkbox" id="sOwnerOnly" class="switch"></label>
+          <p class="note">When ON, the mic first checks your voice (say a few words, ~2 s). If it is not you, NOORA does nothing and only shows: «معاف کیجیے، میں صرف اپنے مالک کی بات مانتی ہوں». After a pass, speak your command.</p>
+          <label>Sensitivity: <b id="sVoiceIdSensVal">5</b> <span class="note">(1 = lenient · 10 = strict)</span>
+            <input type="range" id="sVoiceIdSens" min="1" max="10" step="1" value="5"></label>
+          <p class="note">If the match is close but not sure, you get a “Is this you?” tap to confirm.</p>
+          <button type="button" class="outline" id="btnVoiceIdTest">Test my voice</button>
+          <button type="button" class="outline" id="btnVoiceIdDelete">🗑 Delete my voiceprint</button>
+          <p class="note" id="voiceIdTestOut"></p>
+        </div>
+      </div>
       <h3>Memory</h3>
       <div class="card">
         <label class="row">Remember things I ask<input type="checkbox" id="sMemOn" class="switch"></label>

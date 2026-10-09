@@ -819,7 +819,7 @@
   }
 
   // ---------------- Voice / TTS helpers (shared, unit-testable) ----------------
-  const VERSION = '2.4.1';
+  const VERSION = '2.4.2';
   // 2.3.0: ElevenLabs removed (paid; silent fallback in the Android WebView). Saved ElevenLabs keys are left untouched but unused.
   // 'native' = Android TextToSpeech through the NooraNative bridge (free, offline-capable, Google voices incl. ur-PK / hi-IN / pa-IN).
   const TTS_PROVIDERS = [
@@ -1287,6 +1287,23 @@
   }
 
 
+  // ---- 2.4.2 Phase 3: owner voice identification (decision math; mirrored in Kotlin VoiceMath) ----
+  const VOICEID_REFUSAL = '\u0645\u0639\u0627\u0641 \u06A9\u06CC\u062C\u06CC\u06D2\u060C \u0645\u06CC\u06BA \u0635\u0631\u0641 \u0627\u067E\u0646\u06D2 \u0645\u0627\u0644\u06A9 \u06A9\u06CC \u0628\u0627\u062A \u0645\u0627\u0646\u062A\u06CC \u06C1\u0648\u06BA';
+  const VOICEID = { SENS_MIN: 1, SENS_MAX: 10, SENS_DEFAULT: 5, THR_MIN: 0.25, THR_MAX: 0.70, CONFIRM_BAND: 0.10, ENROLL_SENTENCES: 5 };
+  function voiceIdThreshold(sens) {
+    let s = Math.round(Number(sens)); if (!isFinite(s)) s = VOICEID.SENS_DEFAULT;
+    s = Math.max(VOICEID.SENS_MIN, Math.min(VOICEID.SENS_MAX, s));
+    return Math.round((VOICEID.THR_MIN + (s - 1) / 9 * (VOICEID.THR_MAX - VOICEID.THR_MIN)) * 1000) / 1000;
+  }
+  // 'match' (>= threshold) | 'confirm' (within CONFIRM_BAND below: ask owner to tap) | 'reject'
+  function voiceIdDecide(score, sens) {
+    const thr = voiceIdThreshold(sens);
+    if (!(score >= -1)) return 'reject';
+    if (score >= thr) return 'match';
+    if (score >= thr - VOICEID.CONFIRM_BAND) return 'confirm';
+    return 'reject';
+  }
+
   const api = {
     Lang, G, detect, tokens, norm, greeting, isMedical, isEmergency, route, parseClock, parseDurationSeconds, parseCurrency, extractPlace,
     offlineReply, offlineNoAi, shouldSkipCloudAi, IMAGE_EDIT_MODELS, buildGeminiImageEditRequest, parseGeminiImageResponse, mapImageEditError,
@@ -1297,6 +1314,7 @@
     VERSION, TTS_PROVIDERS, DEFAULT_VOICE_SETTINGS, XAI_TTS_URL, XAI_VOICES, TTS_CHUNK, effectiveTtsProvider, ttsLocalesFor, rankNativeVoices, buildXaiTtsRequest, mapXaiTtsError, cleanSpeakText, chunkSpeakText, scoreDeviceVoice, pickBestDeviceVoice, describeDefaultVoice, mergeVoiceSettings, ttsProviderReady, speechErrorMessage, assertNoHardcodedSecrets,
     MEMORY_CATEGORIES, FILE_LIMITS, migrateSettings, searchConversations, renameConversationRecord, validateUpload, fileMetadata,
     parseSSEChunk, parseStreamBuffer, selectAiProvider, selectImageProvider, selectVideoProvider,
+    VOICEID, VOICEID_REFUSAL, voiceIdThreshold, voiceIdDecide,
     toolResult, toolCalculator, toolDateTime, DEVICE_ACTIONS, listDeviceActions, createToolRegistry
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.NooraCore = api;

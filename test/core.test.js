@@ -129,8 +129,6 @@ test('general chat + keywords', () => {
 test('parsers with real captured payloads', () => {
   const news = C.parseRss2Json(JSON.parse(res('rss2json.json')));
   assert.ok(news.length >= 3); assert.ok(news.every((n) => n.title && n.url.startsWith('https://news.google.com/')));
-  const wiki = C.parseWikiSearch(JSON.parse(res('wiki_ur.json')), 'ur');
-  assert.equal(wiki[0].source.title, 'چنبیلی');
   assert.equal(C.parseChatCompletion(JSON.parse(res('chat.json'))), 'Four');
   assert.ok(Math.abs(C.perTola(1, 1) - 0.375) < 0.001);
   const fx = JSON.parse(res('fx.json')); assert.ok(fx.rates.PKR > 100);
@@ -143,7 +141,7 @@ test('parsers with real captured payloads', () => {
 });
 
 test('version and arabic + model map', () => {
-  assert.equal(C.VERSION, '2.4.2');
+  assert.equal(C.VERSION, '2.5.2');
   assert.ok(C.Lang.ARABIC);
   assert.equal(C.detect('مرحبا كيف حالك', C.Lang.ARABIC), C.Lang.ARABIC);
   assert.ok(C.MODEL_MAP['Google Gemini']['Fast'][0].includes('gemini'));
@@ -164,7 +162,7 @@ test('version and arabic + model map', () => {
 
 
 test('voice settings persistence helpers + provider config without keys in repo', () => {
-  assert.equal(C.VERSION, '2.4.2');
+  assert.equal(C.VERSION, '2.5.2');
   assert.ok(Array.isArray(C.TTS_PROVIDERS));
   assert.ok(C.TTS_PROVIDERS.some((p) => p.id === 'browser' && !p.needsKey));
   assert.ok(C.TTS_PROVIDERS.some((p) => p.id === 'openai' && p.needsKey));

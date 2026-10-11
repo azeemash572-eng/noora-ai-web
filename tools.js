@@ -9,7 +9,7 @@
 (function (root) {
   'use strict';
   const Core = root.NooraCore || (typeof require === 'function' ? require('./core.js') : null);
-  const VERSION = '2.4.2';
+  const VERSION = '2.5.2';
   const ALL = ['android', 'ios-web', 'web'];
 
   class ToolError extends Error { constructor(code, message) { super(message); this.code = code; } }
@@ -463,7 +463,7 @@
       params: S({ name: str('Shortcut name exactly as in the Shortcuts app', 120), input: str('Text to pass (optional)', 1000) }, ['name']), platforms: ['ios-web', 'web'], confirm: true, risk: 'automation',
       unavailable: 'iOS Shortcuts exist only on iPhone / iPad — on Android NOORA uses intents instead.',
       prepare(a) { return { summary: 'Run Shortcut "' + a.name + '"' + (a.input ? ' with text' : ''), details: [['Shortcut', a.name]].concat(a.input ? [['Text', a.input]] : []), what: 'Shortcuts', note: 'iOS will ask you to allow NOORA to run this shortcut.', action: { kind: 'url', url: shortcutUrl(a.name, a.input), external: true } }; } },
-    { name: 'web_search', group: 'Web', label: 'Web search', description: 'Search live web sources (news + Wikipedia). Never fabricate results.', params: S({ query: str('Search query', 300) }, ['query']), info: true,
+    { name: 'web_search', group: 'Web', label: 'Web search', description: 'Look up live news headlines. Never fabricate results.', params: S({ query: str('Search query', 300) }, ['query']), info: true,
       prepare(a) { return { summary: 'Search: ' + a.query, action: { kind: 'local', op: 'web_search', query: a.query } }; } },
     { name: 'calculator', group: 'Utility', label: 'Calculator', description: 'Evaluate arithmetic: + - * / % ^, brackets, decimals, sqrt.', params: S({ expression: str('Math expression', 300) }, ['expression']), info: true,
       prepare(a) { const r = calculate(a.expression); if (!r.ok) fail('bad_args', 'Calculator: ' + r.message); return { summary: a.expression + ' = ' + r.data, action: { kind: 'result', data: r.data, text: a.expression + ' = ' + r.data } }; } },
@@ -729,6 +729,17 @@
   }
   const SPLIT_SRC = '\\s*(?:,\\s*)?(?:\\b(?:aur phir|aur fir|or phir|phir|fir|uske baad|us ke baad|iske baad|and then|then|after that|aur|and|or)\\b|[,،;])\\s*';
   /** Parse a spoken / typed command into an ordered multi-step plan, or null when it is normal chat. */
+  /**
+   * 2.5.0 latency: only send the (large) tool schema to the AI when the message could be a phone/app action.
+   * Plain chat / questions go without tools (smaller prompt → faster first token, fewer rate-limit tokens on Groq's 8K TPM free tier).
+   * Deliberately broad (English, Roman Urdu, Urdu, Hindi); a miss only means that one reply cannot trigger a tool — say it again or use a clearer verb.
+   */
+  const ACTION_WORDS = /\b(call|dial|phone|ring|sms|text|message|msg|whatsapp|wa|email|mail|open|launch|start|alarm|timer|remind|reminder|torch|flash(?:light)?|navigate|directions?|maps?|route|play|pause|stop|resume|next|previous|skip|music|song|volume|mute|brightness|camera|photo|picture|selfie|screenshot|gallery|contacts?|calendar|event|schedule|settings?|wi-?fi|bluetooth|airplane|share|send|forward|save|note|remember|forget|set|turn|switch|enable|disable|edit|crop|rotate|download|upload|file|files|folder|search|find|lookup|translate|calculate|convert|shortcut|app|apps|install|uninstall|delete|copy|paste|read|summari[sz]e|tell\s+\w+\s+(?:that|to)|karo|kar\s*do|kholo|khol\s*do|bhejo|bhej|laga|lagao|laga\s*do|chalao|chala\s*do|band|jalao|bujhao|dikhao|yaad|rakho|bana|banao|bulao|milao|likho|parho|sunao)\b|کال|میسج|پیغام|الارم|ٹائمر|ٹارچ|کھولو|کھول|بھیجو|لگاؤ|لگا|چلاؤ|بند|یاد|رکھو|بناؤ|ملاؤ|لکھو|कॉल|मैसेज|अलार्म|टाइमर|टॉर्च|खोलो|भेजो|लगाओ|चलाओ|बंद|याद|रखो|बनाओ|मिलाओ|लिखो/iu;
+  function looksActionable(text) {
+    const t = String(text || '').trim();
+    if (!t) return false;
+    return ACTION_WORDS.test(t);
+  }
   function parseCommand(text) {
     const raw = cleanCommand(text);
     if (!raw) return null;
@@ -948,7 +959,7 @@
   }
 
   const api = {
-    VERSION, ToolError, say, langKey, asciiDigits, normalizePhone, whatsappDigits, normalizeEmails, telUrl, smsUrl, mailtoUrl, whatsappUrl, mapsUrl, shortcutUrl, safeHttpUrl, buildIcs, MAP_PROVIDERS,
+    VERSION, ToolError, looksActionable, say, langKey, asciiDigits, normalizePhone, whatsappDigits, normalizeEmails, telUrl, smsUrl, mailtoUrl, whatsappUrl, mapsUrl, shortcutUrl, safeHttpUrl, buildIcs, MAP_PROVIDERS,
     calculate, calcEvaluate, parseWhen, fmtWhen, validateArgs, TOOLS, GROUPS, getTool, availability, needsConfirm, prepare, listTools, parseDateArg,
     toolsForApi, parseToolCalls, accumulateToolCalls, extractActionBlock, toolPromptNative, toolPromptFallback,
     cleanCommand, parseCommand, parseSingle, parseYesNo, matchContacts, pickChoice, nicknameRecord, findNickname, describeChoices, squash,

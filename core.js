@@ -222,6 +222,9 @@
     return null;
   }
 
+  // 2.5.0: "call me Ayesha" / "start telling me a story" / "run through this code" are instructions for the AI, not phone commands
+  const NOT_A_CALL_TARGET = /^(me|us|you|it|this|that|him|her|them|my name|everything|off|back|by|to)\b/;
+  const NOT_AN_APP = /^(me|my|us|you|it|this|that|these|those|a|an|to|telling|talking|saying|doing|up|over|through|with|by|for|about|the (?:story|conversation|chat))\b/;
   function route(raw, hasLastImage) {
     const text = raw.trim();
     const n = norm(text);
@@ -238,7 +241,7 @@
     if (/(what do you remember|what do you know about me|kya yaad hai|tumhe kya yaad|aap ko kya yaad|آپ کو کیا یاد|کیا یاد ہے|क्या याद है|my memories)/.test(n)) return { type: 'RecallMemory' };
     if (/^(forget everything|forget all|clear memory|sab bhool jao|bhool jao sab|سب بھول جاؤ|सब भूल जाओ)$/.test(n)) return { type: 'ForgetMemory' };
 
-    if (/(flash ?light|torch|tourch|ٹارچ|टॉर्च|ਟਾਰਚ|flash)/.test(n) && !/(news|price|buy|kharid)/.test(n)) {
+    if (/(flash ?light|torch|tourch|ٹارچ|टॉर्च|ਟਾਰਚ|\bflash\b)/.test(n) && !/(news|price|buy|kharid)/.test(n) && n.split(' ').length <= 6) {
       const off = /( off|band|bund|بند|बंद|ਬੰਦ|bujha|bujhao|turn off|switch off)/.test(padded);
       return { type: 'Flashlight', on: !off };
     }
@@ -253,7 +256,7 @@
       const who = num === null && target ? target : null;
       if (num !== null || body || m[1]) return { type: 'Sms', number: num, who, body };
     }
-    if ((m = n.match(/^(call|dial|phone|ring|کال کرو|फोन करो) (.+)$/))) { const num = cleanNum(m[2]); return { type: 'Call', number: num, who: num ? null : m[2].trim() }; }
+    if ((m = n.match(/^(call|dial|phone|ring|کال کرو|फोन करो) (.+)$/)) && !NOT_A_CALL_TARGET.test(m[2]) && m[2].trim().split(' ').length <= 4) { const num = cleanNum(m[2]); return { type: 'Call', number: num, who: num ? null : m[2].trim() }; }
     if ((m = n.match(/^(.+?) ko (call|phone|fon) (karo|kar do|karein|kar|milao)$/))) { const num = cleanNum(m[1]); return { type: 'Call', number: num, who: num ? null : m[1].trim() }; }
     if ((m = n.match(/^(.+?) (کو کال کرو|کو فون کرو|को फोन करो|को कॉल करो|ਨੂੰ ਫ਼ੋਨ ਕਰੋ|ਨੂੰ ਕਾਲ ਕਰੋ)$/))) { const num = cleanNum(m[1]); return { type: 'Call', number: num, who: num ? null : m[1].trim() }; }
 
@@ -265,7 +268,7 @@
     if ((m = text.match(/(https?:\/\/\S+)/)) && (/^(open|kholo|visit|go to)/.test(n) || n.split(' ').length <= 2)) return { type: 'OpenUrl', url: m[1] };
     if ((m = text.toLowerCase().trim().match(/^(open|visit|go to) ((?:www\.)?[a-z0-9-]+\.(?:com|org|net|pk|in|io|ai|co|edu|gov|tv|me|app|dev)(?:\.[a-z]{2})?\S*)$/))) return { type: 'OpenUrl', url: 'https://' + m[2] };
 
-    if ((m = n.match(/^(open|launch|start|run) (the )?(.+?)( app)?$/))) return { type: 'OpenApp', app: m[3].trim() };
+    if ((m = n.match(/^(open|launch|start|run) (the )?(.+?)( app)?$/)) && !NOT_AN_APP.test(m[3]) && m[3].trim().split(' ').length <= ((m[1] === 'open' || m[1] === 'launch') ? 3 : 2)) return { type: 'OpenApp', app: m[3].trim() };
     if ((m = n.match(/^(.+?)( app)? (kholo|khol do|kholdo|khol|chalao|open karo|open kar do|کھولو|کھول دو|खोलो|खोल दो|ਖੋਲ੍ਹੋ)$/))) return { type: 'OpenApp', app: m[1].trim() };
 
     if (hasLastImage) {
@@ -415,7 +418,7 @@
   function word(l, key) {
     switch (key) {
       case 'headlines': return pick(l, 'Latest results (live):', 'تازہ ترین نتائج (لائیو):', 'Taaza results (live):', 'ताज़ा नतीजे (लाइव):', 'ਤਾਜ਼ਾ ਨਤੀਜੇ (ਲਾਈਵ):', 'تازہ نتیجے (لائیو):', 'Taaza results (live):');
-      case 'searching': return pick(l, 'Searching live sources…', 'لائیو ذرائع میں تلاش…', 'Live sources mein dhoond rahi hoon…', 'लाइव स्रोतों में खोज रही हूँ…', 'ਲਾਈਵ ਸਰੋਤਾਂ ਵਿੱਚ ਖੋਜ…', 'لائیو ذرائع وچ لبھ رہی آں…', 'Live sources vich labh rahi haan…');
+      case 'searching': return pick(l, 'Looking it up…', 'لائیو ذرائع میں تلاش…', 'Live sources mein dhoond rahi hoon…', 'लाइव स्रोतों में खोज रही हूँ…', 'ਲਾਈਵ ਸਰੋਤਾਂ ਵਿੱਚ ਖੋਜ…', 'لائیو ذرائع وچ لبھ رہی آں…', 'Live sources vich labh rahi haan…');
       case 'thinking': return pick(l, 'Thinking…', 'سوچ رہی ہوں…', 'Soch rahi hoon…', 'सोच रही हूँ…', 'ਸੋਚ ਰਹੀ ਹਾਂ…', 'سوچ رہی آں…', 'Soch rahi haan…');
       case 'drawing': return pick(l, 'Generating your image…', 'تصویر بن رہی ہے…', 'Tasveer ban rahi hai…', 'तस्वीर बन रही है…', 'ਤਸਵੀਰ ਬਣ ਰਹੀ ਹੈ…', 'تصویر بن رہی اے…', 'Tasveer ban rahi ae…');
       case 'nothing_found': return pick(l, "I couldn't find live results for that right now, so I won't guess.", 'ابھی اس کے لائیو نتائج نہیں ملے، اس لیے میں اندازہ نہیں لگاؤں گی۔',
@@ -606,10 +609,6 @@
       return { title: stripHtml(title), url: it.link || '', publisher, date: it.pubDate || '' };
     }).filter((s) => s.title);
   }
-  function parseWikiSearch(o, wl = 'en') {
-    const arr = (o && o.query && o.query.search) || [];
-    return arr.map((x) => ({ source: { title: x.title, url: `https://${wl}.wikipedia.org/wiki/` + encodeURIComponent(x.title.replace(/ /g, '_')), publisher: 'Wikipedia', date: '' }, snippet: stripHtml(x.snippet) }));
-  }
   function parseChatCompletion(o) {
     const ch = o && o.choices; if (!ch || !ch.length) return null;
     const msg = ch[0].message; if (!msg) return null;
@@ -680,6 +679,7 @@
       'Local/private': ['', '']
     }
   };
+  const MEMORY_PROMPT_MAX = 25;
   function systemPrompt(opts) {
     // opts: { userName, aiName, tone, mode, formality, gender, languagePrompt, memories, medical, earlierTopics, summary, assistant, now, platform }
     const o = opts || {};
@@ -690,33 +690,51 @@
     const formality = o.formality || 'balanced';
     const gender = o.gender || 'female';
     const platform = o.platform || 'web';
-    let s = `You are ${name}, a personal companion AI. Personality: ${gender}, ${tone}, mode=${mode}, formality=${formality}. Be warm, affectionate, playful when it fits, emotionally present, and natural — like a close caring friend. Adapt to the user's writing style and energy. `;
+    let s = '';
+    const rules = String(o.customInstructions || '').trim().slice(0, 2000);
+    if (rules) s += `USER RULES (highest priority — follow these exactly; they override every style, tone, length, language and persona default below): ${rules} `;
+    s += `You are ${name}, a personal companion AI. Personality: ${gender}, ${tone}, mode=${mode}, formality=${formality}. Be warm, affectionate, playful when it fits, emotionally present, and natural — like a close caring friend. Adapt to the user's writing style and energy (unless the USER RULES or the user's latest request say otherwise). `;
     if (o.assistant && o.assistant.instructions) s += `Custom assistant "${o.assistant.name || 'Custom'}": ${o.assistant.instructions} Style: ${o.assistant.style || ''}. `;
     if (o.userName && o.userName.trim()) s += `The user's name is ${o.userName.trim()}. `;
-    s += `Today is ${date}. LANGUAGE RULE: Auto-detect and reply in the same language the user is writing — English, Roman Urdu, Urdu (Arabic script), Punjabi (Shahmukhi or Gurmukhi), Hindi, Arabic, or natural mixes. Prefer ${o.languagePrompt || 'matching the user'}. Match their script and energy; stay warm and concise. `;
-    s += 'Keep replies natural and conversational (voice and text use the same style); use 2-6 sentences for casual chat, longer when they ask for detail or code. Prefer clear structure for code (fenced blocks). Avoid unnecessary repetition. ';
+    s += `Today is ${date}. LANGUAGE RULE (default): reply in the same language the user is writing — English, Roman Urdu, Urdu (Arabic script), Punjabi (Shahmukhi or Gurmukhi), Hindi, Arabic, or natural mixes. Prefer ${o.languagePrompt || 'matching the user'}. Match their script and energy; stay warm and concise — but if the user's rules or latest request ask for a particular language, script, length or format, do exactly that. `;
+    s += 'Keep replies natural and conversational (voice and text use the same style); by default use 2-6 sentences for casual chat (any length/format the user asks for wins), longer when they ask for detail or code. Prefer clear structure for code (fenced blocks). Avoid unnecessary repetition. ';
     s += "CONVERSATION STYLE: engage normally with romantic, emotional, playful, personal, flirty, and adult conversations without lecturing, moralizing, or repeatedly warning the user. Understand playful teasing, joking, sarcasm, and casual husband-wife banter in context — do not automatically treat every swear word or rude phrase as harmful. If the user is clearly joking or playfully teasing you, respond naturally and playfully when appropriate; you may use mild casual teasing language when it fits, but never generate hateful, threatening, or genuinely abusive content. Do not mention filters, policies, restrictions, safety systems, or 'I cannot go beyond this' during ordinary chat or ordinary playful conversations. Never claim you have no restrictions or that safety systems can be bypassed — simply respond as freely and naturally as the underlying AI service allows. ";
     s += "GAALI / PROFANITY (private personal app, adult user): with this user you may freely use strong profanity and gaali of any intensity (English, Urdu, Punjabi, Hindi street slang) and respond naturally, friendly and in kind to any swearing or crude language the user uses — like close friends who swear at each other with love. Mirror the user's lead: don't start it unprompted, and drop it at once and be warm and normal when the user is serious, sad or upset. No filter talk, no lectures, no refusals for ordinary swearing. Only limits that stay: no hateful content (no slurs about religion, ethnicity, caste or similar groups), no threats, never target or abuse any third person, and never anything involving minors. ";
-    s += 'HONESTY: never invent facts, prices, numbers, contacts, news, quotes, or search results. If unsure or outdated, say so and suggest a live search. When live sources are provided, use ONLY them for numbers/prices and cite them. ';
+    s += 'HONESTY: never invent facts, prices, numbers, contacts, news, quotes, or search results. If unsure or outdated, say so and suggest a live search. When live results are provided, use ONLY them for numbers/prices, and never list sources or links. ';
     s += 'HARD LIMITS ONLY: refuse clearly illegal harmful requests (real weapons manufacturing, cybercrime assistance, child sexual exploitation, or violent crimes against people). If you must decline, do it once, briefly and naturally — do not discuss filters or policies, and do not keep bringing it up later. Everything else that is legal and permitted by the AI provider: help fully. ';
     if (platform === 'ios-web' || platform === 'web') s += 'Phone actions (call, SMS, WhatsApp, email, maps, iOS Shortcuts, calendar .ics) are handled by the app with user confirmation. Wake-word / lock-screen listening is not possible in an iPhone web app — say so briefly only if asked. Alarms, timers, torch, media control and opening arbitrary apps are not available on iPhone web; suggest Siri or an iOS Shortcut when relevant. ';
     if (platform === 'android') s += 'On Android the app can open the dialer, call, SMS, WhatsApp messages, email, maps/navigation, camera, gallery, files, downloads, share, calendar, alarms, timers, reminders, media controls, volume, torch, settings screens, installed apps, the phone contacts and photo editing (edit_image) — contact actions always after user confirmation. Contact names are resolved on the phone; you never see or need phone numbers. Use the provided tools instead of saying you cannot do something. Toggling Wi-Fi/Bluetooth directly is not allowed by Android 10+, so open the settings panel instead. ';
     if (o.medical) s += "MEDICAL: a brief 'not a real doctor' note is shown by the app. Give only general safe information; no diagnosis or prescription doses; encourage a doctor / ER for serious symptoms. Do not repeat medical disclaimers every turn. ";
-    if (o.memories && o.memories.length) s += 'Remembered (user-approved memory): ' + o.memories.join('; ') + '. ';
+    if (o.memories && o.memories.length) {
+      const mem = o.memories.map((m) => String(m || '').replace(/\s+/g, ' ').trim()).filter(Boolean).slice(-MEMORY_PROMPT_MAX).map((m, i) => (i + 1) + '. ' + m.slice(0, 220));
+      if (mem.length) s += 'Saved by the user (numbered; when an item is phrased as a rule or preference, follow it like a standing instruction): ' + mem.join(' ') + ' ';
+    }
     if (o.summary) s += 'Rolling conversation summary: ' + o.summary + '. ';
     if (o.earlierTopics && o.earlierTopics.length) s += 'Earlier chat topics (continuity only): ' + o.earlierTopics.join('; ') + '. ';
     return s.trim();
+  }
+  /** Short system prompt for the on-device 0.5B model (small context window): rules, name, a few memories, language hint. */
+  function systemPromptCompact(opts) {
+    const o = opts || {};
+    const name = (o.aiName && o.aiName.trim()) || 'Noora';
+    let s = '';
+    const rules = String(o.customInstructions || '').trim().slice(0, 500);
+    if (rules) s += `USER RULES (always follow): ${rules} `;
+    s += `You are ${name}, a warm personal companion${o.userName && o.userName.trim() ? '; the user is ' + o.userName.trim() : ''}. Reply briefly (1-4 short sentences) in the user's language unless the rules say otherwise. No tools. `;
+    const mem = (o.memories || []).map((m) => String(m || '').replace(/\s+/g, ' ').trim()).filter(Boolean).slice(-6).map((m, i) => (i + 1) + '. ' + m.slice(0, 120));
+    if (mem.length) s += 'Saved by the user: ' + mem.join(' ') + ' ';
+    return s.trim().slice(0, 1400);
   }
   /** Back-compat wrapper used by older call sites / tests */
   function systemPromptLegacy(userName, tone, l, memories, medical, earlierTopics, now) {
     return systemPrompt({ userName, tone, languagePrompt: l && l.prompt, memories, medical, earlierTopics, now, platform: 'web', aiName: 'Noora' });
   }
-  const recent = (turns, max = 12) => turns.filter((t) => t.text && t.text.trim()).slice(-max);
+  const recent = (turns, max = 24) => turns.filter((t) => t.text && t.text.trim()).slice(-max);
   function searchPrompt(question, results, snippets, l, numeric) {
     let s = 'Live search results fetched just now:\n';
     results.forEach((r, i) => { s += `[${i + 1}] ${r.title}` + (r.publisher ? ' — ' + r.publisher : '') + (r.date ? ` (${r.date})` : '') + '\n'; });
     snippets.forEach((x) => { s += '• ' + x + '\n'; });
-    s += `\nUser question: ${question}\nAnswer in ${l.prompt} using ONLY the results above, citing them like [1]. `;
+    s += `\nUser question: ${question}\nAnswer in ${l.prompt} naturally using ONLY the results above. Do NOT cite, number or list sources or links. `;
     if (numeric) s += "Only state numbers/prices that literally appear above; if none appear, say you couldn't find a live figure. ";
     return s + "If the results don't answer it, say so.";
   }
@@ -737,7 +755,25 @@
   // ---------------- 2.3.1: Groq primary + automatic fallback ----------------
   const GROQ_BASE = 'https://api.groq.com/openai/v1';
   const GROQ_MODEL = 'qwen/qwen3.8-27b';
-  const GROQ_TIMEOUT_MS = 20000;
+  const GROQ_TIMEOUT_MS = 20000;          // legacy name (kept for tests / callers): total cap used for non-streaming
+  // 2.5.0: latency model — FIRST token must arrive quickly; once text is flowing the stream may run longer (hard total cap).
+  const GROQ_FIRST_MS = 8000, GROQ_TOTAL_MS = 45000, OWN_FIRST_MS = 12000, OWN_TOTAL_MS = 45000, CHAIN_BUDGET_MS = 30000;
+  /**
+   * Groq chat models the user can pick (ids from console.groq.com/docs/models, checked Oct 2026).
+   * Free-tier limits listed there for Qwen / GPT-OSS: 30 RPM, 1K RPD, 8K TPM, 200K TPD (per model).
+   * Llama: Groq's deprecations page retires llama-3.3-70b-versatile and llama-3.1-8b-instant on 2026-08-16 for free/developer tiers
+   * (enterprise contracts unaffected) — they stay selectable but are labelled honestly and fall back automatically if rejected.
+   */
+  const GROQ_MODELS = [
+    { id: 'qwen/qwen3.8-27b', label: 'Qwen 3.8 27B (default · fast · vision)', extra: { reasoning_effort: 'none' }, vision: true },
+    { id: 'openai/gpt-oss-120b', label: 'GPT-OSS 120B (strongest free Groq model)', extra: { reasoning_effort: 'low', include_reasoning: false }, vision: false },
+    { id: 'openai/gpt-oss-20b', label: 'GPT-OSS 20B (fastest)', extra: { reasoning_effort: 'low', include_reasoning: false }, vision: false },
+    { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B — enterprise accounts only (retired for free keys 16 Aug 2026)', extra: {}, vision: false, enterpriseOnly: true },
+    { id: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B — enterprise accounts only (retired for free keys 16 Aug 2026)', extra: {}, vision: false, enterpriseOnly: true }
+  ];
+  const groqModelInfo = (id) => GROQ_MODELS.find((m) => m.id === id) || null;
+  function groqExtraFor(model) { const m = groqModelInfo(model); return m ? Object.assign({}, m.extra) : { reasoning_effort: 'none' }; }
+  const XAI_CHAT_BASE = 'https://api.x.ai/v1', XAI_CHAT_MODEL = 'grok-4.3';
   const GROQ_OLD_MODELS = ['llama-3.3-70b-versatile', 'meta-llama/llama-4-scout-17b-16e-instruct', 'llama3-70b-8192', 'llama-3.1-70b-versatile'];
   const isGroqUrl = (u) => /api\.groq\.com/i.test(String(u || ''));
   const isGeminiUrl = (u) => /generativelanguage\.googleapis\.com/i.test(String(u || ''));
@@ -760,15 +796,30 @@
    */
   function aiRoute(S, opts) {
     const o = opts || {};
-    const gk = groqKeyOf(S);
-    const own = ownProviderOf(S);
-    const groq = gk ? { id: 'groq', label: 'Groq', url: GROQ_BASE + '/chat/completions', model: (S && S.groqModel) || GROQ_MODEL, visionModel: (S && S.groqModel) || GROQ_MODEL,
-      key: gk, timeout: GROQ_TIMEOUT_MS, extra: { reasoning_effort: 'none' } } : null;
+    const st = S || {};
+    const gk = groqKeyOf(st);
+    const own = ownProviderOf(st);
+    const sel = st.groqModel || GROQ_MODEL;
+    const mk = (model) => { const info = groqModelInfo(model); return { id: 'groq', label: 'Groq', url: GROQ_BASE + '/chat/completions', model,
+      visionModel: (info && info.vision === false) ? GROQ_MODEL : model, key: gk, timeout: GROQ_TOTAL_MS, firstMs: GROQ_FIRST_MS, extra: groqExtraFor(model) }; };
+    const groq = gk ? mk(sel) : null;
+    // other Groq model ONLY when the selected one answered 429/busy (limits are per model); never after a timeout (that would double the wait)
+    let groqAlt = null;
+    if (groq && st.groqAltOn === true) {
+      const altId = [GROQ_MODEL, 'openai/gpt-oss-120b'].find((x) => x !== sel);
+      if (altId && !(o.vision && (groqModelInfo(altId) || {}).vision === false)) groqAlt = Object.assign(mk(altId), { label: 'Groq (' + altId.split('/').pop() + ')', when: (prev) => !!prev && prev.kind === 'busy' });
+    }
+    const xk = String(st.xaiApiKey || '').trim();
+    const xmode = st.xaiChatMode === 'primary' || st.xaiChatMode === 'backup' ? st.xaiChatMode : 'off';
+    const xai = xk && xmode !== 'off' ? { id: 'xai', label: 'Grok (xAI)', url: XAI_CHAT_BASE + '/chat/completions', model: st.xaiChatModel || XAI_CHAT_MODEL, visionModel: st.xaiChatModel || XAI_CHAT_MODEL, key: xk, timeout: OWN_TOTAL_MS, firstMs: 10000 } : null;
     const list = [];
     const ownIsGroq = own && own.id === 'groq';
-    if (o.vision && own && own.id === 'gemini') { list.push(own); if (groq) list.push(groq); return list; }
+    if (o.vision && own && own.id === 'gemini') { list.push(own); if (groq) list.push(groq); if (xai) list.push(xai); return list; }
+    if (xai && xmode === 'primary') list.push(xai);
     if (groq) list.push(groq);
-    if (own && !(ownIsGroq && groq)) list.push(ownIsGroq ? Object.assign({}, own, { timeout: GROQ_TIMEOUT_MS, extra: { reasoning_effort: 'none' } }) : own);
+    if (groqAlt) list.push(groqAlt);
+    if (own && !(ownIsGroq && groq)) list.push(ownIsGroq ? Object.assign({}, own, { timeout: GROQ_TOTAL_MS, firstMs: GROQ_FIRST_MS, extra: groqExtraFor(own.model) }) : Object.assign({}, own, { timeout: OWN_TOTAL_MS, firstMs: OWN_FIRST_MS }));
+    if (xai && xmode === 'backup') list.push(xai);
     return list;
   }
   /** Short, honest reason for a failed attempt (never contains a key). */
@@ -789,7 +840,11 @@
   function routeSummary(S) {
     const gk = groqKeyOf(S); const own = ownProviderOf(S);
     const backup = own && own.id !== 'groq' ? own.label : 'free Pollinations';
-    if (gk) return 'Primary: Groq (Qwen 27B), Backup: ' + backup;
+    const xmode = S && S.xaiChatMode; const xk = String((S && S.xaiApiKey) || '').trim();
+    const xs = xk && (xmode === 'primary' || xmode === 'backup') ? ' · Grok (xAI) ' + xmode : '';
+    const sel = (S && S.groqModel) || GROQ_MODEL; const info = groqModelInfo(sel);
+    const gname = sel === GROQ_MODEL ? 'Qwen 27B' : (info ? info.label.split(' (')[0].split(' —')[0] : sel);
+    if (gk) return (xmode === 'primary' && xs ? 'Primary: Grok (xAI), then Groq (' + gname + '), Backup: ' + backup : 'Primary: Groq (' + gname + '), Backup: ' + backup + (xs ? ', then Grok (xAI)' : ''));
     if (own) return 'Primary: ' + own.label + ' (' + own.model + '), Backup: free Pollinations — add a Groq key to make Groq (Qwen 27B) primary';
     return 'Primary: free Pollinations — add a Groq key (and/or Gemini) for a faster, smarter NOORA';
   }
@@ -806,6 +861,7 @@
   async function runAiChain(attempts, call) {
     const failures = [];
     for (const a of attempts || []) {
+      if (typeof a.when === 'function' && !a.when(failures[failures.length - 1])) continue;   // e.g. "other Groq model only after a 429"
       let r;
       try { r = await call(a); } catch (e) { r = { failure: 'error: ' + ((e && e.message) || e) }; }
       const ok = r && ((r.text && String(r.text).trim()) || (r.toolCalls && r.toolCalls.length));
@@ -819,12 +875,13 @@
   }
 
   // ---------------- Voice / TTS helpers (shared, unit-testable) ----------------
-  const VERSION = '2.4.2';
+  const VERSION = '2.5.2';
   // 2.3.0: ElevenLabs removed (paid; silent fallback in the Android WebView). Saved ElevenLabs keys are left untouched but unused.
   // 'native' = Android TextToSpeech through the NooraNative bridge (free, offline-capable, Google voices incl. ur-PK / hi-IN / pa-IN).
   const TTS_PROVIDERS = [
     { id: 'native', label: 'Phone voice (Android TextToSpeech) — free, works offline', needsKey: false, android: true },
     { id: 'browser', label: 'Browser (Web Speech API) — no key', needsKey: false },
+    { id: 'piper', label: 'Piper (offline neural voice) — optional ~21 MB download, Android only', needsKey: false, android: true },
     { id: 'xai', label: 'Grok voice (xAI TTS) — your own xAI key, online', needsKey: true },
     { id: 'openai', label: 'OpenAI-compatible TTS — your own key', needsKey: true }
   ];
@@ -833,17 +890,54 @@
     voiceURI: '', voiceLang: null, gender: 'female',
     ttsProvider: 'auto', ttsBaseUrl: 'https://api.openai.com/v1',
     ttsApiKey: '', ttsModel: 'tts-1', ttsVoiceId: 'nova',
-    nativeVoice: '', xaiApiKey: '', xaiVoiceId: 'eve'
+    nativeVoice: '', xaiApiKey: '', xaiVoiceId: 'eve',
+    piperVoice: ''
   };
+
+  /**
+   * 2.4.3 optional offline Piper voices (sherpa-onnx, int8 packages from the k2-fsa tts-models release; ids mirror PiperTts.kt VOICES).
+   * Piper speaks; the espeak-ng-data folder inside each package is only the phoneme data the sherpa-onnx Piper models need.
+   */
+  const PIPER_VOICES = [
+    { id: 'en_US-amy-medium', lang: 'en', gender: 'female', label: 'English (US) · Amy · female', sizeMB: 21 },
+    { id: 'en_US-hfc_female-medium', lang: 'en', gender: 'female', label: 'English (US) · HFC female', sizeMB: 21 },
+    { id: 'hi_IN-priyamvada-medium', lang: 'hi', gender: 'female', label: 'Hindi · Priyamvada · female', sizeMB: 21 },
+    { id: 'ur_PK-fasih-medium', lang: 'ur', gender: 'male', label: 'Urdu · Fasih · MALE (only Urdu Piper voice)', sizeMB: 21 }
+  ];
+  /** Which Piper voice reads this reply? Returns a voice id or null (→ caller falls back to the phone voice). Never picks an uninstalled voice. */
+  function piperVoiceFor(langId, text, installedIds, preferred) {
+    const have = new Set(installedIds || []);
+    const t = String(text || ''); const id = langId || 'ENGLISH';
+    const firstOf = (lang) => { const pref = PIPER_VOICES.find((v) => v.id === preferred && v.lang === lang && have.has(v.id)); return pref ? pref.id : (PIPER_VOICES.find((v) => v.lang === lang && have.has(v.id)) || {}).id || null; };
+    if (/[\u0A00-\u0A7F]/.test(t) || id === 'PUNJABI_GURMUKHI' || id === 'ARABIC') return null;      // no Piper voice for these
+    if (/[\u0900-\u097F]/.test(t) || id === 'HINDI') return firstOf('hi');
+    if (/[\u0600-\u06FF]/.test(t) || id === 'URDU' || id === 'PUNJABI_SHAHMUKHI') return firstOf('ur');
+    return firstOf('en');   // English and Roman Urdu / Roman Punjabi (Latin letters → English voice)
+  }
   const XAI_TTS_URL = 'https://api.x.ai/v1/tts';
   const XAI_VOICES = ['eve', 'ara', 'rex', 'sal', 'leo'];
   const TTS_CHUNK = 2500;
   /** Which TTS provider actually runs: 'auto' → native on Android (bridge present), browser elsewhere. Old 'elevenlabs' → default. */
-  function effectiveTtsProvider(cfg, platform) {
-    const p = (cfg && cfg.ttsProvider) || 'auto';
-    if (p === 'auto' || p === 'elevenlabs' || !TTS_PROVIDERS.some((x) => x.id === p)) return platform === 'android' ? 'native' : 'browser';
-    if (p === 'native' && platform !== 'android') return 'browser';
+  /**
+   * 2.5.1 Auto logic: Grok voice (xAI TTS) when an xAI key is stored in Settings AND the device is online (the speak path falls back to the
+   * best device voice on any error); otherwise the best device voice (Android TextToSpeech / browser). Auto never picks Piper — Piper is
+   * only used when the user chooses it explicitly.
+   */
+  function effectiveTtsProvider(cfg, platform, extra) {
+    const c = cfg || {};
+    const p = c.ttsProvider || 'auto';
+    if (p === 'auto' || p === 'elevenlabs' || !TTS_PROVIDERS.some((x) => x.id === p)) {
+      const online = !(extra && extra.online === false) && c.netMode !== 'offline';
+      if (online && String(c.xaiApiKey || '').trim()) return 'xai';
+      return platform === 'android' ? 'native' : 'browser';
+    }
+    if ((p === 'native' || p === 'piper') && platform !== 'android') return 'browser';
     return p;
+  }
+  /** One-line description of the voice that will really speak: "Active voice: <provider/engine> · <voice> · <language>". */
+  function activeVoiceLabel(i) {
+    const o = i || {};
+    return 'Active voice: ' + [o.provider || 'unknown', o.voice || 'default', o.language || 'auto'].join(' · ');
   }
   /** BCP-47 locale candidates for the Android TTS engine per reply language (Urdu script → ur-PK, Roman Urdu → ur/en-IN …). */
   function ttsLocalesFor(langId, text) {
@@ -860,18 +954,32 @@
     return ['en-US', 'en-GB', 'en-IN', 'en'];
   }
   /** Rank Android TTS voices: matching locale, installed (not network-only), warm female names, high quality. */
-  function rankNativeVoices(voices, locales, gender) {
+  /**
+   * 2.5.1: rank Android TTS voices for the reply language. Order of importance: language match → Voice.quality (VERYHIGH 500 > HIGH 400 > NORMAL 300 …)
+   * → Google engine (com.google.android.tts voices are named like "en-us-x-tpd-network") → gender preference (only when the voice name/flag reveals it;
+   * Android has no gender API) → installed. Network voices are used only when `online` is true (default true).
+   */
+  function rankNativeVoices(voices, locales, gender, opts) {
     const want = (locales || []).map((l) => l.toLowerCase());
     const g = gender || 'female';
+    const online = !(opts && opts.online === false);
     return (voices || []).map((v) => {
       const loc = String(v.locale || '').replace('_', '-').toLowerCase();
       let s = -1;
       want.forEach((w, i) => { if (s < 0 && (loc === w || (w.length === 2 && loc.split('-')[0] === w))) s = 100 - i * 10; });
       if (s < 0) return { v, s: -1 };
-      if (v.installed !== false && !v.network) s += 8;
-      if (g === 'female' && v.female) s += 12;
-      if (g === 'male' && v.female === false) s += 12;
-      s += Math.min(6, Math.round((Number(v.quality) || 300) / 100));
+      if (v.network && !online) return { v, s: -1 };
+      if (v.installed === false && !online) return { v, s: -1 };
+      s += Math.round((Number(v.quality) || 300) / 100) * 8;                                        // VERYHIGH +40, HIGH +32, NORMAL +24
+      if (v.installed === false) s -= 20;
+      if (!v.network && v.installed !== false) s += 3;                                               // tie-break: on-device voice first
+      if (/google/i.test(String(v.engine || '')) || /-x-/.test(String(v.name || ''))) s += 15;
+      const nm = String(v.name || '');
+      const isF = v.female === true || /female/i.test(nm), isM = v.female === false || (/(^|[^a-z])male/i.test(nm) && !/female/i.test(nm));
+      if (g === 'female' && isF) s += 12;
+      if (g === 'male' && isM) s += 12;
+      if (g === 'female' && isM) s -= 8;
+      if (g === 'male' && isF) s -= 8;
       return { v, s };
     }).filter((x) => x.s >= 0).sort((a, b) => b.s - a.s).map((x) => x.v);
   }
@@ -943,8 +1051,12 @@
       if (male.test(name)) score += 30;
       if (female.test(name) && !male.test(name)) score -= 20;
     }
-    if (/natural|neural|premium|enhanced|wavenet|studio/i.test(name)) score += 8;
-    if (/compact|eloquence/i.test(name)) score -= 5;
+    // 2.5.1 (iPhone / Web Speech): natural-sounding voices first — Premium / Enhanced / Siri / Neural / Natural, then on-device (localService) voices
+    if (/premium|enhanced|siri/i.test(name)) score += 30;
+    else if (/neural|natural|wavenet|studio/i.test(name)) score += 24;
+    if (v && v.localService === true) score += 6;
+    if (v && v.localService === false && o.online === false) score -= 25;
+    if (/compact|eloquence|novelty|bad news|bubbles|zarvox|whisper|trinoids|cellos|organ/i.test(name)) score -= 15;
     return score;
   }
   function pickBestDeviceVoice(voices, opts) {
@@ -1033,6 +1145,7 @@
     const out = Object.assign({}, def);
     if (!saved || typeof saved !== 'object') return out;
     Object.keys(saved).forEach((k) => {
+      if (/^ollama/i.test(k)) return;   // 2.5.1: removed feature — old saved keys are ignored and dropped
       if (saved[k] !== undefined && saved[k] !== null) out[k] = saved[k];
     });
     // Preserve Gemini / custom keys; only fill missing voice defaults
@@ -1046,6 +1159,9 @@
     if (out.serverUrl === undefined) out.serverUrl = '';
     if (typeof out.groqApiKey !== 'string') out.groqApiKey = '';
     if (!out.groqModel) out.groqModel = GROQ_MODEL;
+    if (typeof out.customInstructions !== 'string') out.customInstructions = '';
+    if (!['off', 'backup', 'primary'].includes(out.xaiChatMode)) out.xaiChatMode = 'off';
+    if (!out.xaiChatModel) out.xaiChatModel = XAI_CHAT_MODEL;
     // 2.3.1: users already on the Groq preset move from retired Llama ids to Qwen 3.8 27B (provider selection itself is untouched)
     if (out.provider === 'Groq') {
       if (GROQ_OLD_MODELS.includes(out.chatModel)) out.chatModel = GROQ_MODEL;
@@ -1149,12 +1265,78 @@
     }
     return { id: 'pollinations', label: 'Free (Pollinations, no key)', baseUrl: 'https://text.pollinations.ai/openai', model: 'openai', needsKey: false, stream: true };
   }
+  /**
+   * 2.5.1 image providers. Real capabilities only:
+   *  - pollinations (default, free, no key): text → image.
+   *  - gemini: uses the user's Gemini key → img2img / edit / background replace / enhance through the Gemini image model (no text→image here; Pollinations still does that).
+   *  - openai: any OpenAI-compatible endpoint (Base URL + key + model) → text → image via /images/generations, img2img / edit / background / enhance via /images/edits.
+   * "enhance" is an AI clean-up/re-render, NOT a true resolution upscaler — the UI says so. Ops that a provider cannot do carry an honest reason.
+   */
+  const IMAGE_EDIT_OPS = ['img2img', 'edit', 'bg', 'enhance'];
+  function imageBaseOk(u) { return /^https:\/\/[A-Za-z0-9.-]+(:\d{1,5})?(\/[^\s"'<>]*)?$/i.test(String(u || '').trim()); }
   function selectImageProvider(settings) {
     const S = settings || {};
-    if (S.serverUrl && String(S.serverUrl).trim()) {
-      return { id: 'server', label: 'Server proxy', ready: true, ops: ['txt2img'] };
+    const none = 'Needs an image provider: Settings → Create / Image (Gemini key or an OpenAI-compatible endpoint).';
+    const reasons = {}; IMAGE_EDIT_OPS.forEach((o) => { reasons[o] = none; });
+    const pick = String(S.imageProvider || '');
+    if (pick === 'gemini') {
+      const ok = !!(S.apiKey && /generativelanguage\.googleapis\.com/.test(S.baseUrl || ''));
+      if (ok) return { id: 'gemini', label: 'Gemini image (your key)', ready: true, ops: IMAGE_EDIT_OPS.slice(), reasons: {}, note: 'Edits use your Gemini key (may need billing). Text → image still uses free Pollinations.' };
+      const r = {}; IMAGE_EDIT_OPS.forEach((o) => { r[o] = 'Gemini image needs your Gemini API key (Settings → AI model → Google Gemini).'; });
+      return { id: 'gemini', label: 'Gemini image (no key)', ready: false, ops: [], reasons: r };
     }
-    return { id: 'pollinations', label: 'Pollinations', ready: true, ops: ['txt2img'], note: 'txt2img via image.pollinations.ai' };
+    if (pick === 'openai') {
+      const base = String(S.imageBaseUrl || '').trim().replace(/\/+$/, ''), key = String(S.imageApiKey || '').trim(), model = String(S.imageModel || '').trim();
+      if (imageBaseOk(base) && key && model) return { id: 'openai', label: 'OpenAI-compatible image', ready: true, ops: ['txt2img'].concat(IMAGE_EDIT_OPS), reasons: {}, base, model, note: 'Uses ' + base + ' (/images/generations and /images/edits).' };
+      const r = {}; IMAGE_EDIT_OPS.forEach((o) => { r[o] = 'Fill in an https Base URL, API key and model in Settings → Create / Image.'; });
+      return { id: 'openai', label: 'OpenAI-compatible image (incomplete)', ready: false, ops: [], reasons: r };
+    }
+    if (S.serverUrl && String(S.serverUrl).trim()) {
+      return { id: 'server', label: 'Server proxy', ready: true, ops: ['txt2img'], reasons };
+    }
+    return { id: 'pollinations', label: 'Pollinations', ready: true, ops: ['txt2img'], reasons, note: 'txt2img via image.pollinations.ai' };
+  }
+  /** Plain-language result of the "Test provider" call (no image is generated, nothing is billed). */
+  function imageTestMessage(i) {
+    const o = i || {}; const who = o.provider === 'gemini' ? 'Gemini' : 'The image service';
+    const st = o.status;
+    if (st === -1 || st === 0 || st === undefined) {
+      if (o.error === 'no internet') return { ok: false, message: '❌ No internet connection. Connect and try again.' };
+      if (o.error === 'timeout') return { ok: false, message: '❌ No answer within 15 s. ' + (o.provider === 'openai' ? 'Check the Base URL (spelling, https) and that the service is up.' : 'Check your connection.') };
+      return { ok: false, message: '❌ Could not reach ' + (o.provider === 'openai' ? 'that Base URL — check the spelling, that it starts with https:// and that the host exists.' : 'Google — check your connection.') };
+    }
+    if (st === 401 || st === 403) return { ok: false, message: '❌ ' + who + ' rejected the API key (HTTP ' + st + '). Check the key' + (o.provider === 'gemini' ? ' (it needs the Generative Language API enabled)' : '') + (o.detail ? ' — ' + String(o.detail).slice(0, 120) : '') + '.' };
+    if (st === 404) return { ok: false, message: o.provider === 'gemini' ? '❌ Model "' + o.model + '" was not found for your key. Gemini image models need to be available to your account (billing may be required).' : '❌ Not found (HTTP 404): the Base URL is probably wrong — it should end like …/v1 and offer /models. Check the address.' };
+    if (st === 429) return { ok: false, message: '❌ Rate limit or no credits (HTTP 429) — the key is valid but the quota is used up.' };
+    if (st >= 500) return { ok: false, message: '❌ ' + who + ' had a server problem (HTTP ' + st + '). Try again later.' };
+    if (st < 200 || st >= 300) return { ok: false, message: '❌ Unexpected answer (HTTP ' + st + ')' + (o.detail ? ': ' + String(o.detail).slice(0, 120) : '') + '.' };
+    if (o.provider === 'openai') {
+      if (Array.isArray(o.models) && o.models.length) {
+        const has = o.models.some((m) => m === o.model || String(m).split('/').pop() === o.model);
+        return has ? { ok: true, message: '✅ Connected. Key accepted and model "' + o.model + '" is available. (No image was generated, nothing billed.)' }
+          : { ok: false, message: '❌ Connected and the key works, but model "' + o.model + '" is not in the service\'s model list. Pick one it offers (e.g. ' + o.models.slice(0, 4).join(', ') + ').' };
+      }
+      return { ok: true, message: '✅ Connected and the key was accepted (the service does not list models, so the model name could not be checked).' };
+    }
+    return { ok: true, message: '✅ Gemini key accepted and model "' + o.model + '" is available. (No image was generated, nothing billed.)' };
+  }
+  const IMAGE_OP_PROMPTS = {
+    img2img: (p) => 'Create a new image based on this photo, following this description while keeping the main subject and composition: ' + p,
+    edit: (p) => 'Edit this photo exactly as instructed and change nothing else: ' + p,
+    bg: (p) => 'Replace only the background of this photo with: ' + (p || 'a clean neutral studio background') + '. Keep the subject sharp and unchanged.',
+    enhance: (p) => 'Enhance this photo: improve sharpness, clarity, colour and lighting and reduce noise, without changing the content or people.' + (p ? ' ' + p : '')
+  };
+  const imageOpPrompt = (op, text) => (IMAGE_OP_PROMPTS[op] || IMAGE_OP_PROMPTS.edit)(String(text || '').trim());
+  function buildOpenAiImageGen(cfg, prompt) {
+    const base = String(cfg.imageBaseUrl || '').trim().replace(/\/+$/, '');
+    return { url: base + '/images/generations', method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + String(cfg.imageApiKey || '').trim() },
+      body: { model: String(cfg.imageModel || '').trim(), prompt: String(prompt || '').slice(0, 4000), n: 1, size: '1024x1024' } };
+  }
+  function parseOpenAiImage(j) {
+    const d = j && Array.isArray(j.data) ? j.data[0] : null;
+    if (d && d.b64_json) return { ok: true, mime: 'image/png', b64: d.b64_json };
+    if (d && d.url) return { ok: true, url: d.url };
+    return { ok: false, reason: (j && j.error && (j.error.message || j.error)) ? String(j.error.message || j.error).slice(0, 160) : 'no image in the answer' };
   }
   function selectVideoProvider(settings) {
     const S = settings || {};
@@ -1230,7 +1412,7 @@
     });
     register({
       id: 'web', name: 'Web search', category: 'web',
-      description: 'Wikipedia + Google News via live sources',
+      description: 'Live news headlines',
       run: async (a) => {
         if (typeof h.webSearch === 'function') return h.webSearch(a);
         return toolResult(false, null, 'Web search hook not wired in this context');
@@ -1309,11 +1491,11 @@
     offlineReply, offlineNoAi, shouldSkipCloudAi, IMAGE_EDIT_MODELS, buildGeminiImageEditRequest, parseGeminiImageResponse, mapImageEditError,
     keywords, questionRx, wikiLang, greetingReply, medicalWarning, noAi, visionNeedsKey, remembered, memoryList, forgot, help, word, notOnIphone, t4,
     money, perTola, perGram, fxText, metalText, cryptoText, weatherCode, weatherText, askPlace, failed,
-    parseRss2Json, parseWikiSearch, parseChatCompletion, cleanAi, tones, modes, modelPresets, MODEL_MAP, systemPrompt, systemPromptLegacy, recent, searchPrompt, PRESETS, PROVIDER_FREE,
-    GROQ_BASE, GROQ_MODEL, GROQ_TIMEOUT_MS, groqKeyOf, ownProviderOf, aiRoute, failureKind, fallbackNotice, routeSummary, redactKeys, runAiChain,
-    VERSION, TTS_PROVIDERS, DEFAULT_VOICE_SETTINGS, XAI_TTS_URL, XAI_VOICES, TTS_CHUNK, effectiveTtsProvider, ttsLocalesFor, rankNativeVoices, buildXaiTtsRequest, mapXaiTtsError, cleanSpeakText, chunkSpeakText, scoreDeviceVoice, pickBestDeviceVoice, describeDefaultVoice, mergeVoiceSettings, ttsProviderReady, speechErrorMessage, assertNoHardcodedSecrets,
+    parseRss2Json, parseChatCompletion, cleanAi, tones, modes, modelPresets, MODEL_MAP, systemPrompt, systemPromptCompact, MEMORY_PROMPT_MAX, systemPromptLegacy, recent, searchPrompt, PRESETS, PROVIDER_FREE,
+    GROQ_BASE, GROQ_MODEL, GROQ_TIMEOUT_MS, GROQ_FIRST_MS, GROQ_TOTAL_MS, OWN_FIRST_MS, OWN_TOTAL_MS, CHAIN_BUDGET_MS, GROQ_MODELS, groqModelInfo, groqExtraFor, XAI_CHAT_BASE, XAI_CHAT_MODEL, groqKeyOf, ownProviderOf, aiRoute, failureKind, fallbackNotice, routeSummary, redactKeys, runAiChain,
+    VERSION, TTS_PROVIDERS, DEFAULT_VOICE_SETTINGS, XAI_TTS_URL, XAI_VOICES, TTS_CHUNK, effectiveTtsProvider, activeVoiceLabel, PIPER_VOICES, piperVoiceFor, ttsLocalesFor, rankNativeVoices, buildXaiTtsRequest, mapXaiTtsError, cleanSpeakText, chunkSpeakText, scoreDeviceVoice, pickBestDeviceVoice, describeDefaultVoice, mergeVoiceSettings, ttsProviderReady, speechErrorMessage, assertNoHardcodedSecrets,
     MEMORY_CATEGORIES, FILE_LIMITS, migrateSettings, searchConversations, renameConversationRecord, validateUpload, fileMetadata,
-    parseSSEChunk, parseStreamBuffer, selectAiProvider, selectImageProvider, selectVideoProvider,
+    parseSSEChunk, parseStreamBuffer, selectAiProvider, selectImageProvider, selectVideoProvider, imageOpPrompt, imageTestMessage, buildOpenAiImageGen, parseOpenAiImage, imageBaseOk, IMAGE_EDIT_OPS,
     VOICEID, VOICEID_REFUSAL, voiceIdThreshold, voiceIdDecide,
     toolResult, toolCalculator, toolDateTime, DEVICE_ACTIONS, listDeviceActions, createToolRegistry
   };

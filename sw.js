@@ -1,6 +1,6 @@
 /* NOORA AI service worker: caches only the app shell. Live data (news, rates, AI, images) is never cached or faked. */
-const CACHE = 'noora-shell-2.4.2';
-const SHELL = ['./', 'index.html', 'app.css', 'core.js', 'tools.js', 'app.js', 'VERSION', 'manifest.webmanifest', 'apple-touch-icon.png',
+const CACHE = 'noora-shell-2.5.2';
+const SHELL = ['./', 'index.html', 'app.css', 'core.js', 'tools.js', 'app.js', 'scan/pdfwriter.js', 'scan/scanstore.js', 'scan/lookup.js', 'scan/scanpdf.js', 'scan/zxing.min.js', 'VERSION', 'manifest.webmanifest', 'apple-touch-icon.png',
   'icons/apple-touch-icon.png', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/icon-64.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => {

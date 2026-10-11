@@ -1,4 +1,4 @@
-/* NOORA AI 2.4.2 command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
+/* NOORA AI 2.5.2 command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
 (function () {
   'use strict';
   const C = window.NooraCore, L = C.Lang;
@@ -7,6 +7,14 @@
   const STANDALONE = window.navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
   const IS_ANDROID_WV = !!(window.NooraNative && (typeof window.NooraNative.isAndroid === 'function' ? window.NooraNative.isAndroid() : window.NooraNative.isAndroid));
   const PLATFORM = IS_ANDROID_WV ? 'android' : (IS_IOS ? 'ios-web' : 'web');
+  // 2.5.2 iOS/web: Android-only cards (Piper, on-device AI, owner voice, background listening) are hidden / disabled when the NooraNative bridge is absent.
+  (function platformGate() {
+    if (IS_ANDROID_WV) return;
+    document.documentElement.classList.add('noNative'); if (IS_IOS) document.documentElement.classList.add('isIOS');
+    document.querySelectorAll('[data-android-only]').forEach((n) => {
+      if (n.tagName === 'OPTION') { n.disabled = true; n.hidden = true; n.textContent += ' — Android only'; } else n.hidden = true;
+    });
+  })();
 
   const svg = (d) => `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='#fff'><path d='${d}'/></svg>`)}")`;
   const ICON = {
@@ -27,10 +35,11 @@
     provider: C.PROVIDER_FREE, baseUrl: '', apiKey: '', chatModel: '', visionModel: '',
     modelPreset: 'Fast', webSearchOn: true, memoryOn: true,
     pinOn: false, pinHash: '', continuousVoice: false, activeAssistantId: null,
-    serverUrl: '', videoProvider: '', videoApiKey: '', videoBaseUrl: '',
+    serverUrl: '', imageProvider: '', imageBaseUrl: '', imageApiKey: '', imageModel: '', videoProvider: '', videoApiKey: '', videoBaseUrl: '',
     mapsProvider: '', defaultCountryCode: '', handsFree: false,
     netMode: 'auto', defaultMessenger: 'ask', imageEditModel: '',
-    groqApiKey: '', groqModel: C.GROQ_MODEL,
+    groqApiKey: '', groqModel: C.GROQ_MODEL, groqAltOn: true,
+    customInstructions: '', xaiChatMode: 'off', xaiChatModel: C.XAI_CHAT_MODEL, keepAlive: false, theme: 'auto',
     ownerOnly: false, voiceIdSens: C.VOICEID.SENS_DEFAULT
   }, C.DEFAULT_VOICE_SETTINGS);
   let S = Object.assign({}, DEF);
@@ -38,6 +47,13 @@
     const raw = JSON.parse(localStorage.getItem('noora.settings') || '{}');
     S = C.migrateSettings(raw, DEF);
   } catch (e) {}
+  function applyTheme() {
+    const t = S.theme === 'light' || S.theme === 'dark' ? S.theme : 'auto';
+    const el = document.documentElement; if (t === 'auto') el.removeAttribute('data-theme'); else el.setAttribute('data-theme', t);
+    const light = t === 'light' || (t === 'auto' && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches);
+    const m = document.querySelector('meta[name=theme-color]'); if (m) m.setAttribute('content', light ? '#F4F4FA' : '#0B0B12');
+  }
+  try { if (window.matchMedia) window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => applyTheme()); } catch (e) {}
   const saveS = () => { try { localStorage.setItem('noora.settings', JSON.stringify(S)); } catch (e) {} };
   const hasOwnKey = () => S.provider !== C.PROVIDER_FREE && S.apiKey && S.baseUrl && S.chatModel;
   const hasAnyKey = () => !!(hasOwnKey() || C.groqKeyOf(S));
@@ -246,11 +262,6 @@
       }
       return { items: [], error: 'news via rss2json: ' + last };
     },
-    async wiki(q, wl = 'en', limit = 3) {
-      if (!q) return [];
-      const r = await getJson(`https://${wl}.wikipedia.org/w/api.php?action=query&list=search&format=json&origin=*&srlimit=${limit}&srsearch=` + encodeURIComponent(q), 8000);
-      return r.ok ? C.parseWikiSearch(r.json, wl) : [];
-    },
     async fx(base) { const r = await getJson('https://open.er-api.com/v6/latest/' + base); return r.ok && r.json.result === 'success' ? r.json : null; },
     async metal(sym) { const r = await getJson('https://api.gold-api.com/price/' + sym); return r.ok && r.json.price ? r.json : null; },
     async crypto(sym) { const r = await getJson(`https://api.coinbase.com/v2/prices/${sym}-USD/spot`); const a = r.ok && r.json.data ? parseFloat(r.json.data.amount) : NaN; return isNaN(a) ? null : a; },
@@ -294,9 +305,12 @@
       if (!key) body.referrer = 'noora-ai-web';
       const headers = { 'Content-Type': 'application/json' };
       if (key) headers.Authorization = 'Bearer ' + key;
+      // 2.5.0: `firstMs` = how long we wait for the response/first token; `timeout` = hard cap for the whole answer (streams keep going once text flows)
       const total = opts.timeout || 90000;
-      const deadline = Date.now() + total;
-      const r = await http(url, { method: 'POST', headers, body: JSON.stringify(body) }, total);
+      const firstMs = Math.min(opts.firstMs || total, total);
+      const t0 = Date.now();
+      const deadline = t0 + total;
+      const r = await http(url, { method: 'POST', headers, body: JSON.stringify(body) }, firstMs);
       if (!r.ok) {
         let detail = '';
         if (r.res) { try { const j = await r.res.json(); const m = (j.error && (j.error.message || j.error)) || j.message; if (m && typeof m === 'string') detail = ' (' + C.redactKeys(m, [key]).slice(0, 90) + ')'; } catch (e) {} }
@@ -309,10 +323,10 @@
           let buf = '', full = '';
           const acc = [];
           while (true) {
-            const left = deadline - Date.now();
-            if (left <= 0) { try { reader.cancel(); } catch (e) {} return { failure: 'timeout (stream)', status: -1 }; }
+            const left = Math.min(deadline, full ? deadline : t0 + firstMs) - Date.now();
+            if (left <= 0) { try { reader.cancel(); } catch (e) {} return full.trim() ? { text: full, streamed: true, toolCalls: [], truncated: true } : { failure: 'timeout (stream)', status: -1 }; }
             const { done, value } = await Promise.race([reader.read(), new Promise((res) => setTimeout(() => res({ timeout: true }), left))]).then((x) => {
-              if (x && x.timeout) { try { reader.cancel(); } catch (e) {} throw new Error('timeout'); }
+              if (x && x.timeout) { try { reader.cancel(); } catch (e) {} const te = new Error('timeout'); te.partial = full; throw te; }
               return x;
             });
             if (done) break;
@@ -331,6 +345,7 @@
           if (full.trim() || toolCalls.length) return { text: full, streamed: true, toolCalls };
           return { failure: 'empty stream' };
         } catch (e) {
+          if (e && e.partial && String(e.partial).trim()) return { text: e.partial, streamed: true, toolCalls: [], truncated: true };
           return { failure: (/timeout/.test(String(e && e.message)) ? 'timeout' : 'stream failed: ' + (e.message || e)), status: -1 };
         }
       }
@@ -358,7 +373,7 @@
       const apiTools = withTools ? T.toolsForApi(PLATFORM) : null;
       const sysAppend = (msgsIn, extra) => msgsIn.map((m, i) => (i === 0 && m.role === 'system' && typeof m.content === 'string') ? Object.assign({}, m, { content: m.content + '\n\n' + extra }) : m);
       const fallbackMsgs = withTools ? sysAppend(messages, T.toolPromptFallback(PLATFORM)) : messages;
-      const done = (r, via, extra) => Object.assign({ text: C.cleanAi(r.text || ''), via, streamed: r.streamed, toolCalls: r.toolCalls || [] }, extra || {});
+      const done = (r, via, extra) => { lastAnswer = { via, fellBack: !!(extra && extra.notice), ts: Date.now() }; try { refreshStatus(); } catch (e) {} return Object.assign({ text: C.cleanAi(r.text || ''), via, streamed: r.streamed, toolCalls: r.toolCalls || [] }, extra || {}); };
       // 2.4.0: never burn ~20s on Groq / Gemini / Pollinations when offline or Offline mode is forced
       if (C.shouldSkipCloudAi(S, navigator.onLine)) {
         return { text: null, failure: 'no internet', network: true, skippedCloud: true };
@@ -373,15 +388,18 @@
       // 2.3.1: keyed attempts in order — Groq (Qwen 3.8 27B) first when a Groq key exists, then the user's own provider (Gemini).
       // Stops at the first provider that answers, so tool calls come from exactly one provider and are never run twice.
       const attempts = C.aiRoute(S, { vision });
+      const budgetEnd = Date.now() + C.CHAIN_BUDGET_MS;   // 2.5.0: total time we are willing to spend on keyed providers before using free Pollinations
       const tryProvider = async (a) => {
+        if (Date.now() > budgetEnd) return { failure: 'skipped (time budget)', status: -1 };
         const model = vision ? (a.visionModel || a.model) : a.model;
-        const po = { timeout: a.timeout, extra: a.extra };
+        const po = { timeout: a.timeout, firstMs: a.firstMs, extra: a.extra };
         const nativeMsgs = withTools ? sysAppend(messages, T.toolPromptNative(PLATFORM)) : messages;
         let r = await this.openAi(a.url, model, nativeMsgs, a.key, Object.assign({ stream: tryStream, onDelta, tools: apiTools }, po));
         if (r.text || (r.toolCalls && r.toolCalls.length)) return Object.assign(r, { model });
         // a 429 / 401 / 403 / timeout / network error won't get better by asking the same provider again → move on
         // (Groq only — Gemini keeps its exact 2.3.0 retry behaviour)
-        if (a.id === 'groq' && (r.status === 429 || r.status === 401 || r.status === 403 || r.status === -1 || r.status >= 500 || /empty/.test(String(r.failure || ''))))
+        // (2.5.0: applies to every provider — retrying a rate-limited / rejected / timed-out / 5xx provider only adds waiting time)
+        if (r.status === 429 || r.status === 401 || r.status === 403 || r.status === -1 || r.status >= 500 || /empty/.test(String(r.failure || '')))
           return Object.assign(r, { failure: r.failure || 'empty reply' });
         // provider rejected `tools` (HTTP 400/422) → retry without native tools, JSON-block fallback prompt
         if (withTools && (r.status === 400 || r.status === 422)) {
@@ -407,7 +425,7 @@
       const keyed = chain.failures;
       const warning = keyed.length ? '↪︎ ' + keyed.map((f) => f.label + ' ' + f.kind).join(', ') + ', answered with free Pollinations — check Settings → AI.' : null;
       for (let attempt = 0; attempt < 2; attempt++) {
-        if (attempt === 1) await new Promise((r) => setTimeout(r, opts.fastFail ? 500 : 6000));
+        if (attempt === 1) await new Promise((r) => setTimeout(r, opts.fastFail ? 500 : 1500));
         const freeModel = 'openai';
         const a = await this.openAi('https://text.pollinations.ai/openai', freeModel, fallbackMsgs, null, { stream: tryStream, onDelta });
         if (a.text) return done(a, 'Pollinations (free)', { warning });
@@ -427,8 +445,7 @@
       const q = (a && (a.query || a.q)) || '';
       if (!q) return C.toolResult(false, null, 'query required');
       const news = await Live.news(q, L.ENGLISH);
-      const wiki = await Live.wiki(C.keywords(q) || q, 'en');
-      return C.toolResult(true, { news: news.items.slice(0, 5), wiki: wiki.slice(0, 3) }, 'live results');
+      return C.toolResult(true, { news: news.items.slice(0, 5).map((x) => ({ title: x.title, date: x.date })) }, 'live results');
     },
     memory: async (a) => {
       if (a && a.action === 'add' && a.fact) { const id = await Store.addMemory(a.fact, a.category); return C.toolResult(!!id, { id }, id ? 'saved' : 'memory off or failed'); }
@@ -486,6 +503,7 @@
       return { ok: !/could not|unknown|error/i.test(legacy || ''), message: legacy || '' };
     } catch (e) { return { ok: false, code: 'bridge_error', message: 'Android bridge error' }; }
   }
+  window.__nooraHost = { bridge, nativeRun, toast: (m, ms) => toast(m, ms) };   // used by scan/scanpdf.js (Tools → Scan / PDF)
   /** The ONLY place the web app leaves for another app/site. Tests can intercept via window.__nooraOpenHook. */
   function openExternal(url) {
     window.__nooraLastOpen = url;
@@ -752,7 +770,7 @@
     const a = prep.action;
     if (a.kind === 'result') return reply(a.text, lang, { meta: { via: 'NOORA tools' } });
     if (a.op === 'web_search') {
-      if (S.webSearchOn === false) return reply('Web & research is off in Settings — turn it on to search live sources.', lang);
+      if (S.webSearchOn === false) return reply('Live answers (news, prices) are off in Settings — turn them on to look things up.', lang);
       return liveSearch(a.query, a.query, false, lang);
     }
     if (a.op === 'remember') {
@@ -1154,7 +1172,7 @@
   }
 
   // ---- AI tool calls → plan ----
-  async function handleAiToolCalls(r, lang, refs) {
+  async function handleAiToolCalls(r, lang) {
     let calls = (r.toolCalls || []).slice();
     let shown = r.text || '';
     const ex = T.extractActionBlock(shown);
@@ -1731,12 +1749,14 @@
         if (ev.perm === 'notifications' || ev.perm === 'media') { toast(ev.granted ? 'Permission allowed — ask me again.' : 'Permission not allowed.'); }
       }
       if (ev.type === 'assist') { window.__nooraStartVoice(); }
-      if (ev.type === 'resume') { onResumeContacts(); }
+      if (ev.type === 'resume') { onResumeContacts(); try { syncKeepAlive(); } catch (e) {} }
       if (ev.type === 'localLlm') { onLocalLlmEvent(ev); return; }
       if (ev.type === 'voiceid') { onVoiceIdEvent(ev); return; }
+      if (ev.type === 'piper') { onPiperEvent(ev); return; }
     } catch (e) { /* never surface raw errors */ }
   };
   try { wireVoiceId(); } catch (e) {}
+  try { wirePiper(); } catch (e) {}
   window.__nooraStartVoice = () => {
     showTab('chat'); unlockSpeech();
     continuous = true; S.continuousVoice = true; saveS(); updateVoiceBar(); refreshStatus();
@@ -1770,12 +1790,15 @@
 
   function toast(t, ms = 3200) { const el = $('toast'); el.textContent = t; el.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(() => { el.hidden = true; }, ms); }
   const status = (t) => { $('statusText').textContent = t; };
+  let lastAnswer = null;   // 2.5.0: provider that really answered the last message (shown in the header)
   function refreshStatus() {
     $('dot').classList.toggle('off', !navigator.onLine);
-    const base = S.netMode === 'offline' ? 'Offline mode — phone actions & small talk'
+    let base = S.netMode === 'offline' ? 'Offline mode — phone actions & small talk'
       : !navigator.onLine ? (S.netMode === 'online' ? 'No internet — Online mode needs a connection' : 'Offline — phone actions & small talk')
       : C.groqKeyOf(S) ? `AI: Groq · ${S.groqModel || C.GROQ_MODEL}` + (hasOwnKey() && !/groq/i.test(S.baseUrl || '') ? ` (backup ${/generativelanguage/.test(S.baseUrl || '') ? 'Gemini' : S.provider})` : '')
       : hasOwnKey() ? `AI: ${S.provider} · ${S.chatModel}` : 'AI: free Pollinations (no key, rate-limited)';
+    // header shows who actually answered last (e.g. Gemini when the Groq key was rejected), not only who is configured
+    if (lastAnswer && navigator.onLine && S.netMode !== 'offline') base = `AI: ${lastAnswer.via}` + (lastAnswer.fellBack ? ' (fallback — check Settings)' : '');
     status(continuous ? ('🎙 Voice' + (S.muted ? ' (muted)' : '') + ' · ' + base) : base);
   }
   const fmtTime = (ts) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -1807,17 +1830,7 @@
     const b = document.createElement('div'); b.className = 'bubble' + (m.pending ? ' pending' : ''); b.dir = 'auto';
     if (m.image) { const img = document.createElement('img'); img.src = m.image; img.alt = 'image'; img.onclick = () => openImage(m.image); b.appendChild(img); }
     if (m.text) renderMarkdownish(m.text, b);
-    if (m.sources && m.sources.length) {
-      const s = document.createElement('div'); s.className = 'sources'; s.dir = 'ltr';
-      const h = document.createElement('div'); h.className = 'h'; h.textContent = 'Sources'; s.appendChild(h);
-      m.sources.forEach((src, i) => {
-        if (!src || !src.url) return;
-        const a = document.createElement('a'); a.href = src.url; a.target = '_blank'; a.rel = 'noopener';
-        a.textContent = `${i + 1}. ${(src.title || src.url).slice(0, 90)}${src.publisher ? ' — ' + src.publisher : ''}`;
-        s.appendChild(a);
-      });
-      b.appendChild(s);
-    }
+    // 2.5.0: no sources / citations are ever rendered under replies
     const meta = m.meta || {};
     if (meta.action) {
       const a = document.createElement('a'); a.className = 'act'; a.href = meta.action.href; a.textContent = meta.action.label;
@@ -1866,10 +1879,14 @@
     const files = extractProjectFiles(text);
     const meta = Object.assign({}, opts.meta || {});
     if (files.length >= 2) meta.downloadZip = files;
-    const m = { convId, role: 'assistant', text, image: opts.image || null, sources: opts.sources || [], meta, ts: Date.now() };
+    const m = { convId, role: 'assistant', text, image: opts.image || null, sources: [], meta, ts: Date.now() };
     m.id = await Store.addMessage(Object.assign({}, m)); append(m);
     maybeUpdateSummary();
-    if (opts.speak !== false) speak(opts.speakText || text, lang, () => { if (continuous) startListening(); });
+    if (opts.speak !== false) {
+      const after = () => { if (continuous) startListening(); };
+      if (opts.streamedSpeech && SS.on && !SS.dead) ssFinish(opts.streamedSpeech, after);   // sentences were already being spoken while the answer streamed
+      else { ssAbort(); speak(opts.speakText || text, lang, after); }
+    }
     busy = false; refreshStatus(); updateVoiceBar();
   }
 
@@ -2006,9 +2023,12 @@
     if (!st.downloaded) return reply(C.offlineNoAi(lang), lang, { meta: { via } });
     showPending(C.word(lang, 'thinking')); status('On-device AI…');
     const id = 'lc' + Date.now().toString(36);
-    return new Promise((resolve) => {
+    return Store.memories().then((mems) => new Promise((resolve) => {
       localChatWaiters[id] = { resolve, lang, via, text };
-      let r; try { r = JSON.parse(n.localChat(JSON.stringify({ id, prompt: text, system: '' })) || '{}'); } catch (e) { r = { ok: false, message: String(e) }; }
+      // 2.5.0: the on-device model now gets the user's rules/name/memory (compact) and the last few turns instead of a bare message
+      const system = C.systemPromptCompact({ userName: S.userName, aiName: aiName(), customInstructions: S.customInstructions, memories: S.memoryOn === false ? [] : mems });
+      const hist = C.recent(msgs.filter((m) => !m.pending).map((m) => ({ role: m.role, text: m.text })), 5).slice(0, -1).slice(-4).map((t) => ({ role: t.role === 'assistant' ? 'assistant' : 'user', text: String(t.text).slice(0, 280) }));
+      let r; try { r = JSON.parse(n.localChat(JSON.stringify({ id, prompt: text, system, history: hist })) || '{}'); } catch (e) { r = { ok: false, message: String(e) }; }
       if (!r.ok) {
         delete localChatWaiters[id];
         resolve(reply((r.message || C.offlineNoAi(lang)), lang, { meta: { via: via + ' · on-device unavailable' } }));
@@ -2019,7 +2039,7 @@
         delete localChatWaiters[id];
         resolve(reply(C.offlineNoAi(lang) + '\n\n(On-device model timed out.)', lang, { meta: { via: via + ' · on-device timeout' } }));
       }, 90000);
-    });
+    }));
   }
   function onLocalLlmEvent(ev) {
     if (!ev || ev.type !== 'localLlm') return;
@@ -2082,6 +2102,7 @@
     return all.find((a) => a.id === S.activeAssistantId) || null;
   }
 
+  const HISTORY_TURNS = 24;
   async function buildMessages(lang, medical, overrideLastUser) {
     const [mems, convs, summary, assist] = await Promise.all([
       Store.memories(), Store.conversations(), Store.getSummary(convId), activeAssistant()
@@ -2091,24 +2112,16 @@
     const out = [{ role: 'system', content: C.systemPrompt({
       userName: S.userName, aiName: aiName(), tone: S.tone, mode: S.mode, formality: S.formality, gender: S.gender,
       languagePrompt: (assist && assist.language) || lang.prompt, memories: useMem ? mems : [], medical,
-      earlierTopics: topics, summary, assistant: assist, platform: PLATFORM
+      earlierTopics: topics, summary, assistant: assist, platform: PLATFORM, customInstructions: S.customInstructions
     }) }];
-    const turns = C.recent(msgs.filter((m) => !m.pending).map((m) => ({ role: m.role, text: m.text })), 16);
+    const turns = C.recent(msgs.filter((m) => !m.pending).map((m) => ({ role: m.role, text: m.text })), HISTORY_TURNS);
     turns.forEach((t, i) => out.push({ role: t.role, content: i === turns.length - 1 && t.role === 'user' && overrideLastUser ? overrideLastUser : t.text }));
     return out;
   }
   const short = (f) => String(f || 'unknown').replace(/\s+/g, ' ').slice(0, 160);
-  function wikiLang(lang) { return lang === L.ARABIC ? 'ar' : C.wikiLang(lang); }
 
   async function chat(text, lang, medical, emergency) {
     showPending(C.word(lang, 'thinking')); status('Thinking…');
-    let refs = [];
-    if (S.webSearchOn !== false && !medical && text.length > 8 && C.questionRx.test(text)) {
-      const kw = C.keywords(text), wl = wikiLang(lang);
-      if (kw) { refs = await Live.wiki(kw, wl); if (!refs.length && wl !== 'en') refs = await Live.wiki(kw); }
-    }
-    const override = refs.length ? text + '\n\n(Reference snippets from Wikipedia — use if relevant:\n' +
-      refs.slice(0, 3).map((x) => `- ${x.source.title}: ${x.snippet}`).join('\n') + ')' : null;
     // Live streaming into pending bubble when possible
     let streamEl = null;
     const onDelta = (delta, full) => {
@@ -2120,12 +2133,15 @@
       txt.textContent = full.replace(/```noora[\s\S]*$/i, '').replace(/<noora-action>[\s\S]*$/i, '');
       streamEl = pend;
       scrollEnd();
+      ssFeed(full);
     };
     setVoiceState('THINKING');
-    const r = await AI.chat(await buildMessages(lang, medical, override), false, { stream: true, onDelta, tools: !medical });
+    ssBegin(lang, !medical);
+    const r = await AI.chat(await buildMessages(lang, medical, null), false, { stream: true, onDelta, tools: !medical && T.looksActionable(text) });
+    if (r.warning || r.text == null) ssAbort();
     const warn = medical ? C.medicalWarning(lang, emergency) + '\n\n' : '';
-    if (r.text != null && !medical && await handleAiToolCalls(r, lang, refs)) return;
-    if (r.text) return reply((r.warning ? r.warning + '\n\n' : '') + warn + r.text, lang, { sources: refs.slice(0, 3).map((x) => x.source), meta: { notice: r.notice || null, via: r.via + (refs.length ? ' + Wikipedia' : '') + (r.streamed ? ' · stream' : '') } });
+    if (r.text != null && !medical && await handleAiToolCalls(r, lang)) { ssAbort(); return; }
+    if (r.text) return reply((r.warning ? r.warning + '\n\n' : '') + warn + r.text, lang, { streamedSpeech: r.text, meta: { notice: r.notice || null, via: r.via + (r.streamed ? ' · stream' : '') } });
     const note = C.noAi(lang, short(r.failure));
     if (medical) return reply(warn + note, lang, { meta: { via: 'offline' } });
     if (r.network || !navigator.onLine) {
@@ -2134,9 +2150,6 @@
       setVoiceState('ERROR', 'connection');
       return reply(T.say('net_error', {}, lang), lang, { meta: { via: 'offline', card: { id, title: '📶 ' + short(r.failure).slice(0, 80), details: [], buttons: [{ label: '↻ Try again', value: 'yes', go: true }, { label: 'No', value: 'no' }] } } });
     }
-    const wiki = refs.length ? refs : (text.length > 6 ? await Live.wiki(C.keywords(text), wikiLang(lang)) : []);
-    if (wiki.length) return reply(note + '\n\nWikipedia (live):\n' + wiki.slice(0, 3).map((x) => `• ${x.source.title}: ${x.snippet}`).join('\n'), lang,
-      { sources: wiki.slice(0, 3).map((x) => x.source), meta: { via: 'Wikipedia' }, speakText: note });
     return reply(note, lang, { meta: { via: 'offline' } });
   }
 
@@ -2144,43 +2157,42 @@
     showPending(C.word(lang, 'searching')); status('Searching…');
     const news = await Live.news(query, lang);
     const newsy = /(news|khabar|خبر|समाचार|latest|headlines|today|aaj|أخبار)/i.test(query);
-    const wiki = !newsy && !numeric ? await Live.wiki(C.keywords(query) || query, wikiLang(lang)) : [];
-    const sources = news.items.slice(0, 5).concat(wiki.slice(0, 2).map((x) => x.source));
+    const sources = news.items.slice(0, 5);   // only fed to the AI as background — never displayed as a source list
     if (!sources.length) return reply(C.word(lang, 'nothing_found') + (news.error ? `\n(${news.error})` : ''), lang);
     status('Summarizing…');
-    const prompt = C.searchPrompt(original, sources, wiki.slice(0, 2).map((x) => `${x.source.title}: ${x.snippet}`), lang, numeric);
+    const prompt = C.searchPrompt(original, sources, [], lang, numeric);
     const r = await AI.chat(await buildMessages(lang, false, prompt));
-    if (r.text) return reply((r.warning ? r.warning + '\n\n' : '') + r.text, lang, { sources, meta: { notice: r.notice || null, via: r.via + ' + live search' } });
-    const listTxt = sources.map((s, i) => `${i + 1}. ${s.title}` + (s.date ? ` (${s.date.slice(0, 16)})` : '')).join('\n');
+    if (r.text) return reply((r.warning ? r.warning + '\n\n' : '') + r.text, lang, { meta: { notice: r.notice || null, via: r.via + ' + live search' } });
+    const listTxt = sources.map((s, i) => `${i + 1}. ${s.title}`).join('\n');
     reply(C.word(lang, 'headlines') + '\n' + listTxt + `\n\n(AI summary unavailable: ${short(r.failure).slice(0, 80)})`, lang,
-      { sources, meta: { via: 'live search' }, speakText: C.word(lang, 'headlines') });
+      { meta: { via: 'live search' }, speakText: C.word(lang, 'headlines') });
   }
 
   async function liveCurrency(r, lang) {
     showPending('💱 …');
     const fx = await Live.fx(r.from); const rate = fx && fx.rates[r.to];
     if (!fx || !rate) return reply(C.failed(lang, 'exchange rate', fx ? 'no ' + r.to + ' rate' : 'open.er-api.com unreachable'), lang);
-    reply(C.fxText(lang, r.amount, r.from, r.to, rate, fx.time_last_update_utc), lang, { sources: [{ title: 'ExchangeRate-API (open.er-api.com)', url: 'https://www.exchangerate-api.com/docs/free', publisher: '' }], meta: { via: 'live API' } });
+    reply(C.fxText(lang, r.amount, r.from, r.to, rate, fx.time_last_update_utc), lang, { meta: { via: 'live API' } });
   }
   async function liveMetal(sym, lang) {
     showPending('🪙 …');
     const [m, fx] = await Promise.all([Live.metal(sym), Live.fx('USD')]);
     if (!m) return reply(C.failed(lang, sym === 'XAU' ? 'gold price' : 'silver price', 'gold-api.com unreachable'), lang);
     reply(C.metalText(lang, m.name, m.price, m.updatedAt, fx && fx.rates.PKR, fx && fx.rates.INR), lang,
-      { sources: [{ title: 'gold-api.com', url: 'https://gold-api.com', publisher: '' }, { title: 'open.er-api.com', url: 'https://www.exchangerate-api.com/docs/free', publisher: '' }], meta: { via: 'live API' } });
+      { meta: { via: 'live API' } });
   }
   async function liveCrypto(sym, lang) {
     showPending('₿ …');
     const [usd, fx] = await Promise.all([Live.crypto(sym), Live.fx('USD')]);
     if (usd === null) return reply(C.failed(lang, sym + ' price', 'Coinbase API unreachable'), lang);
-    reply(C.cryptoText(lang, sym, usd, fx && fx.rates.PKR), lang, { sources: [{ title: 'Coinbase spot', url: 'https://www.coinbase.com/price', publisher: '' }], meta: { via: 'live API' } });
+    reply(C.cryptoText(lang, sym, usd, fx && fx.rates.PKR), lang, { meta: { via: 'live API' } });
   }
   async function liveWeather(place, lang) {
     if (!place) return reply(C.askPlace(lang), lang);
     showPending('🌡 …');
     const w = await Live.weather(place);
     if (!w) return reply(C.failed(lang, 'weather for ' + place, 'place not found or Open-Meteo unreachable'), lang);
-    reply(C.weatherText(lang, w), lang, { sources: [{ title: 'Open-Meteo', url: 'https://open-meteo.com', publisher: '' }], meta: { via: 'live API' } });
+    reply(C.weatherText(lang, w), lang, { meta: { via: 'live API' } });
   }
 
   async function generateImage(promptRaw, lang, seedIn, change) {
@@ -2204,8 +2216,7 @@
       ? t4(`New version with "${change}" (regenerated; free server can't edit old pixels).`, `نیا ورژن "${change}" کے ساتھ۔`, `Naya version "${change}" ke saath.`, `नया वर्ज़न "${change}" के साथ।`)
       : t4(`Image: "${prompt}". Say e.g. "make it night time" to change.`, `تصویر: "${prompt}"۔`, `Tasveer: "${prompt}".`, `तस्वीर: "${prompt}"।`);
     await Store.addFile({ name: 'generated-' + seed + '.jpg', mime: 'image/jpeg', kind: 'image', ts: Date.now(), dataUrl: res.dataUrl, text: prompt });
-    reply(caption, lang, { image: res.dataUrl, sources: [{ title: 'Pollinations.ai image', url: 'https://pollinations.ai', publisher: '' }],
-      meta: { genPrompt: prompt, seed, via: 'Pollinations image' }, speak: false });
+    reply(caption, lang, { image: res.dataUrl, meta: { genPrompt: prompt, seed, via: 'Pollinations image' }, speak: false });
   }
 
   function loadScript(src) {
@@ -2280,7 +2291,7 @@
         const lang = C.detect(q, prefLang());
         busy = true; showPending(C.word(lang, 'thinking')); status('Looking at the photo…');
         const mems = await Store.memories();
-        const messages = [{ role: 'system', content: C.systemPrompt({ userName: S.userName, aiName: aiName(), tone: S.tone, mode: S.mode, formality: S.formality, gender: S.gender, languagePrompt: lang.prompt, memories: mems, platform: PLATFORM }) },
+        const messages = [{ role: 'system', content: C.systemPrompt({ userName: S.userName, aiName: aiName(), tone: S.tone, mode: S.mode, formality: S.formality, gender: S.gender, languagePrompt: lang.prompt, memories: mems, platform: PLATFORM, customInstructions: S.customInstructions }) },
           { role: 'user', content: [{ type: 'text', text: q }, { type: 'image_url', image_url: { url: dataUrl } }] }];
         const r = await AI.chat(messages, true);
         if (r.text) return reply(r.text, lang, { meta: { notice: r.notice || null, via: r.via } });
@@ -2346,8 +2357,29 @@
   const NATIVE_TTS = !!(IS_ANDROID_WV && window.NooraNative && typeof window.NooraNative.ttsSpeak === 'function');
   let nativeVoices = null; let ttsSeq = 0; const ttsWaiters = {};
   const ttsPlatform = () => (NATIVE_TTS ? 'android' : 'web');
-  const activeTtsProvider = () => C.effectiveTtsProvider(S, ttsPlatform());
-  const PROV_LABEL = { native: 'Phone voice (Android TextToSpeech)', browser: 'Browser voice', openai: 'OpenAI-compatible TTS', xai: 'Grok voice (xAI)' };
+  const piperInstalledAny = () => { try { const n = piperBridge(); return !!(n && (piperStatus().voices || []).some((v) => v.installed)); } catch (e) { return false; } };
+  const ttsOnline = () => navigator.onLine && S.netMode !== 'offline';
+  const activeTtsProvider = () => C.effectiveTtsProvider(S, ttsPlatform(), { online: ttsOnline() });
+  /** 2.5.1: what will really speak — shown in Settings and in the Voice Test result. */
+  function activeVoiceInfo(lang, cfg) {
+    const c = cfg || S; const lg = lang || prefLang() || L.ENGLISH;
+    const online = navigator.onLine && c.netMode !== 'offline';
+    const p = C.effectiveTtsProvider(c, ttsPlatform(), { online });
+    const locales = C.ttsLocalesFor(lg.id || 'ENGLISH', '');
+    if (p === 'xai') return { provider: 'Grok voice (xAI)', voice: c.xaiVoiceId || 'eve', language: 'auto-detect (falls back to the device voice on error/offline)' };
+    if (p === 'openai') return { provider: 'OpenAI-compatible TTS', voice: c.ttsVoiceId || 'nova', language: 'auto' };
+    if (p === 'piper') return { provider: 'Piper (offline)', voice: c.piperVoice || 'default', language: lg.label || locales[0] };
+    if (p === 'native') {
+      const vs = loadNativeVoices();
+      const best = (c.nativeVoice && vs.find((x) => x.name === c.nativeVoice)) || C.rankNativeVoices(vs, locales, c.gender || 'female', { online })[0];
+      const eng = (vs[0] && vs[0].engine) || 'Android TextToSpeech';
+      return { provider: eng === 'com.google.android.tts' ? 'Google TextToSpeech' : eng, voice: best ? best.name : 'engine default', language: best ? String(best.locale || '') : locales[0] };
+    }
+    const v = pickVoice(lg);
+    return { provider: 'Browser voice (Web Speech)', voice: v ? v.name : 'none available', language: v ? v.lang : (lg.speech || 'en-US') };
+  }
+  const activeVoiceText = (lang, cfg) => C.activeVoiceLabel(activeVoiceInfo(lang, cfg));
+  const PROV_LABEL = { native: 'Phone voice (Android TextToSpeech)', piper: 'Piper (offline neural voice)', browser: 'Browser voice', openai: 'OpenAI-compatible TTS', xai: 'Grok voice (xAI)' };
   let voices = [];
   let lastSpeakPayload = { text: '', lang: null };
   let ttsAudio = null;
@@ -2375,12 +2407,50 @@
       ROMAN_URDU: ['en-IN', 'en-US', 'en'], ROMAN_PUNJABI: ['en-IN', 'en-US', 'en'],
       HINDI: ['hi-IN', 'hi'], PUNJABI_GURMUKHI: ['pa-IN', 'pa'], PUNJABI_SHAHMUKHI: ['pa-PK', 'ur-PK', 'ur']
     })[(lang && lang.id) || 'ENGLISH'] || ['en-US', 'en'];
-    return C.pickBestDeviceVoice(voices, { voiceURI: S.voiceURI, gender: S.gender || 'female', langPrefs });
+    return C.pickBestDeviceVoice(voices, { voiceURI: S.voiceURI, gender: S.gender || 'female', langPrefs, online: ttsOnline() });
+  }
+  // ---- 2.5.0: speak sentence-by-sentence WHILE the answer streams (phone/Piper/browser voices; cloud TTS keeps the old whole-reply path) ----
+  const SS = { on: false, dead: false, lang: null, idx: 0, last: '', q: [], playing: false, finishing: false, after: null };
+  function ssAbort() { SS.on = false; SS.dead = false; SS.idx = 0; SS.last = ''; SS.q = []; SS.playing = false; SS.finishing = false; SS.after = null; }
+  function ssBegin(lang, allowed) {
+    ssAbort();
+    let ok = allowed !== false && S.ttsOn && !S.muted;
+    try { const p = activeTtsProvider(); ok = ok && (p === 'native' || p === 'piper' || p === 'browser'); } catch (e) { ok = false; }
+    if (ok) { SS.on = true; SS.lang = lang; }
+  }
+  function ssPump() {
+    if (!SS.on || SS.playing || !SS.q.length) return;
+    const piece = SS.q.shift(); SS.playing = true;
+    speak(piece, SS.lang, () => { SS.playing = false; if (SS.q.length) ssPump(); else if (SS.finishing) ssDone(); });
+  }
+  function ssDone() { const cb = SS.after; ssAbort(); if (cb) cb(); }
+  function ssFeed(full) {
+    if (!SS.on || SS.dead) return;
+    if (full.length < SS.last.length || (SS.last && !full.startsWith(SS.last.slice(0, Math.min(40, SS.last.length))))) { stopSpeaking(); SS.on = true; SS.lang = SS.lang; SS.idx = 0; SS.q = []; SS.playing = false; }   // provider restarted the answer
+    SS.last = full;
+    const block = full.search(/```|<noora-action>/);
+    const seg = full.slice(SS.idx, block >= 0 ? block : full.length);
+    let end = -1; const rx = /[.!?۔؟।]+(?=\s)|\n/g; let m;
+    while ((m = rx.exec(seg))) end = m.index + m[0].length;
+    if (end > 0) {
+      const piece = seg.slice(0, end);
+      SS.idx += end;
+      if (C.cleanSpeakText(piece)) { SS.q.push(piece); ssPump(); }
+    }
+  }
+  function ssFinish(plain, after) {
+    const spoken = SS.last.slice(0, SS.idx);
+    const rest = String(plain).startsWith(spoken) ? String(plain).slice(SS.idx) : '';
+    if (C.cleanSpeakText(rest)) SS.q.push(rest);
+    SS.finishing = true; SS.after = after;
+    if (!SS.playing && !SS.q.length) ssDone(); else ssPump();
   }
   function stopSpeaking() {
+    if (SS.on || SS.q.length) { SS.q = []; SS.playing = false; SS.finishing = false; SS.after = null; }
     speakToken++;
     if ('speechSynthesis' in window) speechSynthesis.cancel();
     if (ttsAudio) { try { ttsAudio.pause(); ttsAudio.src = ''; } catch (e) {} ttsAudio = null; }
+    piperStop();
     if (NATIVE_TTS) { try { window.NooraNative.ttsStop(); } catch (e) {} Object.keys(ttsWaiters).forEach((k) => { clearTimeout(ttsWaiters[k].tm); delete ttsWaiters[k]; }); }
   }
   function applyTtsVolume() {
@@ -2462,8 +2532,77 @@
     const w = ttsWaiters[ev.id]; if (!w) return;
     if (ev.phase === 'start') return;
     clearTimeout(w.tm); delete ttsWaiters[ev.id];
+    if (ev.phase === 'error' && w.fb && w.token === speakToken) { status('Piper voice failed (' + (ev.code || 'error') + ') — using the phone voice.'); w.fb(); return; }
     if (ev.phase === 'error' && ev.code) status('Phone voice error: ' + ev.code);
     if (w.token === speakToken && w.onend) w.onend();
+  }
+  // ---- 2.4.3 optional offline Piper voice (sherpa-onnx on Android). Not bundled: voices are downloaded in Settings → Voice. ----
+  const piperBridge = () => ((IS_ANDROID_WV && window.NooraNative && typeof window.NooraNative.piperStatus === 'function') ? window.NooraNative : null);
+  function piperStatus() {
+    const n = piperBridge(); if (!n) return { ok: false, state: 'unavailable', voices: [] };
+    try { return JSON.parse(n.piperStatus() || '{}'); } catch (e) { return { ok: false, state: 'error', voices: [] }; }
+  }
+  function piperCall(fn, arg) {
+    const n = piperBridge(); if (!n || typeof n[fn] !== 'function') return { ok: false, message: 'Piper is only in the NOORA Android app.' };
+    try { return JSON.parse((arg === undefined ? n[fn]() : n[fn](JSON.stringify(arg))) || '{}'); } catch (e) { return { ok: false, message: 'Piper error' }; }
+  }
+  function piperStop() { const n = piperBridge(); if (n && typeof n.piperStop === 'function') { try { n.piperStop(); } catch (e) {} } }
+  function speakPiper(clean, lang, onend) {
+    const token = speakToken;
+    const fallback = () => (NATIVE_TTS ? speakNative(clean, lang, onend) : speakBrowser(clean, lang, onend));
+    const st = piperStatus();
+    const installed = (st.voices || []).filter((v) => v.installed).map((v) => v.id);
+    const voice = C.piperVoiceFor((lang && lang.id) || 'ENGLISH', clean, installed, S.piperVoice);
+    if (!voice) {
+      if (!warnedVoice.piperNone) { warnedVoice.piperNone = 1; status(installed.length ? 'No Piper voice for this language — using the phone voice.' : 'Piper voice not downloaded yet — using the phone voice. Settings → Voice → Piper.'); }
+      return fallback();
+    }
+    const id = 'p' + (++ttsSeq);
+    const r = piperCall('piperSpeak', { id, voice, text: clean, rate: S.rate || 1, volume: S.volume == null ? 1 : S.volume });
+    if (!r.ok) return fallback();
+    ttsWaiters[id] = { token, onend, fb: fallback, tm: setTimeout(() => { if (ttsWaiters[id]) { delete ttsWaiters[id]; if (token === speakToken && onend) onend(); } }, 15000 + clean.length * 150) };
+  }
+  let piperSel = '';
+  function renderPiperCard() {
+    const box = $('piperVoiceFields'); if (!box) return;
+    const stEl = $('piperState'); const sel = $('sPiperVoice');
+    const dl = $('btnPiperDownload'), dlm = $('btnPiperDownloadMobile'), cancel = $('btnPiperCancel'), del = $('btnPiperDelete');
+    const hide = (b, h) => { if (b) b.hidden = h; };
+    if (!piperBridge()) { if (stEl) stEl.textContent = 'Piper is only in the NOORA Android app.'; [dl, dlm, cancel, del].forEach((b) => hide(b, true)); return; }
+    const st = piperStatus(); const voices = st.voices || [];
+    if (sel) {
+      const cur = piperSel || S.piperVoice || (voices[0] && voices[0].id) || '';
+      sel.innerHTML = voices.map((v) => `<option value="${v.id}"${v.id === cur ? ' selected' : ''}>${v.installed ? '✅ ' : '⬇ '}${v.label} (${v.sizeLabel})</option>`).join('');
+      piperSel = sel.value || cur;
+    }
+    const v = voices.find((x) => x.id === piperSel) || {};
+    if (st.state === 'downloading') {
+      if (stEl) stEl.textContent = '⬇ Downloading ' + (st.downloadingId || 'voice') + ' (' + (st.progress || 0) + '%)…';
+      hide(dl, true); hide(dlm, true); hide(cancel, false); hide(del, true);
+    } else if (v.installed) {
+      if (stEl) stEl.textContent = '✅ ' + v.label + ' is on this phone — works offline. ' + (v.note || '');
+      hide(dl, true); hide(dlm, true); hide(cancel, true); hide(del, false);
+    } else {
+      if (stEl) stEl.textContent = 'Not downloaded: ' + (v.label || 'voice') + ' · ' + (v.sizeLabel || '~21 MB') + '. ' + (v.note || '') + (st.lastError ? ' ⚠ ' + st.lastError : '');
+      hide(dl, false); hide(dlm, false); hide(cancel, true); hide(del, true);
+    }
+    const lic = $('piperLicense'); if (lic) lic.textContent = v.license ? 'Voice licence: ' + v.license : '';
+  }
+  function onPiperEvent(ev) {
+    if (ev.phase === 'download_done') toast('Piper voice ready — works offline now.', 4000);
+    else if (ev.phase === 'download_error') toast(ev.message || 'Piper download failed.', 6000);
+    else if (ev.phase === 'unpacking') status('Unpacking Piper voice…');
+    try { renderPiperCard(); renderVoiceInfo(); } catch (e) {}
+  }
+  function wirePiper() {
+    if (!$('piperVoiceFields')) return;
+    const sel = $('sPiperVoice');
+    if (sel) sel.addEventListener('change', () => { piperSel = sel.value; S.piperVoice = piperSel; saveS(); renderPiperCard(); });
+    const go = (wifiOnly) => { const r = piperCall('piperDownload', { id: piperSel, wifiOnly }); toast(r.message || (r.ok ? 'Downloading…' : 'Could not start'), 5000); renderPiperCard(); };
+    if ($('btnPiperDownload')) $('btnPiperDownload').onclick = () => go(true);
+    if ($('btnPiperDownloadMobile')) $('btnPiperDownloadMobile').onclick = () => modal('Download on mobile data?', 'The voice is about 21 MB. Mobile data charges may apply.', [{ label: 'Download', go: true, fn: () => go(false) }, { label: 'Cancel' }]);
+    if ($('btnPiperCancel')) $('btnPiperCancel').onclick = () => { piperCall('piperCancel'); renderPiperCard(); };
+    if ($('btnPiperDelete')) $('btnPiperDelete').onclick = () => { const r = piperCall('piperDelete', { id: piperSel }); toast(r.message || 'Removed', 3000); renderPiperCard(); };
   }
   function speakNative(clean, lang, onend) {
     const token = speakToken;
@@ -2471,7 +2610,7 @@
     const vs = loadNativeVoices();
     let voice = S.nativeVoice || '';
     if (voice && vs.length) { const v = vs.find((x) => x.name === voice); if (!v || !locales.some((l) => String(v.locale || '').toLowerCase().replace('_', '-').startsWith(l.toLowerCase().split('-')[0]))) voice = ''; }
-    if (!voice && vs.length) { const best = C.rankNativeVoices(vs, locales, S.gender || 'female')[0]; if (best) voice = best.name; }
+    if (!voice && vs.length) { const best = C.rankNativeVoices(vs, locales, S.gender || 'female', { online: ttsOnline() })[0]; if (best) voice = best.name; }
     const id = 'u' + (++ttsSeq);
     let r = {};
     try { r = JSON.parse(window.NooraNative.ttsSpeak(JSON.stringify({ id, text: clean, locales, voice, rate: S.rate || 1, pitch: S.pitch || 1, volume: S.volume == null ? 1 : S.volume })) || '{}'); }
@@ -2514,15 +2653,16 @@
     setVoiceState('SPEAKING');
     const userEnd = onend;
     onend = () => { if (voiceState === 'SPEAKING') setVoiceState('IDLE'); if (userEnd) userEnd(); };
-    const provider = o.provider != null ? C.effectiveTtsProvider({ ttsProvider: o.provider }, ttsPlatform()) : activeTtsProvider();
+    const provider = o.provider != null ? C.effectiveTtsProvider(Object.assign({}, S, { ttsProvider: o.provider }), ttsPlatform(), { online: ttsOnline() }) : activeTtsProvider();
     // cancel previous without bumping token twice awkwardly
     if ('speechSynthesis' in window) speechSynthesis.cancel();
     if (ttsAudio) { try { ttsAudio.pause(); ttsAudio.src = ''; } catch (e) {} ttsAudio = null; }
-    if (NATIVE_TTS) { try { window.NooraNative.ttsStop(); } catch (e) {} }
+    if (NATIVE_TTS) { try { window.NooraNative.ttsStop(); } catch (e) {} piperStop(); }
     speakToken++;
     const offline = S.netMode === 'offline' || !navigator.onLine;
     if (provider === 'openai' && !offline) speakOpenAi(clean, onend);
     else if (provider === 'xai') speakXai(clean, lang, onend);
+    else if (provider === 'piper' && NATIVE_TTS) speakPiper(clean, lang, onend);
     else if (provider === 'native' && NATIVE_TTS) speakNative(clean, lang, onend);
     else speakBrowser(clean, lang, onend);
   }
@@ -2568,11 +2708,16 @@
     toast('Voice conversation stopped');
   }
   function renderVoiceInfo() {
+    const al = $('activeVoiceLine'); if (al) { try { al.textContent = activeVoiceText(); } catch (e) { al.textContent = 'Active voice: unknown'; } }
+    const ph = $('piperAutoHint'); if (ph) ph.hidden = S.ttsProvider !== 'piper';
     const el = $('voiceInfo'); if (!el) return;
     const parts = [];
     const p = activeTtsProvider();
     parts.push('Provider: ' + PROV_LABEL[p] + (S.ttsProvider === 'auto' ? ' (Auto)' : ''));
-    if (p === 'native' || (NATIVE_TTS && p === 'xai')) {
+    if (p === 'piper') {
+      const ps = piperStatus(); const got = (ps.voices || []).filter((v) => v.installed);
+      parts.push(got.length ? 'Piper voices on this phone: ' + got.map((v) => v.id).join(', ') + '. Languages without a Piper voice use the phone voice.' : 'No Piper voice downloaded yet — replies use the phone voice until you download one below.');
+    } else if (p === 'native' || (NATIVE_TTS && p === 'xai')) {
       const vs = loadNativeVoices();
       const has = (pre) => vs.some((v) => String(v.locale || '').toLowerCase().replace('_', '-').startsWith(pre));
       parts.push('Phone voices: ' + [['EN', 'en'], ['UR', 'ur'], ['HI', 'hi'], ['PA', 'pa'], ['AR', 'ar']].map(([n, pre]) => n + (has(pre) ? '✓' : '✗')).join(' · ') + (vs.length ? ' · ' + vs.length + ' total' : ''));
@@ -2593,16 +2738,17 @@
   function fillNativeVoiceSelect() {
     const sel = $('sNativeVoice'); if (!sel) return;
     const vs = loadNativeVoices(true);
-    const ranked = C.rankNativeVoices(vs, ['ur-PK', 'ur', 'hi-IN', 'pa-IN', 'en-IN', 'en-US', 'en-GB', 'en'], S.gender || 'female');
+    const ranked = C.rankNativeVoices(vs, ['ur-PK', 'ur', 'hi-IN', 'pa-IN', 'en-IN', 'en-US', 'en-GB', 'en'], S.gender || 'female', { online: ttsOnline() });
     sel.innerHTML = '<option value="">Auto (best voice for each language)</option>' + ranked.map((v) => `<option value="${String(v.name).replace(/"/g, '')}"${v.name === S.nativeVoice ? ' selected' : ''}>${v.locale} · ${v.name}${v.network ? ' (online)' : ''}</option>`).join('');
   }
   function syncTtsProviderFields() {
     const v = $('sTtsProvider') ? $('sTtsProvider').value : 'auto';
-    const eff = C.effectiveTtsProvider({ ttsProvider: v }, ttsPlatform());
+    const eff = C.effectiveTtsProvider(Object.assign({}, S, { ttsProvider: v, xaiApiKey: ($('sXaiKey') ? $('sXaiKey').value : S.xaiApiKey) }), ttsPlatform(), { online: ttsOnline() });
     const box = $('ttsProviderFields'); if (box) box.hidden = v !== 'openai';
     const xbox = $('xaiProviderFields'); if (xbox) xbox.hidden = v !== 'xai';
     const nbox = $('nativeVoiceFields'); if (nbox) nbox.hidden = !(NATIVE_TTS && (eff === 'native' || v === 'xai'));
-    const bbox = $('browserVoiceFields'); if (bbox) bbox.hidden = eff === 'native';
+    const pbox = $('piperVoiceFields'); if (pbox) { pbox.hidden = !(NATIVE_TTS && eff === 'piper'); if (!pbox.hidden) renderPiperCard(); }
+    const bbox = $('browserVoiceFields'); if (bbox) bbox.hidden = eff === 'native' || eff === 'piper';
   }
 
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -2678,7 +2824,7 @@
   function updateMicIcon() {
     const hasSend = !!input.value.trim() || (typeof chatPending !== 'undefined' && chatPending.some((x) => x.status === 'ready'));
     const b = $('btnMic'), i = ICON[listening ? 'stop' : hasSend ? 'send' : 'mic'];
-    b.style.backgroundImage = listening ? i : i + ', linear-gradient(135deg,#8B5CF6,#22D3EE)';
+    b.style.backgroundImage = listening ? i : i + ', var(--micGrad)';
     b.style.backgroundSize = listening ? '22px' : '26px, cover';
     b.setAttribute('aria-label', listening ? 'Stop listening' : hasSend ? 'Send' : 'Speak');
   }
@@ -2817,9 +2963,19 @@
     $('sProvider').innerHTML = Object.keys(C.PRESETS).map((p) => `<option${p === S.provider ? ' selected' : ''}>${p}</option>`).join('');
     $('sBase').value = S.baseUrl; $('sKey').value = S.apiKey; $('sModel').value = S.chatModel; $('sVision').value = S.visionModel;
     if ($('sGroqKey')) $('sGroqKey').value = S.groqApiKey || '';
+    fillGroqModelSelect();
+    if ($('sGroqAlt')) $('sGroqAlt').checked = S.groqAltOn !== false;
+    if ($('sCustomInstr')) $('sCustomInstr').value = S.customInstructions || '';
+    if ($('sXaiChatMode')) $('sXaiChatMode').value = S.xaiChatMode || 'off';
+    if ($('sXaiChatKey')) $('sXaiChatKey').value = S.xaiApiKey || '';
+    if ($('sXaiChatModel')) $('sXaiChatModel').value = S.xaiChatModel || C.XAI_CHAT_MODEL;
+    if ($('sKeepAlive')) $('sKeepAlive').checked = !!S.keepAlive;
     renderRouteLine();
     $('sWeb').checked = S.webSearchOn !== false;
     if ($('sServerUrl')) $('sServerUrl').value = S.serverUrl || '';
+    if ($('vidBase')) $('vidBase').value = S.videoBaseUrl || '';
+    if ($('vidKey')) $('vidKey').value = S.videoApiKey || '';
+    renderImageSettings();
     $('sAiName').value = S.aiName || 'Noora';
     $('sTone').innerHTML = C.tones.map((t) => `<option${t === S.tone ? ' selected' : ''}>${t}</option>`).join('');
     $('sMode').innerHTML = C.modes.map((t) => `<option${t === S.mode ? ' selected' : ''}>${t}</option>`).join('');
@@ -2828,7 +2984,7 @@
     $('sPrefLang').innerHTML = '<option value="">Auto from message</option>' + Object.values(L).map((l) => `<option value="${l.id}"${S.voiceLang === l.id ? ' selected' : ''}>${l.label}</option>`).join('');
     $('sTestResult').textContent = '';
     $('presetNote').textContent = S.modelPreset === 'Local/private'
-      ? 'Local/private: enter your own OpenAI-compatible base URL (e.g. Ollama http://127.0.0.1:11434/v1).'
+      ? 'Local/private: enter your own OpenAI-compatible base URL.'
       : 'Presets map to real model IDs. Free Pollinations anonymous tier currently lists only openai-fast (alias openai).';
     $('aiAbout').textContent = `NOORA AI ${C.VERSION}`;
     renderAssistants();
@@ -2875,9 +3031,45 @@
     $('assistPanel').hidden = true; renderAssistants();
   } }, { label: 'Cancel' }]);
 
+  // Real connection test: GET <PC>/api/tags (no key, no fake result). Shows exactly what happened.
+  function fillGroqModelSelect() {
+    const sel = $('sGroqModel'); if (!sel) return;
+    const cur = S.groqModel || C.GROQ_MODEL;
+    sel.innerHTML = C.GROQ_MODELS.map((m) => `<option value="${m.id}"${m.id === cur ? ' selected' : ''}>${m.label}</option>`).join('');
+    if (!C.groqModelInfo(cur)) sel.insertAdjacentHTML('afterbegin', `<option value="${String(cur).replace(/"/g, '')}" selected>${String(cur).replace(/[<>"]/g, '')} (custom)</option>`);
+    const note = $('groqModelNote');
+    if (note) note.textContent = 'Groq free tier (per model, console.groq.com/docs/rate-limits): 30 requests/min, 1,000/day, 8K tokens/min, 200K tokens/day. Llama 3.3 70B and Llama 3.1 8B were retired for free/developer keys on 2026-08-16 (only enterprise contracts still have them) — if Groq rejects them NOORA falls through to the next provider automatically. GPT-OSS 120B is Groq\'s recommended replacement.';
+  }
+  // ---- 2.5.0 background listening (Android foreground service, microphone type) ----
+  const keepAliveBridge = () => ((IS_ANDROID_WV && window.NooraNative && typeof window.NooraNative.keepAliveSet === 'function') ? window.NooraNative : null);
+  function setKeepAlive(on, quiet) {
+    const n = keepAliveBridge();
+    if (!n) { if (!quiet) toast('Background listening is only in the NOORA Android app.'); S.keepAlive = false; saveS(); return false; }
+    let res; try { res = JSON.parse(n.keepAliveSet(JSON.stringify({ on })) || '{}'); } catch (e) { res = { ok: false, message: 'Service error' }; }
+    if (on && !res.ok) { S.keepAlive = false; saveS(); if ($('sKeepAlive')) $('sKeepAlive').checked = false; if (!quiet) toast(res.message || 'Could not start the background service.', 6000); return false; }
+    S.keepAlive = !!on; saveS();
+    if (!quiet) toast(on ? 'NOORA will keep listening in the background (see the notification).' : 'Background service stopped.', 4000);
+    return true;
+  }
+  if ($('sTheme')) { $('sTheme').value = S.theme || 'auto'; $('sTheme').addEventListener('change', () => { S.theme = $('sTheme').value; saveS(); applyTheme(); }); }
+  applyTheme();
+  if ($('sKeepAlive')) $('sKeepAlive').addEventListener('change', () => setKeepAlive($('sKeepAlive').checked));
+  function syncKeepAlive() {   // app is in front here, so Android 14+ allows (re)starting the microphone service
+    const n = keepAliveBridge(); if (!n || !S.keepAlive) return;
+    let st = {}; try { st = JSON.parse(n.keepAliveStatus() || '{}'); } catch (e) {}
+    if (!st.wanted) { S.keepAlive = false; saveS(); if ($('sKeepAlive')) $('sKeepAlive').checked = false; return; }   // user pressed Stop in the notification
+    if (!st.on) setKeepAlive(true, true);
+  }
+  setTimeout(() => { try { syncKeepAlive(); } catch (e) {} }, 1500);
   function renderRouteLine() { const el = $('aiRouteLine'); if (el) el.textContent = C.routeSummary(S); }
   function saveAiFields() {
     if ($('sGroqKey')) S.groqApiKey = $('sGroqKey').value.trim();
+    if ($('sGroqModel') && $('sGroqModel').value) S.groqModel = $('sGroqModel').value;
+    if ($('sGroqAlt')) S.groqAltOn = $('sGroqAlt').checked;
+    if ($('sCustomInstr')) S.customInstructions = $('sCustomInstr').value.trim().slice(0, 2000);
+    if ($('sXaiChatMode')) S.xaiChatMode = $('sXaiChatMode').value || 'off';
+    if ($('sXaiChatModel')) S.xaiChatModel = $('sXaiChatModel').value.trim() || C.XAI_CHAT_MODEL;
+    if ($('sXaiChatKey') && $('sXaiChatKey').value.trim() !== (S.xaiApiKey || '') && document.activeElement === $('sXaiChatKey')) S.xaiApiKey = $('sXaiChatKey').value.trim();
     S.modelPreset = $('sPreset').value; S.provider = $('sProvider').value;
     S.baseUrl = $('sBase').value.trim().replace(/\/+$/, ''); S.apiKey = $('sKey').value.trim();
     S.chatModel = $('sModel').value.trim(); S.visionModel = $('sVision').value.trim();
@@ -2887,7 +3079,7 @@
     if ($('sServerUrl')) S.serverUrl = ($('sServerUrl').value || '').trim().replace(/\/+$/, '');
     saveS(); updateEmpty(); refreshStatus(); renderRouteLine();
   }
-  ['sGroqKey', 'sBase', 'sKey', 'sModel', 'sVision', 'sWeb', 'sAiName', 'sTone', 'sMode', 'sFormality', 'sGender', 'sPrefLang', 'sServerUrl'].forEach((id) => {
+  ['sGroqKey', 'sGroqModel', 'sGroqAlt', 'sCustomInstr', 'sXaiChatMode', 'sXaiChatKey', 'sXaiChatModel', 'sBase', 'sKey', 'sModel', 'sVision', 'sWeb', 'sAiName', 'sTone', 'sMode', 'sFormality', 'sGender', 'sPrefLang', 'sServerUrl'].forEach((id) => {
     const el = $(id); if (el) el.addEventListener('change', saveAiFields);
   });
   $('sProvider').addEventListener('change', () => {
@@ -2956,13 +3148,15 @@
       ttsVoiceId: ($('sTtsVoiceId').value || '').trim(),
       nativeVoice: $('sNativeVoice') ? $('sNativeVoice').value || '' : '',
       xaiApiKey: $('sXaiKey') ? ($('sXaiKey').value || '').trim() : '',
-      xaiVoiceId: $('sXaiVoice') ? $('sXaiVoice').value || 'eve' : 'eve'
+      xaiVoiceId: $('sXaiVoice') ? $('sXaiVoice').value || 'eve' : 'eve',
+      piperVoice: piperSel || S.piperVoice || ''
     };
   }
   function openSettings() {
     try { renderContactsAccess(); } catch (e) {}
     try { renderLocalLlmCard(); } catch (e) {}
     try { renderVoiceIdCard(); } catch (e) {}
+    try { renderPiperCard(); } catch (e) {}
     $('sName').value = S.userName;
     $('sTts').checked = S.ttsOn;
     $('sTtsProvider').value = S.ttsProvider || 'auto';
@@ -2985,7 +3179,7 @@
       `Voice input: ${SR ? 'available (may be refused by OS — then use keyboard 🎤)' : 'NOT available — use keyboard 🎤'}.\n` +
       `TTS: ${PROV_LABEL[activeTtsProvider()]} (Auto = phone voice on Android). Optional Grok / OpenAI-compatible keys stay in Voice settings only.\n` +
       `Storage: ${Store.kind}. Installed: ${STANDALONE || IS_ANDROID_WV ? 'yes' : 'no'}.`;
-    $('about').textContent = `NOORA AI ${C.VERSION}\nLive: rss2json, Wikipedia, open.er-api.com, gold-api.com, Coinbase, Open-Meteo, Pollinations`;
+    $('about').textContent = `NOORA AI ${C.VERSION}\nLive: rss2json (news), open.er-api.com, gold-api.com, Coinbase, Open-Meteo, Pollinations`;
   }
   function saveSettings() {
     S.userName = $('sName').value.trim();
@@ -3005,6 +3199,9 @@
   $('sTtsProvider').addEventListener('change', () => { syncTtsProviderFields(); saveSettings(); });
   if ($('btnTtsSettings')) $('btnTtsSettings').onclick = () => { if (!openTtsSettings()) toast('Could not open text-to-speech settings on this phone.'); };
   if ($('sNetMode')) $('sNetMode').addEventListener('change', () => { S.netMode = $('sNetMode').value; saveS(); refreshStatus(); toast('Mode: ' + S.netMode); });
+  ['sTtsProvider', 'sXaiKey', 'sGender', 'sNativeVoice'].forEach((id) => { const el = $(id); if (el) el.addEventListener('change', () => {
+    try { const al = $('activeVoiceLine'); if (al) al.textContent = activeVoiceText(prefLang() || L.ENGLISH, Object.assign({}, S, readVoiceForm())); const ph = $('piperAutoHint'); if (ph) ph.hidden = $('sTtsProvider').value !== 'piper'; } catch (e) {}
+  }); });
   $('sVoiceTest').onclick = () => {
     const form = readVoiceForm();
     const sample = 'Hi, I am ' + aiName() + '. This is a short voice test with your current settings.';
@@ -3013,12 +3210,14 @@
     const prev = {
       ttsOn: S.ttsOn, muted: S.muted, rate: S.rate, pitch: S.pitch, volume: S.volume, voiceURI: S.voiceURI,
       ttsProvider: S.ttsProvider, ttsBaseUrl: S.ttsBaseUrl, ttsApiKey: S.ttsApiKey, ttsModel: S.ttsModel, ttsVoiceId: S.ttsVoiceId,
-      nativeVoice: S.nativeVoice, xaiApiKey: S.xaiApiKey, xaiVoiceId: S.xaiVoiceId
+      nativeVoice: S.nativeVoice, xaiApiKey: S.xaiApiKey, xaiVoiceId: S.xaiVoiceId, piperVoice: S.piperVoice
     };
     Object.assign(S, form, { ttsOn: true, muted: false });
     if (Number.isNaN(S.volume)) S.volume = 1;
+    const info = activeVoiceText(prefLang() || L.ENGLISH, Object.assign({}, S, { ttsProvider: form.ttsProvider }));
     speak(sample, prefLang() || L.ENGLISH, () => { Object.assign(S, prev); }, { force: true, provider: form.ttsProvider });
-    toast('Playing Voice Test…');
+    toast('Playing Voice Test…\n' + info, 6000);
+    const vt = $('voiceTestResult'); if (vt) vt.textContent = info;
   };
   $('sPinOn').addEventListener('change', async () => {
     if ($('sPinOn').checked) {
@@ -3146,11 +3345,7 @@
     const vp = C.selectVideoProvider(S);
     if ($('vidStatus')) $('vidStatus').textContent = vp.ready ? ('Provider ready: ' + vp.label) : (vp.reason || 'No video provider configured');
     if ($('btnVidGen')) $('btnVidGen').disabled = !vp.ready;
-    ['btnImg2Img', 'btnImgEdit', 'btnImgBg', 'btnImgUpscale'].forEach((id) => {
-      const el = $(id); if (!el) return;
-      el.disabled = true;
-      el.onclick = () => toast(el.title || 'Unavailable — no provider configured');
-    });
+    refreshImageStudio();
   }
   if ($('btnVidSave')) $('btnVidSave').onclick = () => {
     S.videoBaseUrl = ($('vidBase').value || '').trim().replace(/\/+$/, '');
@@ -3165,37 +3360,144 @@
     if (!vp.ready) { toast(vp.reason || 'No video provider'); return; }
     toast('Video generation runner not wired for this provider yet — no fake output.');
   };
+  // ---- 2.5.1 Image Studio: real providers (Pollinations / Gemini image / OpenAI-compatible) ----
+  const IMG_OPS = [['btnImg2Img', 'img2img', 'img2img'], ['btnImgEdit', 'edit', 'Edit'], ['btnImgBg', 'bg', 'BG replace'], ['btnImgUpscale', 'enhance', 'Enhance (AI clean-up)']];
+  let studioSrc = null;
+  function refreshImageStudio() {
+    const p = C.selectImageProvider(S);
+    IMG_OPS.forEach(([id, op, label]) => {
+      const el = $(id); if (!el) return;
+      const on = p.ops.includes(op);
+      el.disabled = !on; el.textContent = on ? label : label + ' — unavailable';
+      el.title = on ? 'Uses ' + p.label : (p.reasons && p.reasons[op]) || 'Needs an image provider in Settings → Create / Image';
+      el.onclick = () => runImageOp(op);
+    });
+    if ($('imgOpsNote')) $('imgOpsNote').textContent = p.ops.includes('edit') ? 'Photo tools via ' + p.label + ' — choose a source photo, describe the change, tap a tool.' : 'Photo tools are off: ' + ((p.reasons && p.reasons.edit) || 'configure an image provider in Settings → Create / Image.');
+    if ($('imgGenStatus') && !$('imgGenStatus').dataset.busy) $('imgGenStatus').textContent = 'Text → image: ' + (p.ops.includes('txt2img') ? p.label : 'Pollinations (free)') + '.' + (p.note ? ' ' + p.note : '');
+  }
+  function renderImageSettings() {
+    if (!$('sImgProvider')) return;
+    $('sImgProvider').value = S.imageProvider || '';
+    if ($('sImgBase')) $('sImgBase').value = S.imageBaseUrl || '';
+    if ($('sImgKey')) $('sImgKey').value = S.imageApiKey || '';
+    if ($('sImgModel')) $('sImgModel').value = S.imageModel || '';
+    if ($('imgOpenAiFields')) $('imgOpenAiFields').hidden = $('sImgProvider').value !== 'openai';
+    if ($('imgTestOut')) $('imgTestOut').textContent = '';
+    const p = C.selectImageProvider(S);
+    if ($('imgProviderNote')) $('imgProviderNote').textContent = p.ready ? '✅ ' + p.label + ' — ' + (p.ops.includes('edit') ? 'edit tools enabled in Create → Image Studio.' : 'text → image only.') : (p.reasons && p.reasons.edit ? '⚠ ' + p.reasons.edit : 'Free Pollinations: text → image only.');
+  }
+  ['sImgProvider', 'sImgBase', 'sImgKey', 'sImgModel'].forEach((id) => { const el = $(id); if (el) el.addEventListener('change', () => {
+    S.imageProvider = $('sImgProvider').value || '';
+    const base = ($('sImgBase').value || '').trim().replace(/\/+$/, '');
+    if (base && !C.imageBaseOk(base)) { toast('Image Base URL must start with https:// (your key is sent there).', 5000); $('sImgBase').value = S.imageBaseUrl || ''; }
+    else S.imageBaseUrl = base;
+    S.imageApiKey = ($('sImgKey').value || '').trim(); S.imageModel = ($('sImgModel').value || '').trim();
+    saveS(); renderImageSettings(); refreshImageStudio();
+  }); });
+  // Real minimal call, no image generated, nothing billed: Gemini → GET model info; OpenAI-compatible → GET /models.
+  async function testImageProvider() {
+    const out = $('imgTestOut'); if (!out) return;
+    const p = C.selectImageProvider(S);
+    if (p.id !== 'gemini' && p.id !== 'openai') { out.textContent = 'Pollinations needs no key. Choose Gemini image or OpenAI-compatible above to test one.'; return; }
+    if (!p.ready) { out.textContent = '⚠ ' + (p.reasons.edit || 'Fill in the fields first.'); return; }
+    if (!navigator.onLine) { out.textContent = C.imageTestMessage({ provider: p.id, status: -1, error: 'no internet' }).message; return; }
+    out.textContent = '⏳ Testing ' + p.label + ' (up to 15 s)…';
+    let r, model, info = {};
+    if (p.id === 'gemini') {
+      model = S.imageEditModel || C.IMAGE_EDIT_MODELS[0];
+      r = await http('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model), { method: 'GET', headers: { 'x-goog-api-key': S.apiKey } }, 15000);
+    } else {
+      model = p.model;
+      r = await http(p.base + '/models', { method: 'GET', headers: { Authorization: 'Bearer ' + S.imageApiKey } }, 15000);
+    }
+    if (r.ok && p.id === 'openai') { try { const j = await r.res.json(); info.models = (j.data || j.models || []).map((m) => (typeof m === 'string' ? m : m.id || m.name)).filter(Boolean); } catch (e) { info.models = []; } }
+    if (!r.ok && r.res) { try { const j = await r.res.json(); info.detail = (j.error && (j.error.message || j.error)) || ''; } catch (e) {} }
+    const m = C.imageTestMessage(Object.assign({ provider: p.id, status: r.status, error: r.error, model }, info));
+    out.textContent = m.message;
+  }
+  if ($('btnImgTest')) $('btnImgTest').onclick = () => { testImageProvider(); };
+  if ($('imgSrc')) $('imgSrc').onchange = () => {
+    const f = $('imgSrc').files && $('imgSrc').files[0]; if (!f) { studioSrc = null; $('imgSrcPrev').hidden = true; return; }
+    if (!/^image\//.test(f.type)) { toast('Choose an image file'); return; }
+    if (f.size > 12 * 1024 * 1024) { toast('Photo is over 12 MB — choose a smaller one'); return; }
+    const fr = new FileReader(); fr.onload = () => { studioSrc = fr.result; $('imgSrcPrev').src = studioSrc; $('imgSrcPrev').hidden = false; }; fr.readAsDataURL(f);
+  };
+  const dataUrlToBlob = async (d) => (await fetch(d)).blob();
+  const blobToDataUrl = (b) => new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(b); });
+  async function openAiImageResult(r, what) {
+    if (!r.ok) {
+      let msg = ''; try { const j = await r.res.json(); msg = (j.error && (j.error.message || j.error)) || ''; } catch (e) {}
+      return { ok: false, message: what + ' failed (' + (r.status > 0 ? 'HTTP ' + r.status : r.error) + (msg ? ': ' + String(msg).slice(0, 140) : '') + ')' + (r.status === 401 || r.status === 403 ? ' — check the API key.' : '') };
+    }
+    let j; try { j = await r.res.json(); } catch (e) { return { ok: false, message: 'The image service replied with something that is not JSON.' }; }
+    const o = C.parseOpenAiImage(j);
+    if (!o.ok) return { ok: false, message: 'No image returned (' + o.reason + ')' };
+    if (o.b64) return { ok: true, dataUrl: 'data:' + o.mime + ';base64,' + o.b64 };
+    try { const ir = await fetch(o.url); return { ok: true, dataUrl: await blobToDataUrl(await ir.blob()) }; } catch (e) { return { ok: true, dataUrl: o.url }; }
+  }
+  async function openAiImageGenerate(prompt) {
+    const p = C.selectImageProvider(S); const req = C.buildOpenAiImageGen(S, prompt);
+    return openAiImageResult(await http(req.url, { method: 'POST', headers: req.headers, body: JSON.stringify(req.body) }, 180000), 'Image generation (' + p.model + ')');
+  }
+  async function openAiImageEdit(prompt, dataUrl) {
+    const blob = await dataUrlToBlob(dataUrl);
+    const fd = new FormData();
+    fd.append('model', S.imageModel); fd.append('prompt', prompt.slice(0, 4000)); fd.append('n', '1');
+    fd.append('image', blob, 'photo.' + ((blob.type || 'image/png').split('/')[1] || 'png'));
+    return openAiImageResult(await http(String(S.imageBaseUrl).replace(/\/+$/, '') + '/images/edits', { method: 'POST', headers: { Authorization: 'Bearer ' + S.imageApiKey }, body: fd }, 180000), 'Image edit (' + S.imageModel + ')');
+  }
+  function addStudioShot(dataUrl, prompt, seed) {
+    const box = $('imgResults');
+    const shot = document.createElement('div'); shot.className = 'shot';
+    shot.innerHTML = '<img alt=""><div class="row"><button type="button" class="dl">Download</button><button type="button" class="sh">Share</button></div>';
+    shot.querySelector('img').src = dataUrl;
+    shot.querySelector('img').onclick = () => openImage(dataUrl);
+    shot.querySelector('.dl').onclick = () => { const a = document.createElement('a'); a.href = dataUrl; a.download = 'noora-' + seed + '.jpg'; a.click(); };
+    shot.querySelector('.sh').onclick = async () => {
+      try {
+        if (navigator.share) { const blob = await (await fetch(dataUrl)).blob(); await navigator.share({ files: [new File([blob], 'noora.jpg', { type: blob.type || 'image/jpeg' })], title: 'NOORA image' }); }
+        else { await navigator.clipboard.writeText(prompt); toast('Share unavailable — prompt copied'); }
+      } catch (e) { toast('Share cancelled or failed'); }
+    };
+    box.appendChild(shot);
+  }
+  async function runImageOp(op) {
+    const p = C.selectImageProvider(S);
+    if (!p.ops.includes(op)) return toast((p.reasons && p.reasons[op]) || 'Needs an image provider in Settings → Create / Image', 5000);
+    if (!studioSrc) { toast('Choose a source photo first'); if ($('imgSrc')) $('imgSrc').click(); return; }
+    const typed = ($('imgPrompt').value || '').trim();
+    if (op !== 'enhance' && !typed) return toast('Describe the change in the Prompt box first');
+    if (!navigator.onLine || S.netMode === 'offline') return toast('Photo tools need internet.');
+    const st = $('imgGenStatus'); st.dataset.busy = '1'; st.textContent = '⏳ ' + p.label + ' is working on the photo… (can take up to a minute)';
+    const prompt = C.imageOpPrompt(op, typed);
+    let res;
+    try { res = p.id === 'gemini' ? await geminiEditImage(prompt, studioSrc) : await openAiImageEdit(prompt, studioSrc); }
+    catch (e) { res = { ok: false, message: 'Unexpected error: ' + (e.message || e) }; }
+    delete st.dataset.busy;
+    if (!res.ok) { st.textContent = '❌ ' + res.message; return; }
+    const seed = Date.now();
+    await Store.addFile({ name: 'studio-' + op + '-' + seed + '.png', mime: 'image/png', kind: 'image', ts: seed, dataUrl: res.dataUrl, text: typed });
+    addStudioShot(res.dataUrl, typed, seed);
+    st.textContent = '✅ Done via ' + p.label + ' (saved in Files).' + (op === 'enhance' ? ' Note: this is an AI clean-up, not a true resolution upscale.' : '');
+  }
   if ($('btnImgGen')) $('btnImgGen').onclick = async () => {
     const prompt = ($('imgPrompt').value || '').trim();
     if (!prompt) { toast('Enter a prompt'); return; }
     const n = Math.min(4, Math.max(1, parseInt($('imgCount').value, 10) || 1));
-    $('imgGenStatus').textContent = 'Generating ' + n + '…';
-    const box = $('imgResults'); box.innerHTML = '';
+    const p = C.selectImageProvider(S); const viaProvider = p.id === 'openai' && p.ready;
+    const st = $('imgGenStatus'); st.dataset.busy = '1'; st.textContent = 'Generating ' + n + '…';
+    $('imgResults').innerHTML = '';
     lastStudioImages = [];
     for (let i = 0; i < n; i++) {
       const seed = Date.now() + i * 17;
-      const res = await Live.image(prompt, seed);
-      if (res.error) { $('imgGenStatus').textContent = 'Error: ' + res.error; continue; }
+      const res = viaProvider ? await openAiImageGenerate(prompt) : await Live.image(prompt, seed);
+      if (res.error || res.ok === false) { st.textContent = 'Error: ' + (res.error || res.message); continue; }
       lastStudioImages.push({ dataUrl: res.dataUrl, prompt, seed });
       await Store.addFile({ name: 'studio-' + seed + '.jpg', mime: 'image/jpeg', kind: 'image', ts: Date.now(), dataUrl: res.dataUrl, text: prompt });
-      const shot = document.createElement('div'); shot.className = 'shot';
-      shot.innerHTML = '<img alt=""><div class="row"><button type="button" class="dl">Download</button><button type="button" class="sh">Share</button></div>';
-      shot.querySelector('img').src = res.dataUrl;
-      shot.querySelector('img').onclick = () => openImage(res.dataUrl);
-      shot.querySelector('.dl').onclick = () => {
-        const a = document.createElement('a'); a.href = res.dataUrl; a.download = 'noora-' + seed + '.jpg'; a.click();
-      };
-      shot.querySelector('.sh').onclick = async () => {
-        try {
-          if (navigator.share) {
-            const blob = await (await fetch(res.dataUrl)).blob();
-            await navigator.share({ files: [new File([blob], 'noora.jpg', { type: 'image/jpeg' })], title: 'NOORA image' });
-          } else { await navigator.clipboard.writeText(prompt); toast('Share unavailable — prompt copied'); }
-        } catch (e) { toast('Share cancelled or failed'); }
-      };
-      box.appendChild(shot);
+      addStudioShot(res.dataUrl, prompt, seed);
     }
-    $('imgGenStatus').textContent = lastStudioImages.length ? ('Done · ' + lastStudioImages.length + ' image(s). img2img/edit still need a provider.') : 'No images generated';
+    delete st.dataset.busy;
+    st.textContent = lastStudioImages.length ? ('Done · ' + lastStudioImages.length + ' image(s) via ' + (viaProvider ? p.label : 'Pollinations') + '.') : (st.textContent.startsWith('Error') ? st.textContent : 'No images generated');
   };
 
   function renderFcPending() {

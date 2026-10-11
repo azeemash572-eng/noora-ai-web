@@ -130,27 +130,25 @@
     <div class="scroll" id="createImagePane">
       <div class="glassCard">
         <label>Prompt<textarea id="imgPrompt" rows="3" placeholder="Describe the image…" dir="auto"></textarea></label>
-        <label>Count<select id="imgCount"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></label>
+        <label class="fieldRow">Count<select id="imgCount"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></label>
         <button type="button" class="primary" id="btnImgGen">Generate (Pollinations)</button>
-        <p class="note" id="imgGenStatus">Provider: Pollinations txt2img (free). img2img / edit / upscale need a configured provider — currently disabled.</p>
-      </div>
-      <div class="studioActions">
+        <label>Source photo (for img2img / Edit / BG replace / Enhance)<input type="file" id="imgSrc" accept="image/*"></label>
+        <img id="imgSrcPrev" alt="" hidden style="max-width:100%;max-height:160px;border-radius:12px;margin-top:8px">
+        <div class="studioActions compact"><p class="note" id="imgOpsNote">Photo tools:</p>
         <button type="button" class="outline" id="btnImg2Img" disabled title="No img2img provider configured">img2img — unavailable</button>
         <button type="button" class="outline" id="btnImgEdit" disabled title="No edit provider configured">Edit — unavailable</button>
         <button type="button" class="outline" id="btnImgBg" disabled title="No background-replace provider">BG replace — unavailable</button>
         <button type="button" class="outline" id="btnImgUpscale" disabled title="No upscale provider">Enhance / upscale — unavailable</button>
       </div>
+        <p class="note" id="imgGenStatus">Provider: Pollinations txt2img (free). img2img / edit / upscale need a configured provider — currently disabled.</p>
+      </div>
       <div id="imgResults" class="imgResults"></div>
     </div>
     <div class="scroll" id="createVideoPane" hidden>
       <div class="glassCard">
-        <label>Video provider<select id="vidProvider"><option value="">None configured</option></select></label>
-        <label>Base URL<input id="vidBase" placeholder="https://…" inputmode="url" autocapitalize="off"></label>
-        <label>API key<input id="vidKey" type="password" placeholder="stored on this device only" autocomplete="off"></label>
-        <button type="button" class="outline" id="btnVidSave">Save video provider</button>
-        <p class="note" id="vidStatus">No video provider configured. Ops stay disabled until you add a real endpoint — nothing is faked.</p>
         <label>Prompt<textarea id="vidPrompt" rows="3" placeholder="Describe a video…" dir="auto"></textarea></label>
         <button type="button" class="primary" id="btnVidGen" disabled>Generate video</button>
+        <p class="note" id="vidStatus">No video provider configured — add one in Settings → Create / Video. Nothing is faked.</p>
       </div>
     </div>
   </section>
@@ -215,6 +213,12 @@
         <h3>Siri / iPhone Shortcuts</h3>
         <p class="note">iPhone web apps cannot listen for a wake word. Make a Shortcut instead: Shortcuts → + → “Open URL” → <code>https://azeemash572-eng.github.io/noora-ai-web/?voice=1</code>, name it “Noora”, then say “Hey Siri, Noora”. To pass a spoken command: “Dictate Text” → “URL Encode” → Open URL <code>…/noora-ai-web/?cmd=</code> + the encoded text. Full recipes: docs/SIRI-SHORTCUTS.md.</p>
       </div>
+      <div class="glassCard" id="scanPdfCard">
+        <h3>📷 Scan / PDF · اسکین / PDF</h3>
+        <p class="note">Barcode scanner with quantity &amp; model list (CSV export) and photos → A4 PDF. Works fully on this phone, no account. · بارکوڈ اسکین، مقدار اور ماڈل کی فہرست (CSV) اور تصاویر سے PDF — سب فون پر۔</p>
+        <button type="button" class="outline" id="btnScanOpen">📷 Scan barcodes · بارکوڈ اسکین</button>
+        <button type="button" class="outline" id="btnPdfOpen">📄 Convert to PDF · PDF بنائیں</button>
+      </div>
       <div class="glassCard" id="toolCalcCard">
         <label>Calculator<input id="toolCalcIn" type="text" placeholder="e.g. (12+3)×2, 15% of 200 → 15%*200" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"></label>
         <button type="button" class="outline" id="btnToolCalc">Calculate</button>
@@ -257,6 +261,10 @@
       <div class="card">
         <label>Your name<input id="sName" placeholder="e.g. Ayesha" autocomplete="given-name"></label>
       </div>
+      <h3>Appearance</h3>
+      <div class="card">
+        <label>Theme<select id="sTheme"><option value="auto">Automatic (follow phone)</option><option value="dark">Dark</option><option value="light">Light</option></select></label>
+      </div>
       <h3>Contacts access</h3>
       <div class="card" id="contactsAccessCard">
         <p class="note" id="contactsAccessState">Checking…</p>
@@ -265,12 +273,26 @@
         <button type="button" class="outline" id="btnContactsAppSettings" hidden>⚙️ Open app settings</button>
         <p class="note">NOORA reads every contact and every number on this phone so you can call or message anyone by name. Kept only on this phone (memory + on-device storage), refreshed when your contacts change — never sent to Groq, Gemini or any AI.</p>
       </div>
+      <h3>Custom instructions</h3>
+      <div class="card" id="instrCard">
+        <label>Your rules for NOORA (always followed first)<textarea id="sCustomInstr" rows="4" maxlength="2000" placeholder="e.g. Always reply in Roman Urdu. Keep answers under 3 sentences. Call me Ayesha."></textarea></label>
+        <p class="note">These go at the very top of every AI request as “USER RULES” and override NOORA's default style, length and language habits. Stored only on this phone. Memory facts (“remember that…”) are sent as a numbered list below them.</p>
+      </div>
       <h3>AI model</h3>
       <div class="card groqCard" id="groqCard">
         <p class="routeLine" id="aiRouteLine">Primary: Groq (Qwen 27B), Backup: Gemini</p>
         <label>Groq API key (primary · Qwen 3.8 27B)<input id="sGroqKey" type="password" placeholder="gsk_… (stored only on this phone)" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false"></label>
+        <label>Groq model<select id="sGroqModel"></select></label>
+        <label class="row">If this model is busy (429), try the other Groq model<input type="checkbox" id="sGroqAlt" class="switch"></label>
+        <p class="note" id="groqModelNote"></p>
         <p class="note urduHint" dir="rtl" lang="ur">groq.com پر مفت اکاؤنٹ بنا کر API key یہاں ڈالیں</p>
         <p class="note">With a Groq key NOORA answers with Groq first. If Groq is busy, rejects the key, times out (~20 s) or replies empty, the same message is re-sent automatically to your Gemini key below, and if that also fails, to free Pollinations. A small line under the reply says when this happened. Photos go to Gemini first when a Gemini key is set. No Groq key = everything works exactly as before.</p>
+      </div>
+      <div class="card" id="xaiChatCard">
+        <label>Grok (xAI) chat — optional, paid by you<select id="sXaiChatMode"><option value="off">Off (not used)</option><option value="backup">Backup — after Groq / Gemini, before free Pollinations</option><option value="primary">Primary — ask Grok first</option></select></label>
+        <label>xAI API key<input id="sXaiChatKey" type="password" placeholder="xai-… (stored only on this phone; same key as Voice → Grok voice)" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false"></label>
+        <label>Grok model<input id="sXaiChatModel" list="xaiModels" placeholder="grok-4.3" autocapitalize="off" autocorrect="off"><datalist id="xaiModels"><option value="grok-4.3"><option value="grok-4.7"><option value="grok-4.20-0309-non-reasoning"></datalist></label>
+        <p class="note">OpenAI-compatible API at api.x.ai/v1 (docs.x.ai/docs/models: grok-4.3 ≈ $1.25 in / $2.50 out per 1M tokens, grok-4.7 is their top model). Not part of NOORA's default chain — it is only used if you switch it on here. Billed by xAI to your account.</p>
       </div>
       <div class="card">
         <label>Preset<select id="sPreset"></select></label>
@@ -280,11 +302,35 @@
         <label>API key (Gemini / backup provider)<input id="sKey" type="password" placeholder="paste your key" autocapitalize="off" autocorrect="off" autocomplete="off"></label>
         <label>Chat model<input id="sModel" placeholder="gpt-4o-mini" autocapitalize="off" autocorrect="off"></label>
         <label>Vision model<input id="sVision" placeholder="gpt-4o-mini" autocapitalize="off" autocorrect="off"></label>
-        <label class="row">Web &amp; research (live sources)<input type="checkbox" id="sWeb" class="switch"></label>
+        <label class="row">Live answers — news, prices, weather (no source list shown)<input type="checkbox" id="sWeb" class="switch"></label>
         <label>Optional Server URL<input id="sServerUrl" placeholder="https://your-replit.example (leave empty for direct)" inputmode="url" autocapitalize="off"></label>
         <p class="note">When set, AI/TTS/image calls go through your Node proxy (env keys). Leave empty to use keys stored on this device.</p>
         <button class="primary" id="sTest">Save &amp; test AI connection</button>
         <p class="note" id="sTestResult"></p>
+      </div>
+      <h3>Create / Video</h3>
+      <div class="card" id="videoSettingsCard">
+        <label>Video provider<select id="vidProvider"><option value="">None configured</option></select></label>
+        <label>Base URL<input id="vidBase" placeholder="https://…" inputmode="url" autocapitalize="off"></label>
+        <label>API key<input id="vidKey" type="password" placeholder="stored on this device only" autocomplete="off"></label>
+        <button type="button" class="outline" id="btnVidSave">Save video provider</button>
+        <p class="note">Video generation only works with a real video API you provide (base URL + key, stored on this device only). Without one, the Generate button in Create → Video Studio stays disabled — nothing is simulated.</p>
+      </div>
+      <h3>Create / Image</h3>
+      <div class="card" id="imageSettingsCard">
+        <label>Image provider<select id="sImgProvider">
+          <option value="">Pollinations — free, text → image only</option>
+          <option value="gemini">Gemini image — uses your Gemini key: img2img, Edit, BG replace, Enhance</option>
+          <option value="openai">OpenAI-compatible — your own Base URL, key and model</option></select></label>
+        <div id="imgOpenAiFields" hidden>
+          <label>Base URL (https)<input id="sImgBase" placeholder="https://api.openai.com/v1" inputmode="url" autocapitalize="off" autocorrect="off"></label>
+          <label>API key<input id="sImgKey" type="password" placeholder="stored on this device only" autocomplete="off" autocapitalize="off"></label>
+          <label>Image model<input id="sImgModel" placeholder="gpt-image-1" autocapitalize="off" autocorrect="off"></label>
+        </div>
+        <button type="button" class="outline" id="btnImgTest">🔌 Test provider</button>
+        <p class="note" id="imgTestOut" style="white-space:pre-wrap"></p>
+        <p class="note" id="imgProviderNote"></p>
+        <p class="note">Buttons in Create → Image Studio switch on only when the chosen provider can really do them. “Enhance” is an AI clean-up/re-render, not a true resolution upscaler. Editing needs internet and may be billed by your provider. Keys stay on this device.</p>
       </div>
       <h3>Personality</h3>
       <div class="card">
@@ -304,9 +350,10 @@
       <div class="card">
         <label class="row">Speak replies aloud<input type="checkbox" id="sTts" class="switch"></label>
         <label>TTS provider<select id="sTtsProvider">
-          <option value="auto">Auto — phone voice on Android, browser voice elsewhere (free)</option>
-          <option value="native">Phone voice (Android TextToSpeech) — free, works offline</option>
+          <option value="auto">Auto — Grok voice if you added an xAI key and are online, otherwise the most natural phone/browser voice</option>
+          <option value="native" data-android-only>Phone voice (Android TextToSpeech) — free, works offline</option>
           <option value="browser">Browser (Web Speech API) — no key</option>
+          <option value="piper" data-android-only>Piper — offline neural voice (Android, optional ~21 MB download)</option>
           <option value="xai">Grok voice (xAI TTS) — your own xAI key, online</option>
           <option value="openai">OpenAI-compatible TTS — your own key</option>
         </select></label>
@@ -327,12 +374,27 @@
           <label>TTS voice ID<input id="sTtsVoiceId" placeholder="nova / shimmer / alloy / …" autocapitalize="off" autocorrect="off"></label>
           <p class="note">Keys are saved in local Settings only — never baked into the app.</p>
         </div>
+        <div id="piperVoiceFields" hidden>
+          <label>Piper voice<select id="sPiperVoice"></select></label>
+          <p class="note" id="piperState">Checking…</p>
+          <button type="button" class="primary" id="btnPiperDownload" hidden>⬇ Download on Wi‑Fi (~21 MB)</button>
+          <button type="button" class="outline" id="btnPiperDownloadMobile" hidden>Download on mobile data…</button>
+          <button type="button" class="outline" id="btnPiperCancel" hidden>Cancel download</button>
+          <button type="button" class="outline" id="btnPiperDelete" hidden>🗑 Remove this voice</button>
+          <p class="note" id="piperLicense"></p>
+          <p class="note">Piper is an offline neural voice that runs on this phone (via sherpa-onnx). It is <b>not</b> inside the APK — each voice is a one-time download. Every voice package includes <b>espeak-ng-data</b>, the phoneme dictionary the Piper models need to turn text into sounds; it is unpacked once and shared (it is not used as a voice). English and Hindi have female voices. <b>Urdu: the only Piper Urdu voice is male</b> and its pronunciation is basic (Urdu script only, no diacritics); Roman Urdu is read with the English voice. Punjabi and Arabic have no Piper voice and use the phone voice. Pitch has no effect on Piper. If a voice isn't downloaded, NOORA uses the phone voice.</p>
+        </div>
         <div id="browserVoiceFields"><label>Device voice (Browser provider)<select id="sVoice"></select></label></div>
         <label>Speaking speed<input type="range" id="sRate" min="0.5" max="1.6" step="0.1"></label>
         <label>Pitch<input type="range" id="sPitch" min="0.5" max="1.8" step="0.1"></label>
         <label>Volume<input type="range" id="sVolume" min="0" max="1" step="0.05"></label>
+        <label class="row" data-android-only>Keep NOORA listening in the background (Android only)<input type="checkbox" id="sKeepAlive" class="switch"></label>
+        <p class="note" id="keepAliveNote" data-android-only>Runs a visible “NOORA is active” notification (foreground service, microphone) so voice conversation can continue when you press Home or Back. Android limits apply: it can stop on some phones when the screen is locked or under battery optimisation, and it never records secretly — the notification stays while it is on.</p>
+        <p class="note" id="activeVoiceLine" style="font-weight:600"></p>
+        <p class="note" id="piperAutoHint" hidden>💡 You chose Piper. For a more natural voice, switch TTS provider to <b>Auto</b> (and add your xAI key for Grok voice).</p>
         <p class="note" id="voiceInfo"></p>
         <button type="button" class="outline" id="sVoiceTest">▶ Voice Test (current settings)</button>
+        <p class="note" id="voiceTestResult"></p>
         <p class="note">Wake word / lock-screen listening is <b>not possible</b> in an iPhone web app.</p>
       </div>
       <h3>Online / Offline mode</h3>
@@ -344,8 +406,8 @@
         </select></label>
         <p class="note" id="netModeNote">Offline: phone actions (call, message, alarms, timers, reminders, torch, apps, media, settings) run on the built-in rule engine, speech recognition prefers the on-device model, replies use the phone voice. Open questions need Online — or the optional on-device model below.</p>
       </div>
-      <h3>On-device AI (optional)</h3>
-      <div class="card" id="localLlmCard">
+      <h3 data-android-only>On-device AI (optional) · Android only</h3>
+      <div class="card" id="localLlmCard" data-android-only>
         <p class="note" id="localLlmState">Checking…</p>
         <p class="note"><strong>Qwen2.5-0.5B-Instruct</strong> · ~0.5 GB · not inside the APK. Download on Wi‑Fi only (default). Used only when offline / no internet, after small-talk rules; never replaces Groq/Gemini when online. Phone actions stay on the rule engine (this model has no tool calling in v1).</p>
         <p class="note">Roman Urdu &amp; English work better than heavy Nastaliq Urdu script on this small model. Low-RAM phones may fail to load (~1.3 GB peak reported for this build).</p>
@@ -355,8 +417,8 @@
         <button type="button" class="outline" id="btnLocalLlmDelete" hidden>🗑 Remove model</button>
         <p class="note" id="localLlmLicense"></p>
       </div>
-      <h3>Owner voice (optional)</h3>
-      <div class="card" id="voiceIdCard">
+      <h3 data-android-only>Owner voice (optional) · Android only</h3>
+      <div class="card" id="voiceIdCard" data-android-only>
         <p class="note" id="voiceIdState">Checking…</p>
         <p class="note">On-device speaker check (sherpa-onnx + CAM++ model, ~28 MB, downloaded once over HTTPS — not inside the APK). Your voiceprint stays in the app's private storage on this phone and is never uploaded. <b>Not security-grade</b>: a recording or a similar voice can fool it. It never protects typed messages.</p>
         <button type="button" class="outline" id="btnVoiceIdModel" hidden>⬇ Download voice model (~28 MB)</button>
@@ -447,5 +509,9 @@
 <script src="core.js"></script>
 <script src="tools.js"></script>
 <script src="app.js"></script>
+<script src="scan/pdfwriter.js"></script>
+<script src="scan/scanstore.js"></script>
+<script src="scan/lookup.js"></script>
+<script src="scan/scanpdf.js"></script>
 </body>
 </html>

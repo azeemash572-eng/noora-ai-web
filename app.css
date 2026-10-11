@@ -42,9 +42,6 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .bubble.pending{opacity:.65}
 .bubble img{display:block;width:240px;max-width:100%;border-radius:12px;margin-bottom:8px}
 .bubble[dir=rtl]{text-align:right}
-.sources{margin-top:8px;font-size:12.5px;line-height:1.5;border-top:1px solid var(--stroke);padding-top:8px}
-.sources a{color:var(--accent2);text-decoration:none;display:block}
-.sources .h{color:var(--text2);font-weight:600;margin-bottom:4px}
 .act{display:inline-block;margin-top:10px;padding:8px 14px;border-radius:14px;background:var(--accent);color:#fff;text-decoration:none;font-size:14px}
 .meta{font-size:11px;color:var(--muted);padding:2px 6px}
 #listening{text-align:center;color:var(--accent2);font-size:13px;padding:6px;flex:none}
@@ -284,3 +281,129 @@ body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans","Noto Nas
   background: linear-gradient(90deg, rgba(139,92,246,.22), rgba(20,184,166,.18)); border: 1px solid rgba(139,92,246,.35); }
 .groqCard .urduHint { font-family: 'Noto Naskh Arabic', 'Noto Sans', sans-serif; font-size: 15px; line-height: 1.9; text-align: right; }
 .meta.aiNotice { color: #f5c26b; opacity: .9; font-size: 11px; margin-top: 2px; }
+
+/* ======================================================================
+   NOORA 2.5.0 — modern interface (theme variables, light/dark, new mic)
+   Everything below only restyles; no screen, id or feature was removed.
+   ====================================================================== */
+:root{
+  --r-sm:12px;--r-md:18px;--r-lg:26px;
+  --micGrad:linear-gradient(135deg,#8B5CF6,#22D3EE);
+  --bubbleBot:#1C1C29;--chipSel:#332A5C;--hintBg:#1d1a33;--codeBg:#0d0d14;--codeHead:#161622;--toastBg:#2a2a3a;
+  --navBg:rgba(11,11,18,.82);--shadow:0 6px 24px rgba(0,0,0,.35);--userGrad:linear-gradient(135deg,#7C4DFF,#5B3FD9);
+  color-scheme:dark;
+}
+/* Light palette: explicit choice, or "auto" when the phone is in light mode */
+:root[data-theme=light]{
+  --bg:#F4F4FA;--surface:#FFFFFF;--surface2:#ECECF6;--stroke:#D9D9E8;--text:#16161F;--text2:#4B4B63;--muted:#7A7A92;
+  --accent:#6D3FE0;--accent2:#0A8FB0;--danger:#D6204A;--live:#0E9F6E;
+  --bubbleBot:#FFFFFF;--chipSel:#E6DEFF;--hintBg:#F0EAFF;--codeBg:#F2F2F8;--codeHead:#E6E6F1;--toastBg:#27273A;
+  --navBg:rgba(255,255,255,.88);--shadow:0 6px 24px rgba(40,30,90,.12);--glass:rgba(255,255,255,.7);--glass-border:rgba(109,63,224,.25);--neon:0 4px 18px rgba(109,63,224,.12);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:light){
+  :root:not([data-theme=dark]){
+    --bg:#F4F4FA;--surface:#FFFFFF;--surface2:#ECECF6;--stroke:#D9D9E8;--text:#16161F;--text2:#4B4B63;--muted:#7A7A92;
+    --accent:#6D3FE0;--accent2:#0A8FB0;--danger:#D6204A;--live:#0E9F6E;
+    --bubbleBot:#FFFFFF;--chipSel:#E6DEFF;--hintBg:#F0EAFF;--codeBg:#F2F2F8;--codeHead:#E6E6F1;--toastBg:#27273A;
+    --navBg:rgba(255,255,255,.88);--shadow:0 6px 24px rgba(40,30,90,.12);--glass:rgba(255,255,255,.7);--glass-border:rgba(109,63,224,.25);--neon:0 4px 18px rgba(109,63,224,.12);
+    color-scheme:light;
+  }
+}
+/* the neon background gradients are tuned for dark; soften them in light */
+:root[data-theme=light] body{background:radial-gradient(1000px 500px at 0% -10%,rgba(139,92,246,.14),transparent 55%),radial-gradient(800px 400px at 110% 0%,rgba(236,72,153,.08),transparent 50%),var(--bg)}
+@media (prefers-color-scheme:light){:root:not([data-theme=dark]) body{background:radial-gradient(1000px 500px at 0% -10%,rgba(139,92,246,.14),transparent 55%),radial-gradient(800px 400px at 110% 0%,rgba(236,72,153,.08),transparent 50%),var(--bg)}}
+
+/* surfaces use variables instead of fixed dark colours */
+.bot .bubble{background:var(--bubbleBot);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.user .bubble{background:var(--userGrad);color:#fff;box-shadow:0 2px 10px rgba(91,63,217,.3)}
+.chip.sel,#voiceBar .vbtn.on{background:var(--chipSel)}
+#installHint{background:var(--hintBg)}
+.codeblock{background:var(--codeBg)}.codeblock .ch{background:var(--codeHead)}
+#toast{background:var(--toastBg);color:#fff;box-shadow:var(--shadow)}
+#bottomNav{background:var(--navBg)}
+.outline.danger,.danger,#voiceBar .vbtn.danger{border-color:color-mix(in srgb,var(--danger) 45%,transparent)}
+
+/* cleaner, rounder components */
+.bubble{border-radius:22px;line-height:1.5}
+.card,.conv,.fileRow,.memRow,.assistRow{border-radius:var(--r-md);box-shadow:0 1px 0 rgba(255,255,255,.02)}
+h3{text-transform:uppercase;letter-spacing:.06em;font-size:11.5px;margin:22px 6px 8px}
+.chip{border-radius:999px;transition:background .15s,border-color .15s}
+.sugg{border-radius:var(--r-md);transition:transform .12s,border-color .15s}
+.sugg:active{transform:scale(.985);border-color:var(--accent)}
+.field{border-radius:var(--r-lg);transition:border-color .15s,box-shadow .15s}
+.field:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+.primary{background:linear-gradient(135deg,var(--accent),#5B3FD9);box-shadow:0 4px 14px color-mix(in srgb,var(--accent) 35%,transparent)}
+.primary:active,.outline:active{transform:scale(.99)}
+.outline{background:color-mix(in srgb,var(--surface) 70%,transparent)}
+#bottomNav{border-top:0;box-shadow:0 -1px 0 var(--stroke),0 -8px 24px rgba(0,0,0,.12);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+#bottomNav button{transition:color .15s;position:relative}
+#bottomNav button.on{color:var(--accent2)}
+#bottomNav button.on::after{content:"";position:absolute;top:2px;width:22px;height:3px;border-radius:3px;background:var(--accent2)}
+#modal .box{border-radius:var(--r-lg);box-shadow:var(--shadow)}
+.panel header,.pageHead{border-bottom:1px solid color-mix(in srgb,var(--stroke) 60%,transparent)}
+:root[data-theme=light] .icon{filter:invert(.78) hue-rotate(180deg)}
+@media (prefers-color-scheme:light){:root:not([data-theme=dark]) .icon{filter:invert(.78) hue-rotate(180deg)}}
+:focus-visible{outline:2px solid var(--accent2);outline-offset:2px}
+
+/* ---- New mic button: gradient disc, soft glow, animated rings while listening ---- */
+#btnMic{position:relative;width:54px;height:54px;border-radius:50%;box-shadow:0 4px 16px color-mix(in srgb,var(--accent) 45%,transparent);transition:transform .15s,box-shadow .2s,background-color .2s;z-index:0}
+#btnMic:active{transform:scale(.93)}
+#btnMic::before,#btnMic::after{content:"";position:absolute;inset:0;border-radius:50%;z-index:-1;pointer-events:none;opacity:0}
+#btnMic.live{background-color:var(--danger);box-shadow:0 0 0 0 color-mix(in srgb,var(--danger) 55%,transparent),0 4px 18px color-mix(in srgb,var(--danger) 55%,transparent);animation:micBreath 1.6s ease-in-out infinite}
+#btnMic.live::before,#btnMic.live::after{border:2px solid var(--danger);animation:micRing 1.8s ease-out infinite}
+#btnMic.live::after{animation-delay:.9s}
+@keyframes micRing{0%{transform:scale(1);opacity:.65}100%{transform:scale(1.9);opacity:0}}
+@keyframes micBreath{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
+.voiceOrb{animation:orbIdle 4s ease-in-out infinite}
+@keyframes orbIdle{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
+@media (prefers-reduced-motion:reduce){#btnMic.live,#btnMic.live::before,#btnMic.live::after,.voiceOrb{animation:none!important}#btnMic.live::before{opacity:.5;transform:scale(1.25)}}
+
+/* ---- 2.5.1 Create tab layout: labels above fields, compact disabled studio buttons ---- */
+.glassCard label{display:block;color:var(--text2);font-size:12px;margin-top:12px}
+.glassCard label:first-child{margin-top:0}
+.glassCard textarea,.glassCard input:not([type=checkbox]),.glassCard select{display:block;width:100%;margin-top:6px;padding:10px 12px;color:var(--text);background:var(--surface2);border:1px solid var(--stroke);border-radius:12px;font:inherit;font-size:15px}
+.glassCard textarea{min-height:90px;resize:vertical}
+.glassCard select{appearance:auto}
+.glassCard .primary{margin-top:14px}
+.studioActions.compact{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:12px 0 4px}
+.studioActions.compact .note{grid-column:1/-1;margin:0;font-size:12px}
+.studioActions.compact .outline{margin:0;padding:8px 6px;font-size:12px;border-radius:14px;opacity:.5}
+
+/* ---- 2.5.2 Scan / PDF (namespaced: sp*) ---- */
+.spPanel{position:fixed;inset:0;z-index:40;background:var(--bg);color:var(--text);display:flex;flex-direction:column;padding:var(--sat) var(--sar) 0 var(--sal)}
+.spHead{display:flex;align-items:center;gap:8px;height:56px;padding:0 10px;flex:none;border-bottom:1px solid var(--stroke)}
+.spTitle{flex:1;margin:0;font-size:19px}
+.spBack,.spLang{min-width:44px;height:40px;border-radius:12px;border:1px solid var(--stroke);background:var(--surface);color:var(--text);font-size:18px}
+.spLang{font-size:13px;padding:0 12px}
+.spBody{flex:1;overflow-y:auto;padding:12px 14px calc(24px + var(--sab));position:relative}
+.spPanel button,.spBtn{font:inherit;min-height:46px;padding:10px 14px;border-radius:14px;border:1px solid var(--accent);background:var(--surface);color:var(--accent);cursor:pointer}
+.spPanel .spPrimary{background:var(--accent);color:#fff}
+.spPanel .spDanger{color:var(--danger);border-color:var(--danger)}
+.spPanel button:disabled{opacity:.4}
+.spBtn{display:block;flex:1;text-align:center;margin:0}
+.spActions{display:flex;gap:8px;margin:8px 0;align-items:center;flex-wrap:wrap}
+.spActions>button{flex:1}
+.spMuted{color:var(--muted);font-size:13px}.spCenter{text-align:center}
+.spList{list-style:none;padding:0;margin:0}
+.spList>li{background:var(--surface);border:1px solid var(--stroke);border-radius:16px;padding:12px;margin:8px 0}
+.spBc{font-family:ui-monospace,monospace;font-size:17px;direction:ltr;text-align:start;word-break:break-all}
+.spMeta{display:flex;justify-content:space-between;gap:8px;margin:6px 0;font-size:15px}
+.spPdfList>li{display:flex;align-items:center;gap:8px;padding:8px}
+.spPdfList img{width:56px;height:56px;object-fit:cover;border-radius:8px;background:var(--surface2)}
+.spPdfList b{flex:1}
+.spPdfList button{min-width:44px;min-height:40px;padding:4px;flex:none}
+.spCard{background:var(--surface);border:1px solid var(--stroke);border-radius:18px;padding:14px;margin-top:10px}
+.spCard label{display:block;margin:10px 0}.spCard label span{display:block;font-size:13px;color:var(--text2);margin-bottom:4px}
+.spCard input{width:100%;font:inherit;font-size:17px;padding:10px 12px;border:1px solid var(--stroke);border-radius:12px;background:var(--surface2);color:var(--text)}
+.spWarn{background:color-mix(in srgb,#f5b301 25%,transparent);padding:8px;border-radius:10px;font-size:14px}
+.spForm{position:absolute;inset:0;background:color-mix(in srgb,var(--bg) 88%,transparent);padding:14px;overflow-y:auto;z-index:2}
+.spScanner{position:fixed;inset:0;background:#000;z-index:60;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.spScanner[hidden]{display:none}
+.spScanner video{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
+.spFrame{position:relative;width:78vw;height:34vw;max-height:240px;border:3px solid #3fe0d0;border-radius:14px;box-shadow:0 0 0 100vmax #0006}
+.spScanMsg{position:absolute;top:calc(var(--sat) + 16px);left:12px;right:12px;text-align:center;color:#fff;background:#0009;padding:8px 12px;border-radius:12px;margin:0;font-size:14px}
+.spScanBtns{position:absolute;bottom:calc(var(--sab) + 24px);left:12px;right:12px;display:flex;gap:8px}
+.spScanBtns .spBtn,.spScanBtns button{flex:1}
+.spName{font-size:15px;font-weight:600;margin:4px 0;color:var(--text)}
+[data-android-only][hidden]{display:none!important}

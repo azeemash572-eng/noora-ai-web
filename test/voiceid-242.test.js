@@ -6,7 +6,7 @@ const path = require('path');
 const C = require('../core.js');
 const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
 
-test('VERSION is 2.7.0', () => assert.equal(C.VERSION, '2.7.0'));
+test('VERSION is 2.7.1', () => assert.equal(C.VERSION, '2.7.1'));
 test('refusal sentence is exact', () => assert.equal(C.VOICEID_REFUSAL, 'معاف کیجیے، میں صرف اپنے مالک کی بات مانتی ہوں'));
 test('threshold mapping (mirrors Kotlin VoiceMath)', () => {
   assert.equal(C.voiceIdThreshold(1), 0.25); assert.equal(C.voiceIdThreshold(5), 0.45); assert.equal(C.voiceIdThreshold(10), 0.7);

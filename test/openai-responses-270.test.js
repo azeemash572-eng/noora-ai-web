@@ -169,7 +169,7 @@ test('model picker: Luna (default), GPT-6.1 Sol, GPT-6 Astra (+ cost notes); nev
   assert.equal(C.migrateSettings({}, {}).openaiReasoning, 'low');
 });
 
-test('Settings → AI → OpenAI card: model picker + custom id, Luna web search toggle, reasoning; no key in shipped code; version 2.7.0', () => {
+test('Settings → AI → OpenAI card: model picker + custom id, Luna web search toggle, reasoning; no key in shipped code; version 2.7.1', () => {
   const h = read('index.html'), a = read('app.js');
   assert.match(h, /id="sOpenaiModelPick"/); assert.match(h, /value="gpt-6\.1-sol"/); assert.match(h, /value="gpt-6-astra">GPT-6 Astra — most capable/);
   assert.match(h, /value="custom">Custom model id…/);
@@ -178,6 +178,6 @@ test('Settings → AI → OpenAI card: model picker + custom id, Luna web search
   assert.match(a, /\.openaiResponses\(a, model, msgs, o\)/);   // OpenAI attempts go through the Responses path
   assert.match(a, /lunaLinks/);
   for (const f of ['app.js', 'core.js', 'index.html', 'tools.js']) assert.doesNotMatch(read(f), /\bsk-(proj-)?[A-Za-z0-9]{20,}/, f);
-  assert.equal(C.VERSION, '2.7.0'); assert.equal(read('VERSION').trim(), '2.7.0'); assert.match(read('sw.js'), /noora-shell-2\.7\.0/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.7.0');
+  assert.equal(C.VERSION, '2.7.1'); assert.equal(read('VERSION').trim(), '2.7.1'); assert.match(read('sw.js'), /noora-shell-2\.7\.1/);
+  assert.equal(JSON.parse(read('package.json')).version, '2.7.1');
 });

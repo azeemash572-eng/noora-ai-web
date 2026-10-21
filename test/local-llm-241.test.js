@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const C = require('../core.js');
 
-test('VERSION is 2.7.0', () => assert.equal(C.VERSION, '2.7.0'));
+test('VERSION is 2.7.1', () => assert.equal(C.VERSION, '2.7.1'));
 
 test('shouldSkipCloudAi still gates cloud when offline (local LLM is a separate offline fallback)', () => {
   assert.equal(C.shouldSkipCloudAi({ netMode: 'online' }, true), false);

@@ -1,4 +1,4 @@
-/* NOORA AI 2.7.0 command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
+/* NOORA AI 2.7.1 command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
 (function () {
   'use strict';
   const C = window.NooraCore, L = C.Lang;
@@ -52,7 +52,7 @@
     const t = S.theme === 'light' || S.theme === 'dark' ? S.theme : 'auto';
     const el = document.documentElement; if (t === 'auto') el.removeAttribute('data-theme'); else el.setAttribute('data-theme', t);
     const light = t === 'light' || (t === 'auto' && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches);
-    const m = document.querySelector('meta[name=theme-color]'); if (m) m.setAttribute('content', light ? '#F4F4FA' : '#0B0B12');
+    const m = document.querySelector('meta[name=theme-color]'); if (m) m.setAttribute('content', light ? '#F4F4FA' : '#05070D');
   }
   try { if (window.matchMedia) window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => applyTheme()); } catch (e) {}
   const saveS = () => { try { localStorage.setItem('noora.settings', JSON.stringify(S)); } catch (e) {} };

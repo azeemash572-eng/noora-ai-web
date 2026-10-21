@@ -9,7 +9,7 @@
 (function (root) {
   'use strict';
   const Core = root.NooraCore || (typeof require === 'function' ? require('./core.js') : null);
-  const VERSION = '2.7.0';
+  const VERSION = '2.7.1';
   const ALL = ['android', 'ios-web', 'web'];
 
   class ToolError extends Error { constructor(code, message) { super(message); this.code = code; } }

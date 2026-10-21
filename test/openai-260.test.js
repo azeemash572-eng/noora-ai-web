@@ -8,7 +8,7 @@ const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
 const GEM = { apiKey: 'AIzaTESTKEY000', provider: 'Google Gemini', baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', chatModel: 'gemini-2.5-flash' };
 const ids = (s, o) => C.aiRoute(s, o).map((a) => a.id).join('>');
 
-test('VERSION is 2.7.0', () => { assert.equal(C.VERSION, '2.7.0'); assert.equal(read('VERSION').trim(), '2.7.0'); assert.match(read('sw.js'), /noora-shell-2\.7\.0/); });
+test('VERSION is 2.7.1', () => { assert.equal(C.VERSION, '2.7.1'); assert.equal(read('VERSION').trim(), '2.7.1'); assert.match(read('sw.js'), /noora-shell-2\.7\.1/); });
 test('defaults: gpt-6-luna, primary mode after migration', () => {
   assert.equal(C.OPENAI_MODEL, 'gpt-6-luna');
   const m = C.migrateSettings({}, {});
@@ -65,5 +65,5 @@ test('icons: new sizes present and referenced', () => {
   }
   const man = JSON.parse(read('manifest.webmanifest'));
   assert.ok(man.icons.some((i) => i.purpose === 'maskable'));
-  assert.match(read('index.html'), /apple-touch-icon\.png\?v=2\.7\.0/);
+  assert.match(read('index.html'), /apple-touch-icon\.png\?v=2\.7\.1/);
 });

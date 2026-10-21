@@ -216,3 +216,8 @@ Follows OpenAI's "Build a Personal AI Assistant" guide. Other providers (Groq, G
 - **Settings keys**: `openaiWebSearch` (bool), `openaiReasoning` (`none|low|medium|high`), existing `openaiApiKey`, `openaiModel`, `openaiChatMode`.
 - **CORS** (docs/cors-check.txt, 2026-10-21): /v1/responses preflight 200 (ACAO `*`, allows `authorization, content-type`); keyless POST → 401 with ACAO = reachable. Wrong-key 401 has no ACAO (same as /chat/completions). A real-key 200 was not tested.
 - Tests: `test/openai-responses-270.test.js` (mock fetch), browser smoke `test/e2e/openai-270.mjs` (mocked api.openai.com). Version 2.7.0, SW cache `noora-shell-2.7.0`.
+
+## 2.7.1: new NOORA icon + galaxy palette (web / iPhone PWA)
+- New icon: a spiral galaxy of fine star particles (white, ice-blue, a few warm amber) with a bright core and four-point sparkles on a near-black starfield; no text. Rendered procedurally (numpy/PIL, `/workspace/noora-icon/make_icon_v3.py`); maskable version keeps the galaxy inside the 80% safe zone.
+- All icon files replaced (32, 64, 180 apple-touch x2, 192, 512, maskable 512); `?v=2.7.1` cache-busting; theme/background colour `#05070D`.
+- Colour-only CSS refresh: violet/pink/teal accents → ice-blue `#3D6FE0` / `#9CCBFF` with a subtle amber `#F2B36B`; light theme accent `#2F5FD0` / `#0B6FA8`. No layout or feature changes. SW cache `noora-shell-2.7.1`.

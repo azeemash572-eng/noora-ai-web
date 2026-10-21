@@ -3,8 +3,8 @@ const test = require('node:test');
 const assert = require('node:assert');
 const C = require('../core.js');
 
-test('VERSION is 2.5.2', () => {
-  assert.equal(C.VERSION, '2.5.2');
+test('VERSION is 2.6.0', () => {
+  assert.equal(C.VERSION, '2.6.0');
 });
 
 test('offlineReply covers expanded casual lines (EN / Roman Urdu / Urdu / Hindi)', () => {

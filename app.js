@@ -1,4 +1,4 @@
-/* NOORA AI 2.5.2 command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
+/* NOORA AI 2.6.0 command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
 (function () {
   'use strict';
   const C = window.NooraCore, L = C.Lang;
@@ -39,7 +39,8 @@
     mapsProvider: '', defaultCountryCode: '', handsFree: false,
     netMode: 'auto', defaultMessenger: 'ask', imageEditModel: '',
     groqApiKey: '', groqModel: C.GROQ_MODEL, groqAltOn: true,
-    customInstructions: '', xaiChatMode: 'off', xaiChatModel: C.XAI_CHAT_MODEL, keepAlive: false, theme: 'auto',
+    customInstructions: '', xaiChatMode: 'off', xaiChatModel: C.XAI_CHAT_MODEL,
+    openaiApiKey: '', openaiModel: C.OPENAI_MODEL, openaiChatMode: 'primary', keepAlive: false, theme: 'auto',
     ownerOnly: false, voiceIdSens: C.VOICEID.SENS_DEFAULT
   }, C.DEFAULT_VOICE_SETTINGS);
   let S = Object.assign({}, DEF);
@@ -56,7 +57,8 @@
   try { if (window.matchMedia) window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => applyTheme()); } catch (e) {}
   const saveS = () => { try { localStorage.setItem('noora.settings', JSON.stringify(S)); } catch (e) {} };
   const hasOwnKey = () => S.provider !== C.PROVIDER_FREE && S.apiKey && S.baseUrl && S.chatModel;
-  const hasAnyKey = () => !!(hasOwnKey() || C.groqKeyOf(S));
+  const openaiOn = () => !!(C.openaiKeyOf(S) && S.openaiChatMode !== 'off');
+  const hasAnyKey = () => !!(hasOwnKey() || C.groqKeyOf(S) || openaiOn());
   const prefLang = () => (S.voiceLang ? L[S.voiceLang] : null);
   const aiName = () => (S.aiName && S.aiName.trim()) || 'Noora';
 
@@ -294,6 +296,29 @@
     if (pair[0]) { S.chatModel = pair[0]; S.visionModel = pair[1] || pair[0]; }
   }
 
+  /**
+   * 2.6.0: OpenAI returns error responses from /chat/completions without CORS headers, so in the browser a bad key or an empty
+   * balance looks like a network error (status -1). /v1/models/<id> does send CORS headers, so one quick GET tells us the real reason.
+   * Returns the failure object with a clear, key-free `failure`, the real `status` and `code` where known.
+   */
+  async function openaiProbe(key, model) {
+    const r = await http(C.OPENAI_BASE + '/models/' + encodeURIComponent(model || C.OPENAI_MODEL), { headers: { Authorization: 'Bearer ' + key } }, 8000);
+    let code = '', msg = '';
+    if (r.res && !r.ok) { try { const j = await r.res.json(); code = (j.error && (j.error.code || j.error.type)) || ''; msg = (j.error && j.error.message) || ''; } catch (e) {} }
+    return { ok: r.ok, status: r.status, code: String(code || ''), message: C.redactKeys(msg, [key]), error: r.error };
+  }
+  async function openaiExplain(r, key, model) {
+    let st = r.status, code = r.code || '';
+    const msg = String(r.failure || '');
+    if (st === -1 && /network|cors/i.test(msg) && navigator.onLine) {
+      const p = await openaiProbe(key, model);
+      if (!p.ok && p.status > 0) { st = p.status; code = p.code; }
+      else if (p.ok) return Object.assign({}, r, { failure: 'OpenAI accepted the key and the model exists, but the chat request was refused — most often no credits (insufficient_quota) or a rate limit. Check platform.openai.com/settings/organization/billing.', code: 'insufficient_quota' });
+    }
+    if (st && st !== -1 || code) return Object.assign({}, r, { status: st, code, failure: C.openaiErrorText(st, code, msg) });
+    return Object.assign({}, r, { failure: C.openaiErrorText(-1, '', msg) + (msg ? ' (' + msg + ')' : '') });
+  }
+
   const AI = {
     async openAi(url, model, messages, key, opts = {}) {
       const stream = !!opts.stream;
@@ -302,6 +327,7 @@
       if (stream) body.stream = true;
       if (opts.tools && opts.tools.length) { body.tools = opts.tools; body.tool_choice = 'auto'; }
       if (opts.extra) Object.assign(body, opts.extra);
+      if (body.noTemperature) { delete body.temperature; } delete body.noTemperature;   // 2.6.0: GPT-5/6 reasoning models reject a custom temperature
       if (!key) body.referrer = 'noora-ai-web';
       const headers = { 'Content-Type': 'application/json' };
       if (key) headers.Authorization = 'Bearer ' + key;
@@ -312,9 +338,9 @@
       const deadline = t0 + total;
       const r = await http(url, { method: 'POST', headers, body: JSON.stringify(body) }, firstMs);
       if (!r.ok) {
-        let detail = '';
-        if (r.res) { try { const j = await r.res.json(); const m = (j.error && (j.error.message || j.error)) || j.message; if (m && typeof m === 'string') detail = ' (' + C.redactKeys(m, [key]).slice(0, 90) + ')'; } catch (e) {} }
-        return { failure: reasonOf(r) + detail, status: r.status };
+        let detail = '', code = '';
+        if (r.res) { try { const j = await r.res.json(); const m = (j.error && (j.error.message || j.error)) || j.message; code = (j.error && typeof j.error === 'object' && (j.error.code || j.error.type)) || ''; if (m && typeof m === 'string') detail = ' (' + C.redactKeys(m, [key]).slice(0, 90) + ')'; } catch (e) {} }
+        return { failure: reasonOf(r) + detail, status: r.status, code: String(code || '') };
       }
       if (stream && r.res && r.res.body && typeof r.res.body.getReader === 'function') {
         try {
@@ -396,6 +422,7 @@
         const nativeMsgs = withTools ? sysAppend(messages, T.toolPromptNative(PLATFORM)) : messages;
         let r = await this.openAi(a.url, model, nativeMsgs, a.key, Object.assign({ stream: tryStream, onDelta, tools: apiTools }, po));
         if (r.text || (r.toolCalls && r.toolCalls.length)) return Object.assign(r, { model });
+        if (a.id === 'openai') r = await openaiExplain(r, a.key, model);   // 2.6.0: readable invalid-key / no-credits reason
         // a 429 / 401 / 403 / timeout / network error won't get better by asking the same provider again → move on
         // (Groq only — Gemini keeps its exact 2.3.0 retry behaviour)
         // (2.5.0: applies to every provider — retrying a rate-limited / rejected / timed-out / 5xx provider only adds waiting time)
@@ -416,7 +443,7 @@
       const chain = await C.runAiChain(attempts, tryProvider);
       if (chain.result) {
         const a = chain.attempt; const res = chain.result;
-        const lbl = a.id === 'groq' ? 'Groq · ' + res.model : `${a.id === 'gemini' ? S.provider : a.label} · ${res.model}${res.jsonTools ? ' · json-tools' : ''}`;
+        const lbl = a.id === 'groq' ? 'Groq · ' + res.model : a.id === 'openai' ? 'OpenAI · ' + res.model : `${a.id === 'gemini' ? S.provider : a.label} · ${res.model}${res.jsonTools ? ' · json-tools' : ''}`;
         const notice = chain.notices.length ? '↪︎ ' + chain.notices.join(' · ') : null;
         if (notice) { try { status(notice); } catch (e) {} }
         return done(res, lbl, notice ? { notice } : {});
@@ -435,7 +462,7 @@
         if (c.text) return done(c, 'Pollinations (free)', { warning });
         if (attempt === 1 || vision) { reasons.push(`free AI: ${a.failure} / ${b.failure} / ${c.failure}`); break; }
       }
-      return { text: null, failure: C.redactKeys(reasons.join('; '), [S.apiKey, S.groqApiKey]), network: reasons.some((x) => /network|no internet|timeout/i.test(x)) };
+      return { text: null, failure: C.redactKeys(reasons.join('; '), [S.apiKey, S.groqApiKey, S.openaiApiKey, S.xaiApiKey]), network: reasons.some((x) => /network|no internet|timeout/i.test(x)) };
     }
   };
 
@@ -1795,6 +1822,7 @@
     $('dot').classList.toggle('off', !navigator.onLine);
     let base = S.netMode === 'offline' ? 'Offline mode — phone actions & small talk'
       : !navigator.onLine ? (S.netMode === 'online' ? 'No internet — Online mode needs a connection' : 'Offline — phone actions & small talk')
+      : openaiOn() && S.openaiChatMode !== 'backup' ? `AI: OpenAI · ${S.openaiModel || C.OPENAI_MODEL}`
       : C.groqKeyOf(S) ? `AI: Groq · ${S.groqModel || C.GROQ_MODEL}` + (hasOwnKey() && !/groq/i.test(S.baseUrl || '') ? ` (backup ${/generativelanguage/.test(S.baseUrl || '') ? 'Gemini' : S.provider})` : '')
       : hasOwnKey() ? `AI: ${S.provider} · ${S.chatModel}` : 'AI: free Pollinations (no key, rate-limited)';
     // header shows who actually answered last (e.g. Gemini when the Groq key was rejected), not only who is configured
@@ -2969,6 +2997,10 @@
     if ($('sXaiChatMode')) $('sXaiChatMode').value = S.xaiChatMode || 'off';
     if ($('sXaiChatKey')) $('sXaiChatKey').value = S.xaiApiKey || '';
     if ($('sXaiChatModel')) $('sXaiChatModel').value = S.xaiChatModel || C.XAI_CHAT_MODEL;
+    if ($('sOpenaiMode')) $('sOpenaiMode').value = S.openaiChatMode || 'primary';
+    if ($('sOpenaiKey')) $('sOpenaiKey').value = S.openaiApiKey || '';
+    if ($('sOpenaiModel')) $('sOpenaiModel').value = S.openaiModel || C.OPENAI_MODEL;
+    if ($('sOpenaiTestResult')) $('sOpenaiTestResult').textContent = '';
     if ($('sKeepAlive')) $('sKeepAlive').checked = !!S.keepAlive;
     renderRouteLine();
     $('sWeb').checked = S.webSearchOn !== false;
@@ -3070,6 +3102,9 @@
     if ($('sXaiChatMode')) S.xaiChatMode = $('sXaiChatMode').value || 'off';
     if ($('sXaiChatModel')) S.xaiChatModel = $('sXaiChatModel').value.trim() || C.XAI_CHAT_MODEL;
     if ($('sXaiChatKey') && $('sXaiChatKey').value.trim() !== (S.xaiApiKey || '') && document.activeElement === $('sXaiChatKey')) S.xaiApiKey = $('sXaiChatKey').value.trim();
+    if ($('sOpenaiMode')) S.openaiChatMode = $('sOpenaiMode').value || 'primary';
+    if ($('sOpenaiKey')) S.openaiApiKey = $('sOpenaiKey').value.trim();
+    if ($('sOpenaiModel')) S.openaiModel = $('sOpenaiModel').value.trim() || C.OPENAI_MODEL;
     S.modelPreset = $('sPreset').value; S.provider = $('sProvider').value;
     S.baseUrl = $('sBase').value.trim().replace(/\/+$/, ''); S.apiKey = $('sKey').value.trim();
     S.chatModel = $('sModel').value.trim(); S.visionModel = $('sVision').value.trim();
@@ -3079,7 +3114,7 @@
     if ($('sServerUrl')) S.serverUrl = ($('sServerUrl').value || '').trim().replace(/\/+$/, '');
     saveS(); updateEmpty(); refreshStatus(); renderRouteLine();
   }
-  ['sGroqKey', 'sGroqModel', 'sGroqAlt', 'sCustomInstr', 'sXaiChatMode', 'sXaiChatKey', 'sXaiChatModel', 'sBase', 'sKey', 'sModel', 'sVision', 'sWeb', 'sAiName', 'sTone', 'sMode', 'sFormality', 'sGender', 'sPrefLang', 'sServerUrl'].forEach((id) => {
+  ['sGroqKey', 'sGroqModel', 'sGroqAlt', 'sCustomInstr', 'sOpenaiMode', 'sOpenaiKey', 'sOpenaiModel', 'sXaiChatMode', 'sXaiChatKey', 'sXaiChatModel', 'sBase', 'sKey', 'sModel', 'sVision', 'sWeb', 'sAiName', 'sTone', 'sMode', 'sFormality', 'sGender', 'sPrefLang', 'sServerUrl'].forEach((id) => {
     const el = $(id); if (el) el.addEventListener('change', saveAiFields);
   });
   $('sProvider').addEventListener('change', () => {
@@ -3096,6 +3131,21 @@
     saveAiFields(); $('sTestResult').textContent = 'Testing…';
     const r = await AI.chat([{ role: 'user', content: 'Reply with exactly: NOORA OK' }]);
     $('sTestResult').textContent = r.text ? (r.warning ? r.warning + '\n' : '') + (r.notice ? r.notice + '\n' : '') + `✅ ${r.via}: ${r.text.slice(0, 80)}` : '❌ ' + r.failure;
+  };
+
+  // 2.6.0: Settings → AI → OpenAI → Test: checks key + model (GET /v1/models/<id>), then a tiny chat completion (no fallback).
+  if ($('sOpenaiTest')) $('sOpenaiTest').onclick = async () => {
+    saveAiFields(); const out = $('sOpenaiTestResult'); const key = C.openaiKeyOf(S); const model = S.openaiModel || C.OPENAI_MODEL;
+    if (!key) { out.textContent = '❌ Paste your OpenAI API key first (platform.openai.com/api-keys).'; return; }
+    if (!navigator.onLine) { out.textContent = '❌ No internet.'; return; }
+    out.textContent = 'Testing OpenAI · ' + model + '…';
+    const p = await openaiProbe(key, model);
+    if (!p.ok) { out.textContent = '❌ ' + (p.status > 0 ? C.openaiErrorText(p.status, p.code, p.message) : C.openaiErrorText(-1, '', p.error)); return; }
+    const ex = C.openaiExtraFor(model);
+    let r = await AI.openAi(C.OPENAI_BASE + '/chat/completions', model, [{ role: 'user', content: 'Reply with exactly: NOORA OK' }], key, { stream: false, timeout: 30000, extra: ex });
+    if (r.text) { out.textContent = '✅ OpenAI · ' + model + ': ' + C.cleanAi(r.text).slice(0, 80); return; }
+    r = await openaiExplain(r, key, model);
+    out.textContent = '❌ ' + C.redactKeys(r.failure || 'failed', [key]);
   };
 
   async function openFiles() {
@@ -3291,7 +3341,7 @@
   async function openHomeDash() {
     if ($('homeGreeting')) $('homeGreeting').textContent = (S.userName ? ('Hi, ' + S.userName) : ('Hi — ' + aiName()));
     if ($('homeStatus')) {
-      const base = C.groqKeyOf(S) ? ('Groq · ' + (S.groqModel || C.GROQ_MODEL)) : hasOwnKey() ? (S.provider + ' · ' + (S.chatModel || '')) : (S.serverUrl ? 'Server proxy' : 'Free Pollinations');
+      const base = openaiOn() && S.openaiChatMode !== 'backup' ? ('OpenAI · ' + (S.openaiModel || C.OPENAI_MODEL)) : C.groqKeyOf(S) ? ('Groq · ' + (S.groqModel || C.GROQ_MODEL)) : hasOwnKey() ? (S.provider + ' · ' + (S.chatModel || '')) : (S.serverUrl ? 'Server proxy' : 'Free Pollinations');
       $('homeStatus').textContent = base;
     }
     if ($('homeDot')) $('homeDot').classList.toggle('off', !navigator.onLine);

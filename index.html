@@ -12,8 +12,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="NOORA AI">
 <meta name="format-detection" content="telephone=no">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="icon" type="image/png" href="icons/icon-64.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=2.6.0">
+<link rel="icon" type="image/png" sizes="64x64" href="icons/icon-64.png?v=2.6.0">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png?v=2.6.0">
 <link rel="manifest" href="manifest.webmanifest" data-pwa>
 <link rel="stylesheet" href="app.css">
 </head>
@@ -287,6 +288,14 @@
         <p class="note" id="groqModelNote"></p>
         <p class="note urduHint" dir="rtl" lang="ur">groq.com پر مفت اکاؤنٹ بنا کر API key یہاں ڈالیں</p>
         <p class="note">With a Groq key NOORA answers with Groq first. If Groq is busy, rejects the key, times out (~20 s) or replies empty, the same message is re-sent automatically to your Gemini key below, and if that also fails, to free Pollinations. A small line under the reply says when this happened. Photos go to Gemini first when a Gemini key is set. No Groq key = everything works exactly as before.</p>
+      </div>
+      <div class="card" id="openaiChatCard">
+        <label>OpenAI chat (GPT-6 Luna) — optional, paid by you<select id="sOpenaiMode"><option value="primary">Primary — ask OpenAI first</option><option value="backup">Backup — after Groq / Gemini, before free Pollinations</option><option value="off">Off (key kept, not used)</option></select></label>
+        <label>OpenAI API key<input id="sOpenaiKey" type="password" placeholder="sk-… (stored only on this phone)" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false"></label>
+        <label>OpenAI model<input id="sOpenaiModel" list="openaiModels" placeholder="gpt-6-luna" autocapitalize="off" autocorrect="off" spellcheck="false"><datalist id="openaiModels"><option value="gpt-6-luna"></datalist></label>
+        <button type="button" class="outline" id="sOpenaiTest">🔌 Save &amp; test OpenAI</button>
+        <p class="note" id="sOpenaiTestResult"></p>
+        <p class="note">api.openai.com/v1/chat/completions with streaming, photos (image input) and NOORA tools. GPT-6 Luna: text + image in, text out, ≈ $0.10 in / $0.50 out per 1M tokens (developers.openai.com). Only used when a key is saved here; you can type any other OpenAI model id. If OpenAI rejects the key, has no credits (429 insufficient_quota) or is busy, NOORA moves on to the next provider automatically. Billed by OpenAI to your account.</p>
       </div>
       <div class="card" id="xaiChatCard">
         <label>Grok (xAI) chat — optional, paid by you<select id="sXaiChatMode"><option value="off">Off (not used)</option><option value="backup">Backup — after Groq / Gemini, before free Pollinations</option><option value="primary">Primary — ask Grok first</option></select></label>

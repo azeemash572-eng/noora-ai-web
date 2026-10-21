@@ -50,7 +50,7 @@ test('UI wiring: Tools card, scripts, bilingual labels, host bridge, service wor
   assert.match(s, /[\u0600-\u06FF]/); assert.match(s, /noora\.scanpdf\.lang/);
   assert.match(s, /type: mode === 'share' \? 'share' : 'saveFile'/);          // Android: native share / save, not blob downloads
   assert.match(s, /capture="environment"/); assert.match(s, /getUserMedia/);   // camera + photo fallback
-  assert.match(sw, /scan\/scanpdf\.js/); assert.match(sw, /noora-shell-2\.5\.2/);
+  assert.match(sw, /scan\/scanpdf\.js/); assert.match(sw, /noora-shell-2\.6\.0/);
   assert.ok(fs.statSync(path.join(root, 'scan/zxing.min.js')).size > 300000);   // ZXing bundled locally
   assert.ok(!/https?:\/\/[^'" ]*(cdn|unpkg|jsdelivr)/i.test(s));
 });

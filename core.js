@@ -774,6 +774,31 @@
   const groqModelInfo = (id) => GROQ_MODELS.find((m) => m.id === id) || null;
   function groqExtraFor(model) { const m = groqModelInfo(model); return m ? Object.assign({}, m.extra) : { reasoning_effort: 'none' }; }
   const XAI_CHAT_BASE = 'https://api.x.ai/v1', XAI_CHAT_MODEL = 'grok-4.3';
+  // 2.6.0: OpenAI (own key) — GPT-6 Luna (developers.openai.com/api/docs/models/gpt-6-luna, checked 2026-10-21):
+  // text + image input, text output, streaming; Chat Completions supports function calling only with reasoning_effort 'none'.
+  const OPENAI_BASE = 'https://api.openai.com/v1', OPENAI_MODEL = 'gpt-6-luna';
+  const OPENAI_MODELS = [{ id: 'gpt-6-luna', label: 'GPT-6 Luna (default · fast · vision)' }];
+  /** Extra Chat Completions params per OpenAI model. GPT-5/6 reasoning models reject a custom temperature. */
+  function openaiExtraFor(model) {
+    const m = String(model || '').toLowerCase();
+    if (/^gpt-6/.test(m)) return { reasoning_effort: 'none', noTemperature: true };
+    if (/^(gpt-5|o\d)/.test(m)) return { noTemperature: true };
+    return {};
+  }
+  const openaiKeyOf = (S) => String((S && S.openaiApiKey) || '').trim();
+  /** Clear, key-free message for an OpenAI error (status + error.code / message from the JSON body). */
+  function openaiErrorText(status, code, message) {
+    const c = String(code || ''); const msg = String(message || '');
+    if (c === 'invalid_api_key' || status === 401) return 'OpenAI: invalid API key (401) — check the key in Settings → AI → OpenAI (platform.openai.com/api-keys).';
+    if (c === 'insufficient_quota' || /quota|billing|credit/i.test(msg)) return 'OpenAI: no credits / quota exceeded (429 insufficient_quota) — add billing credit at platform.openai.com/settings/organization/billing.';
+    if (status === 429) return 'OpenAI: rate limit reached (429) — wait a moment and try again.';
+    if (c === 'model_not_found' || status === 404) return 'OpenAI: model not found or not available to this key (404) — check the model name (default gpt-6-luna).';
+    if (status === 403) return 'OpenAI: access denied (403) — this key / project / region is not allowed to use the model.';
+    if (status === 400) return 'OpenAI: request rejected (400)' + (msg ? ' — ' + redactKeys(msg).slice(0, 120) : '');
+    if (status >= 500) return 'OpenAI: server error (' + status + ') — try again later.';
+    if (status === -1) return 'OpenAI: could not reach api.openai.com (network / CORS / timeout).';
+    return 'OpenAI: HTTP ' + status + (msg ? ' — ' + redactKeys(msg).slice(0, 120) : '');
+  }
   const GROQ_OLD_MODELS = ['llama-3.3-70b-versatile', 'meta-llama/llama-4-scout-17b-16e-instruct', 'llama3-70b-8192', 'llama-3.1-70b-versatile'];
   const isGroqUrl = (u) => /api\.groq\.com/i.test(String(u || ''));
   const isGeminiUrl = (u) => /generativelanguage\.googleapis\.com/i.test(String(u || ''));
@@ -812,19 +837,28 @@
     const xk = String(st.xaiApiKey || '').trim();
     const xmode = st.xaiChatMode === 'primary' || st.xaiChatMode === 'backup' ? st.xaiChatMode : 'off';
     const xai = xk && xmode !== 'off' ? { id: 'xai', label: 'Grok (xAI)', url: XAI_CHAT_BASE + '/chat/completions', model: st.xaiChatModel || XAI_CHAT_MODEL, visionModel: st.xaiChatModel || XAI_CHAT_MODEL, key: xk, timeout: OWN_TOTAL_MS, firstMs: 10000 } : null;
+    // 2.6.0: OpenAI (GPT-6 Luna by default) — 'primary' (default once a key is saved), 'backup' or 'off'
+    const ok = openaiKeyOf(st);
+    const omode = st.openaiChatMode === 'off' || st.openaiChatMode === 'backup' ? st.openaiChatMode : 'primary';
+    const omodel = String(st.openaiModel || '').trim() || OPENAI_MODEL;
+    const openai = ok && omode !== 'off' ? { id: 'openai', label: 'OpenAI', url: OPENAI_BASE + '/chat/completions', model: omodel, visionModel: omodel, key: ok, timeout: OWN_TOTAL_MS, firstMs: 15000, extra: openaiExtraFor(omodel) } : null;
     const list = [];
     const ownIsGroq = own && own.id === 'groq';
-    if (o.vision && own && own.id === 'gemini') { list.push(own); if (groq) list.push(groq); if (xai) list.push(xai); return list; }
+    if (o.vision && own && own.id === 'gemini') { if (openai && omode === 'primary') list.push(openai); list.push(own); if (groq) list.push(groq); if (openai && omode === 'backup') list.push(openai); if (xai) list.push(xai); return list; }
     if (xai && xmode === 'primary') list.push(xai);
+    if (openai && omode === 'primary') list.push(openai);
     if (groq) list.push(groq);
     if (groqAlt) list.push(groqAlt);
     if (own && !(ownIsGroq && groq)) list.push(ownIsGroq ? Object.assign({}, own, { timeout: GROQ_TOTAL_MS, firstMs: GROQ_FIRST_MS, extra: groqExtraFor(own.model) }) : Object.assign({}, own, { timeout: OWN_TOTAL_MS, firstMs: OWN_FIRST_MS }));
+    if (openai && omode === 'backup') list.push(openai);
     if (xai && xmode === 'backup') list.push(xai);
     return list;
   }
   /** Short, honest reason for a failed attempt (never contains a key). */
   function failureKind(r) {
     const st = r && r.status; const f = String((r && r.failure) || '');
+    if ((r && r.code === 'insufficient_quota') || (st === 429 && /insufficient_quota|exceeded your current quota|billing/i.test(f))) return 'no credits (insufficient_quota)';
+    if (r && r.code === 'invalid_api_key') return 'key rejected';
     if (st === 429) return 'busy';
     if (st === 401 || st === 403) return 'key rejected';
     if (st >= 500) return 'server error';
@@ -842,6 +876,13 @@
     const backup = own && own.id !== 'groq' ? own.label : 'free Pollinations';
     const xmode = S && S.xaiChatMode; const xk = String((S && S.xaiApiKey) || '').trim();
     const xs = xk && (xmode === 'primary' || xmode === 'backup') ? ' · Grok (xAI) ' + xmode : '';
+    const ok = openaiKeyOf(S); const omode = S && (S.openaiChatMode === 'off' || S.openaiChatMode === 'backup') ? S.openaiChatMode : 'primary';
+    const oname = 'OpenAI (' + ((S && String(S.openaiModel || '').trim()) || OPENAI_MODEL) + ')';
+    if (ok && omode !== 'off') {
+      const rest = routeSummary(Object.assign({}, S, { openaiApiKey: '' })).replace(/ — add a Groq key.*$/, '');
+      if (omode === 'primary') return 'Primary: ' + oname + ', then ' + rest.replace(/^Primary: /, '');
+      return rest + ', then ' + oname;
+    }
     const sel = (S && S.groqModel) || GROQ_MODEL; const info = groqModelInfo(sel);
     const gname = sel === GROQ_MODEL ? 'Qwen 27B' : (info ? info.label.split(' (')[0].split(' —')[0] : sel);
     if (gk) return (xmode === 'primary' && xs ? 'Primary: Grok (xAI), then Groq (' + gname + '), Backup: ' + backup : 'Primary: Groq (' + gname + '), Backup: ' + backup + (xs ? ', then Grok (xAI)' : ''));
@@ -875,7 +916,7 @@
   }
 
   // ---------------- Voice / TTS helpers (shared, unit-testable) ----------------
-  const VERSION = '2.5.2';
+  const VERSION = '2.6.0';
   // 2.3.0: ElevenLabs removed (paid; silent fallback in the Android WebView). Saved ElevenLabs keys are left untouched but unused.
   // 'native' = Android TextToSpeech through the NooraNative bridge (free, offline-capable, Google voices incl. ur-PK / hi-IN / pa-IN).
   const TTS_PROVIDERS = [
@@ -1162,6 +1203,9 @@
     if (typeof out.customInstructions !== 'string') out.customInstructions = '';
     if (!['off', 'backup', 'primary'].includes(out.xaiChatMode)) out.xaiChatMode = 'off';
     if (!out.xaiChatModel) out.xaiChatModel = XAI_CHAT_MODEL;
+    if (typeof out.openaiApiKey !== 'string') out.openaiApiKey = '';
+    if (!out.openaiModel) out.openaiModel = OPENAI_MODEL;
+    if (!['off', 'backup', 'primary'].includes(out.openaiChatMode)) out.openaiChatMode = 'primary';
     // 2.3.1: users already on the Groq preset move from retired Llama ids to Qwen 3.8 27B (provider selection itself is untouched)
     if (out.provider === 'Groq') {
       if (GROQ_OLD_MODELS.includes(out.chatModel)) out.chatModel = GROQ_MODEL;
@@ -1492,7 +1536,7 @@
     keywords, questionRx, wikiLang, greetingReply, medicalWarning, noAi, visionNeedsKey, remembered, memoryList, forgot, help, word, notOnIphone, t4,
     money, perTola, perGram, fxText, metalText, cryptoText, weatherCode, weatherText, askPlace, failed,
     parseRss2Json, parseChatCompletion, cleanAi, tones, modes, modelPresets, MODEL_MAP, systemPrompt, systemPromptCompact, MEMORY_PROMPT_MAX, systemPromptLegacy, recent, searchPrompt, PRESETS, PROVIDER_FREE,
-    GROQ_BASE, GROQ_MODEL, GROQ_TIMEOUT_MS, GROQ_FIRST_MS, GROQ_TOTAL_MS, OWN_FIRST_MS, OWN_TOTAL_MS, CHAIN_BUDGET_MS, GROQ_MODELS, groqModelInfo, groqExtraFor, XAI_CHAT_BASE, XAI_CHAT_MODEL, groqKeyOf, ownProviderOf, aiRoute, failureKind, fallbackNotice, routeSummary, redactKeys, runAiChain,
+    GROQ_BASE, GROQ_MODEL, GROQ_TIMEOUT_MS, GROQ_FIRST_MS, GROQ_TOTAL_MS, OWN_FIRST_MS, OWN_TOTAL_MS, CHAIN_BUDGET_MS, GROQ_MODELS, groqModelInfo, groqExtraFor, XAI_CHAT_BASE, XAI_CHAT_MODEL, OPENAI_BASE, OPENAI_MODEL, OPENAI_MODELS, openaiExtraFor, openaiKeyOf, openaiErrorText, groqKeyOf, ownProviderOf, aiRoute, failureKind, fallbackNotice, routeSummary, redactKeys, runAiChain,
     VERSION, TTS_PROVIDERS, DEFAULT_VOICE_SETTINGS, XAI_TTS_URL, XAI_VOICES, TTS_CHUNK, effectiveTtsProvider, activeVoiceLabel, PIPER_VOICES, piperVoiceFor, ttsLocalesFor, rankNativeVoices, buildXaiTtsRequest, mapXaiTtsError, cleanSpeakText, chunkSpeakText, scoreDeviceVoice, pickBestDeviceVoice, describeDefaultVoice, mergeVoiceSettings, ttsProviderReady, speechErrorMessage, assertNoHardcodedSecrets,
     MEMORY_CATEGORIES, FILE_LIMITS, migrateSettings, searchConversations, renameConversationRecord, validateUpload, fileMetadata,
     parseSSEChunk, parseStreamBuffer, selectAiProvider, selectImageProvider, selectVideoProvider, imageOpPrompt, imageTestMessage, buildOpenAiImageGen, parseOpenAiImage, imageBaseOk, IMAGE_EDIT_OPS,

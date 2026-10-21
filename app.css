@@ -407,3 +407,7 @@ h3{text-transform:uppercase;letter-spacing:.06em;font-size:11.5px;margin:22px 6p
 .spScanBtns .spBtn,.spScanBtns button{flex:1}
 .spName{font-size:15px;font-weight:600;margin:4px 0;color:var(--text)}
 [data-android-only][hidden]{display:none!important}
+/* 2.7.0: links cited by Luna's hosted web search (url_citation), shown under OpenAI web-search answers only */
+.lunaLinks { margin-top: 8px; padding-top: 6px; border-top: 1px solid rgba(127,127,127,.25); display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; }
+.lunaLinks .lunaLinksHead { opacity: .7; font-size: 11.5px; }
+.lunaLinks a { color: inherit; opacity: .9; text-decoration: underline; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

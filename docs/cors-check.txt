@@ -33,3 +33,16 @@ OpenAI (user key)          preflight 200  ACAO=https://ayesha.github.io  allow-h
 Gemini (user key)          preflight 200  ACAO=https://ayesha.github.io  allow-headers=content-type,authorization
 Groq (user key)            preflight 204  ACAO=*  allow-headers=content-type,authorization
 OpenRouter (user key)      preflight 204  ACAO=*  allow-headers=Authorization,User-Agent,X-Api-Key,X-CSRF-Token,X-Requested-
+
+== 2.7.0 OpenAI Responses API check (bash test/cors-check.sh, OpenAI rows; ORIGIN=https://azeemash572-eng.github.io) ==
+Origin: https://azeemash572-eng.github.io   Wed Oct 21 14:22:20 UTC 2026
+OpenAI /responses          preflight 200  ACAO=*  allow-headers=content-type,authorization
+OpenAI /chat/completions   preflight 200  ACAO=https://azeemash572-eng.github.io  allow-headers=content-type,authorization
+OpenAI /responses no key   401 application/json  ACAO=*
+    sample: {   "error": {     "message": "Missing bearer or basic authentication in header",     "type": "invalid_request_error",     "param": null,     "code": null   } }
+OpenAI /chat no key        401 application/json; charset=utf-8  ACAO=*
+    sample: {     "error": {         "message": "You didn't provide an API key. You need to provide your API key in an Authorization header using Bearer auth (i.e. Authorization: Bearer YOUR_KEY), or as the password field (with blank username) if you're accessing the API 
+OpenAI /responses bad key  401  ACAO=
+    (no ACAO → browser sees a CORS/network error; app probes GET /v1/models/<id> for the real reason)
+OpenAI GET /models bad key 401  ACAO=*
+Result: /v1/responses is reachable from the GitHub Pages origin (preflight 200 allows authorization+content-type; keyless 401 carries ACAO). Error replies for a WRONG key carry no ACAO on both /responses and /chat/completions (unchanged from 2.6.0), so the app reads the real reason from GET /v1/models/<id>. A 200 reply with a real key was not tested (no key).

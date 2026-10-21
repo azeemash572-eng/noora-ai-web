@@ -12,9 +12,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="NOORA AI">
 <meta name="format-detection" content="telephone=no">
-<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=2.6.0">
-<link rel="icon" type="image/png" sizes="64x64" href="icons/icon-64.png?v=2.6.0">
-<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png?v=2.6.0">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=2.7.0">
+<link rel="icon" type="image/png" sizes="64x64" href="icons/icon-64.png?v=2.7.0">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png?v=2.7.0">
 <link rel="manifest" href="manifest.webmanifest" data-pwa>
 <link rel="stylesheet" href="app.css">
 </head>
@@ -292,10 +292,14 @@
       <div class="card" id="openaiChatCard">
         <label>OpenAI chat (GPT-6 Luna) — optional, paid by you<select id="sOpenaiMode"><option value="primary">Primary — ask OpenAI first</option><option value="backup">Backup — after Groq / Gemini, before free Pollinations</option><option value="off">Off (key kept, not used)</option></select></label>
         <label>OpenAI API key<input id="sOpenaiKey" type="password" placeholder="sk-… (stored only on this phone)" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false"></label>
-        <label>OpenAI model<input id="sOpenaiModel" list="openaiModels" placeholder="gpt-6-luna" autocapitalize="off" autocorrect="off" spellcheck="false"><datalist id="openaiModels"><option value="gpt-6-luna"></datalist></label>
+        <label>OpenAI model<select id="sOpenaiModelPick"><option value="gpt-6-luna">GPT-6 Luna — default, cheapest (gpt-6-luna)</option><option value="gpt-6.1-sol">GPT-6.1 Sol — near-Astra quality (gpt-6.1-sol)</option><option value="gpt-6-astra">GPT-6 Astra — most capable, ≈ 100× Luna's cost (gpt-6-astra)</option><option value="custom">Custom model id…</option></select></label>
+        <label>Custom OpenAI model id<input id="sOpenaiModel" list="openaiModels" placeholder="gpt-6-luna" autocapitalize="off" autocorrect="off" spellcheck="false"><datalist id="openaiModels"><option value="gpt-6-luna"><option value="gpt-6.1-sol"><option value="gpt-6-astra"></datalist></label>
+        <p class="note" id="sOpenaiModelNote"></p>
+        <label class="row">Luna web search — answer live questions (news, prices, scores, today's facts) with OpenAI's web search and show the links it used<input type="checkbox" id="sOpenaiWeb" class="switch" checked></label>
+        <label>Luna reasoning effort<select id="sOpenaiReasoning"><option value="low">Low — fast (default)</option><option value="medium">Medium — more careful</option><option value="high">High — slowest, most thorough</option><option value="none">None — fastest</option></select></label>
         <button type="button" class="outline" id="sOpenaiTest">🔌 Save &amp; test OpenAI</button>
         <p class="note" id="sOpenaiTestResult"></p>
-        <p class="note">api.openai.com/v1/chat/completions with streaming, photos (image input) and NOORA tools. GPT-6 Luna: text + image in, text out, ≈ $0.10 in / $0.50 out per 1M tokens (developers.openai.com). Only used when a key is saved here; you can type any other OpenAI model id. If OpenAI rejects the key, has no credits (429 insufficient_quota) or is busy, NOORA moves on to the next provider automatically. Billed by OpenAI to your account.</p>
+        <p class="note">api.openai.com/v1/responses (OpenAI's Responses API, as in their "Build a Personal AI Assistant" guide) with streaming, photos (image input), NOORA tools and Luna web search; if /v1/responses is unavailable (404) or blocked, the same message is re-sent to /v1/chat/completions automatically (no web search there). Web search calls are billed per search by OpenAI. GPT-6 Luna: text + image in, text out, ≈ $0.10 in / $0.50 out per 1M tokens (developers.openai.com). Only used when a key is saved here; you can type any other OpenAI model id. If OpenAI rejects the key, has no credits (429 insufficient_quota) or is busy, NOORA moves on to the next provider automatically. Billed by OpenAI to your account.</p>
       </div>
       <div class="card" id="xaiChatCard">
         <label>Grok (xAI) chat — optional, paid by you<select id="sXaiChatMode"><option value="off">Off (not used)</option><option value="backup">Backup — after Groq / Gemini, before free Pollinations</option><option value="primary">Primary — ask Grok first</option></select></label>

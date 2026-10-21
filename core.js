@@ -777,11 +777,25 @@
   // 2.6.0: OpenAI (own key) — GPT-6 Luna (developers.openai.com/api/docs/models/gpt-6-luna, checked 2026-10-21):
   // text + image input, text output, streaming; Chat Completions supports function calling only with reasoning_effort 'none'.
   const OPENAI_BASE = 'https://api.openai.com/v1', OPENAI_MODEL = 'gpt-6-luna';
-  const OPENAI_MODELS = [{ id: 'gpt-6-luna', label: 'GPT-6 Luna (default · fast · vision)' }];
+  // 2.7.0: model picker (developers.openai.com/api/docs/models/*, checked 2026-10-21). Sol and Astra do not accept reasoning effort 'none'
+  // (low…max only) and Sol's Chat Completions has no tool calling; prices per 1M tokens in / out.
+  const OPENAI_MODELS = [
+    { id: 'gpt-6-luna', label: 'GPT-6 Luna — default, cheapest', cost: '≈ $0.10 in / $0.50 out per 1M tokens', noNone: false, chatTools: true },
+    { id: 'gpt-6.1-sol', label: 'GPT-6.1 Sol — near-Astra quality', cost: '≈ $2 in / $10 out per 1M tokens (≈ 20× Luna)', noNone: true, chatTools: false },
+    { id: 'gpt-6-astra', label: 'GPT-6 Astra — most capable', cost: '≈ $10 in / $50 out per 1M tokens (≈ 100× Luna\'s cost)', noNone: true, chatTools: true }
+  ];
+  const openaiModelInfo = (model) => OPENAI_MODELS.find((m) => m.id === String(model || '').trim().toLowerCase()) || null;
+  /** reasoning.effort actually sent for a model: never 'none' to Astra / Sol (they support low…max only) → 'low'. */
+  function openaiEffortFor(model, effort) {
+    const e = String(effort || 'low');
+    const info = openaiModelInfo(model);
+    if (e === 'none' && (info ? info.noNone : /astra|sol/i.test(String(model || '')))) return 'low';
+    return e;
+  }
   /** Extra Chat Completions params per OpenAI model. GPT-5/6 reasoning models reject a custom temperature. */
   function openaiExtraFor(model) {
     const m = String(model || '').toLowerCase();
-    if (/^gpt-6/.test(m)) return { reasoning_effort: 'none', noTemperature: true };
+    if (/^gpt-6/.test(m)) return { reasoning_effort: openaiEffortFor(m, 'none'), noTemperature: true };
     if (/^(gpt-5|o\d)/.test(m)) return { noTemperature: true };
     return {};
   }
@@ -798,6 +812,194 @@
     if (status >= 500) return 'OpenAI: server error (' + status + ') — try again later.';
     if (status === -1) return 'OpenAI: could not reach api.openai.com (network / CORS / timeout).';
     return 'OpenAI: HTTP ' + status + (msg ? ' — ' + redactKeys(msg).slice(0, 120) : '');
+  }
+  // 2.7.0: OpenAI provider follows OpenAI's "Build a Personal AI Assistant" guide — Responses API (POST /v1/responses) with
+  // `instructions` (NOORA's system persona), `input` (conversation turns, photos as input_image), reasoning.effort (default 'low')
+  // and the hosted web search tool ({type:'web_search'}, Settings → AI → OpenAI → "Luna web search", on by default).
+  // Chat Completions (/v1/chat/completions) stays as the automatic fallback when /v1/responses answers 404 or is blocked (CORS / network).
+  const OPENAI_REASONING = 'low';
+  const OPENAI_REASONING_LEVELS = ['none', 'low', 'medium', 'high'];
+  const openaiReasoningOf = (S) => (S && OPENAI_REASONING_LEVELS.includes(S.openaiReasoning) ? S.openaiReasoning : OPENAI_REASONING);
+  const openaiWebSearchOn = (S) => !(S && S.openaiWebSearch === false);
+  /** True when live-fact questions should be answered by Luna's hosted web search (key saved, OpenAI not off, toggle on). */
+  function lunaSearchActive(S) {
+    const st = S || {};
+    return !!openaiKeyOf(st) && st.openaiChatMode !== 'off' && openaiWebSearchOn(st);
+  }
+  /** Chat Completions content part → Responses input content part. */
+  function toResponsesPart(p, role) {
+    if (typeof p === 'string') return { type: role === 'assistant' ? 'output_text' : 'input_text', text: p };
+    if (!p || typeof p !== 'object') return null;
+    if (p.type === 'text' || p.type === 'input_text' || p.type === 'output_text') return { type: role === 'assistant' ? 'output_text' : 'input_text', text: String(p.text || '') };
+    if (p.type === 'image_url') { const u = typeof p.image_url === 'string' ? p.image_url : (p.image_url && p.image_url.url); return u ? { type: 'input_image', image_url: u, detail: (p.image_url && p.image_url.detail) || 'auto' } : null; }
+    if (p.type === 'input_image') return p;
+    if (p.type === 'input_audio') return { type: 'input_text', text: '[An audio clip was attached, but this model cannot listen to audio.]' };
+    return null;
+  }
+  /**
+   * Chat Completions `messages` → Responses { instructions, input }.
+   * System messages become `instructions` (NOORA's persona, unchanged); user / assistant turns become role/content items;
+   * assistant tool_calls become function_call items and role 'tool' messages become function_call_output items.
+   */
+  function toResponsesInput(messages) {
+    const sys = []; const input = [];
+    (messages || []).forEach((m) => {
+      if (!m) return;
+      if (m.role === 'system' || m.role === 'developer') { const t = typeof m.content === 'string' ? m.content : (Array.isArray(m.content) ? m.content.map((p) => p.text || '').join('\n') : ''); if (t) sys.push(t); return; }
+      if (m.role === 'tool') { input.push({ type: 'function_call_output', call_id: String(m.tool_call_id || ''), output: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) }); return; }
+      const role = m.role === 'assistant' ? 'assistant' : 'user';
+      if (typeof m.content === 'string') { if (m.content || role === 'user') input.push({ role, content: m.content }); }
+      else if (Array.isArray(m.content)) { const parts = m.content.map((p) => toResponsesPart(p, role)).filter(Boolean); if (parts.length) input.push({ role, content: parts }); }
+      if (role === 'assistant' && Array.isArray(m.tool_calls)) m.tool_calls.forEach((tc) => {
+        if (tc && tc.function && tc.function.name) input.push({ type: 'function_call', call_id: String(tc.id || ''), name: tc.function.name, arguments: typeof tc.function.arguments === 'string' ? tc.function.arguments : JSON.stringify(tc.function.arguments || {}) });
+      });
+    });
+    return { instructions: sys.join('\n\n'), input };
+  }
+  /** Chat Completions tools [{type:'function', function:{…}}] → Responses tools [{type:'function', name, description, parameters}] (+ hosted web_search). */
+  function toResponsesTools(tools, webSearch) {
+    const out = (tools || []).map((t) => (t && t.type === 'function' && t.function ? { type: 'function', name: t.function.name, description: t.function.description || '', parameters: t.function.parameters || { type: 'object', properties: {} } } : t))
+      .filter((t) => t && !(webSearch && t.type === 'function' && t.name === 'web_search'));   // Luna's hosted search replaces NOORA's headline-search tool
+    if (webSearch) out.push({ type: 'web_search' });
+    return out;
+  }
+  /** Request body for POST /v1/responses. opts: {model, tools (chat format), webSearch, reasoning, stream, maxOutputTokens}. */
+  function buildResponsesRequest(messages, opts) {
+    const o = opts || {};
+    const { instructions, input } = toResponsesInput(messages);
+    const body = { model: o.model || OPENAI_MODEL };
+    if (instructions) body.instructions = instructions;
+    body.input = input;
+    const effort = openaiEffortFor(body.model, OPENAI_REASONING_LEVELS.includes(o.reasoning) ? o.reasoning : OPENAI_REASONING);
+    if (/^(gpt-5|gpt-6|o\d)/i.test(body.model)) body.reasoning = { effort };   // non-reasoning models (gpt-4o…) reject `reasoning`
+    const tools = toResponsesTools(o.tools, !!o.webSearch);
+    if (tools.length) { body.tools = tools; body.tool_choice = 'auto'; }
+    if (o.maxOutputTokens) body.max_output_tokens = o.maxOutputTokens;
+    body.store = false;   // stateless: the app sends the history itself, nothing is kept on OpenAI's side for later turns
+    if (o.stream) body.stream = true;
+    return body;
+  }
+  /** Unique url_citation annotations → [{url, title}]. */
+  function responsesCitations(j) {
+    const seen = new Set(); const out = [];
+    ((j && j.output) || []).forEach((it) => ((it && it.content) || []).forEach((c) => ((c && c.annotations) || []).forEach((a) => {
+      if (a && a.type === 'url_citation' && /^https?:\/\//i.test(String(a.url || '')) && !seen.has(a.url)) { seen.add(a.url); out.push({ url: a.url, title: String(a.title || '').trim() || a.url.replace(/^https?:\/\/(www\.)?/i, '').split('/')[0] }); }
+    })));
+    return out;
+  }
+  /** Parse a Responses API object → { text, toolCalls (chat-style tool_calls), citations, searched, status, error }. */
+  function parseResponsesOutput(j) {
+    const r = { text: '', toolCalls: [], citations: [], searched: false, status: (j && j.status) || '', error: (j && j.error) || null };
+    if (!j || typeof j !== 'object') return r;
+    const parts = [];
+    (j.output || []).forEach((it) => {
+      if (!it) return;
+      if (it.type === 'message') (it.content || []).forEach((c) => { if (c && c.type === 'output_text' && typeof c.text === 'string') parts.push(c.text); });
+      else if (it.type === 'function_call' && it.name) r.toolCalls.push({ id: it.call_id || it.id || '', type: 'function', function: { name: it.name, arguments: it.arguments || '{}' } });
+      else if (it.type === 'web_search_call') r.searched = true;
+    });
+    r.text = typeof j.output_text === 'string' && j.output_text ? j.output_text : parts.join('');
+    r.citations = responsesCitations(j);
+    return r;
+  }
+  /**
+   * Incremental parser for Responses SSE (event: response.output_text.delta → data.delta, response.completed → data.response,
+   * response.failed / error → data.response.error / data). Returns { buffer, delta, done, response, error, searching }.
+   */
+  function parseResponsesStream(buffer, chunk) {
+    const buf = String(buffer || '') + String(chunk || '');
+    const blocks = buf.split(/\r?\n\r?\n/);
+    const rest = blocks.pop() || '';
+    const out = { buffer: rest, delta: '', done: false, response: null, error: null, searching: false };
+    blocks.forEach((b) => {
+      const data = b.split(/\r?\n/).filter((l) => /^data:/.test(l)).map((l) => l.replace(/^data:\s?/, '')).join('\n').trim();
+      if (!data || data === '[DONE]') { if (data === '[DONE]') out.done = true; return; }
+      let j; try { j = JSON.parse(data); } catch (e) { return; }
+      const t = j.type || '';
+      if (t === 'response.output_text.delta' && typeof j.delta === 'string') out.delta += j.delta;
+      else if (t === 'response.web_search_call.in_progress' || t === 'response.web_search_call.searching') out.searching = true;
+      else if (t === 'response.completed' || t === 'response.incomplete') { out.done = true; out.response = j.response || null; }
+      else if (t === 'response.failed') { out.done = true; out.response = j.response || null; out.error = (j.response && j.response.error) || { message: 'response failed' }; }
+      else if (t === 'error') { out.done = true; out.error = j.error || { message: j.message || 'stream error', code: j.code }; }
+    });
+    return out;
+  }
+  /**
+   * Should a failed /v1/responses call be retried on /v1/chat/completions? Only for 404 (endpoint / model not offered there)
+   * or a CORS / network failure — never for a timeout (that would double the wait) or a real API error (401, 429, 400…).
+   */
+  function responsesShouldFallback(r) {
+    if (!r) return false;
+    if (r.status === 404) return true;
+    const f = String(r.failure || '');
+    return r.status === -1 && !/timeout|timed out/i.test(f) && /network|cors|failed to fetch|load failed|no internet/i.test(f);
+  }
+  /**
+   * 2.7.0: one OpenAI Responses call with the Chat Completions fallback. Runs in the app and in tests (HTTP is injected).
+   * o = { http(url, init, ms) → {ok, status, res, error}, url, key, body (from buildResponsesRequest), stream, onDelta(delta, full),
+   *       firstMs, total, probe() → {ok, status, code} (optional: GET /models/<id>, which always carries CORS headers),
+   *       chatFallback() → Chat Completions result (optional) }.
+   * Returns { text, toolCalls (chat-style tool_calls), citations, searched, streamed, api, status, code, failure }.
+   */
+  async function openaiResponsesCall(o) {
+    const total = o.total || 90000; const firstMs = Math.min(o.firstMs || total, total); const t0 = Date.now(); const deadline = t0 + total;
+    const keys = [o.key];
+    const fallback = async (why) => {
+      if (typeof o.chatFallback !== 'function') return null;
+      const r = await o.chatFallback();
+      return Object.assign({}, r, { api: 'chat', fellBackFrom: why });
+    };
+    const body = Object.assign({}, o.body, o.stream ? { stream: true } : {});
+    if (!o.stream) delete body.stream;
+    const r = await o.http(o.url, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + o.key }, body: JSON.stringify(body) }, firstMs);
+    if (!r.ok) {
+      let code = '', message = '';
+      if (r.res) { try { const j = await r.res.json(); code = (j.error && typeof j.error === 'object' && (j.error.code || j.error.type)) || ''; message = (j.error && (j.error.message || (typeof j.error === 'string' ? j.error : ''))) || j.message || ''; } catch (e) {} }
+      const fail = { status: r.status, code: String(code || ''), failure: (r.error || 'HTTP ' + r.status) + (message ? ' (' + redactKeys(String(message), keys).slice(0, 90) + ')' : ''), api: 'responses' };
+      if (responsesShouldFallback(fail)) {
+        if (fail.status === -1 && typeof o.probe === 'function') {   // a bad key / no credits also shows up as a CORS error in the browser
+          const p = await o.probe();
+          if (p && !p.ok && p.status > 0) return Object.assign(fail, { status: p.status, code: String(p.code || ''), failure: 'HTTP ' + p.status + (p.code ? ' (' + p.code + ')' : '') });
+        }
+        const fb = await fallback(fail.status === 404 ? '404' : 'cors');
+        if (fb) return fb;
+      }
+      return fail;
+    }
+    const finish = (text, resp, streamed) => {
+      const p = parseResponsesOutput(resp || {});
+      const t = text || p.text;
+      if (resp && resp.status === 'failed') return { status: 200, failure: 'OpenAI response failed' + (resp.error && resp.error.message ? ' (' + redactKeys(resp.error.message, keys).slice(0, 90) + ')' : ''), code: (resp.error && resp.error.code) || '', api: 'responses' };
+      if (!String(t || '').trim() && !p.toolCalls.length) return { status: 200, failure: streamed ? 'empty stream' : 'empty reply', api: 'responses' };
+      return { text: t || '', toolCalls: p.toolCalls, citations: p.citations, searched: p.searched, streamed: !!streamed, api: 'responses', truncated: !!(resp && resp.status === 'incomplete') };
+    };
+    if (o.stream && r.res && r.res.body && typeof r.res.body.getReader === 'function') {
+      const reader = r.res.body.getReader(); const dec = new TextDecoder();
+      let buf = '', full = '', final = null, err = null;
+      try {
+        while (true) {
+          const left = (full ? deadline : Math.min(deadline, t0 + firstMs + 30000)) - Date.now();   // web search can take a while before the first token
+          if (left <= 0) { try { reader.cancel(); } catch (e) {} break; }
+          const x = await Promise.race([reader.read(), new Promise((res) => setTimeout(() => res({ timeout: true }), left))]);
+          if (x.timeout) { try { reader.cancel(); } catch (e) {} break; }
+          if (x.done) break;
+          const p = parseResponsesStream(buf, dec.decode(x.value, { stream: true }));
+          buf = p.buffer;
+          if (p.delta) { full += p.delta; if (o.onDelta) o.onDelta(p.delta, full); }
+          if (p.searching && o.onSearch) o.onSearch();
+          if (p.response) final = p.response;
+          if (p.error) err = p.error;
+          if (p.done) break;
+        }
+        if (buf.trim()) { const p = parseResponsesStream(buf + '\n\n', ''); if (p.delta) { full += p.delta; if (o.onDelta) o.onDelta(p.delta, full); } if (p.response) final = p.response; if (p.error) err = p.error; }
+      } catch (e) { if (!full.trim()) return { status: -1, failure: 'stream failed: ' + ((e && e.message) || e), api: 'responses' }; }
+      if (err && !full.trim()) return { status: 200, code: String(err.code || ''), failure: 'OpenAI stream error' + (err.message ? ' (' + redactKeys(err.message, keys).slice(0, 90) + ')' : ''), api: 'responses' };
+      if (!final && !full.trim()) return { status: -1, failure: 'timeout (stream)', api: 'responses' };
+      const out = finish(full, final, true);
+      if (!final && full.trim()) out.truncated = true;
+      return out;
+    }
+    try { return finish('', await r.res.json(), false); } catch (e) { return { status: 200, failure: 'bad JSON', api: 'responses' }; }
   }
   const GROQ_OLD_MODELS = ['llama-3.3-70b-versatile', 'meta-llama/llama-4-scout-17b-16e-instruct', 'llama3-70b-8192', 'llama-3.1-70b-versatile'];
   const isGroqUrl = (u) => /api\.groq\.com/i.test(String(u || ''));
@@ -841,7 +1043,9 @@
     const ok = openaiKeyOf(st);
     const omode = st.openaiChatMode === 'off' || st.openaiChatMode === 'backup' ? st.openaiChatMode : 'primary';
     const omodel = String(st.openaiModel || '').trim() || OPENAI_MODEL;
-    const openai = ok && omode !== 'off' ? { id: 'openai', label: 'OpenAI', url: OPENAI_BASE + '/chat/completions', model: omodel, visionModel: omodel, key: ok, timeout: OWN_TOTAL_MS, firstMs: 15000, extra: openaiExtraFor(omodel) } : null;
+    // 2.7.0: Responses API first (instructions + input + reasoning + hosted web_search); `chatUrl` + `extra` are the Chat Completions fallback
+    const openai = ok && omode !== 'off' ? { id: 'openai', label: 'OpenAI', api: 'responses', url: OPENAI_BASE + '/responses', chatUrl: OPENAI_BASE + '/chat/completions', model: omodel, visionModel: omodel, key: ok, timeout: OWN_TOTAL_MS, firstMs: o.webSearch === false || !openaiWebSearchOn(st) ? 15000 : 30000,
+      reasoning: openaiReasoningOf(st), webSearch: openaiWebSearchOn(st) && o.webSearch !== false, extra: openaiExtraFor(omodel) } : null;
     const list = [];
     const ownIsGroq = own && own.id === 'groq';
     if (o.vision && own && own.id === 'gemini') { if (openai && omode === 'primary') list.push(openai); list.push(own); if (groq) list.push(groq); if (openai && omode === 'backup') list.push(openai); if (xai) list.push(xai); return list; }
@@ -877,8 +1081,9 @@
     const xmode = S && S.xaiChatMode; const xk = String((S && S.xaiApiKey) || '').trim();
     const xs = xk && (xmode === 'primary' || xmode === 'backup') ? ' · Grok (xAI) ' + xmode : '';
     const ok = openaiKeyOf(S); const omode = S && (S.openaiChatMode === 'off' || S.openaiChatMode === 'backup') ? S.openaiChatMode : 'primary';
-    const oname = 'OpenAI (' + ((S && String(S.openaiModel || '').trim()) || OPENAI_MODEL) + ')';
+    let oname = '';
     if (ok && omode !== 'off') {
+      oname = 'OpenAI (' + ((S && String(S.openaiModel || '').trim()) || OPENAI_MODEL) + (openaiWebSearchOn(S) ? ' + web search' : '') + ')';
       const rest = routeSummary(Object.assign({}, S, { openaiApiKey: '' })).replace(/ — add a Groq key.*$/, '');
       if (omode === 'primary') return 'Primary: ' + oname + ', then ' + rest.replace(/^Primary: /, '');
       return rest + ', then ' + oname;
@@ -916,7 +1121,7 @@
   }
 
   // ---------------- Voice / TTS helpers (shared, unit-testable) ----------------
-  const VERSION = '2.6.0';
+  const VERSION = '2.7.0';
   // 2.3.0: ElevenLabs removed (paid; silent fallback in the Android WebView). Saved ElevenLabs keys are left untouched but unused.
   // 'native' = Android TextToSpeech through the NooraNative bridge (free, offline-capable, Google voices incl. ur-PK / hi-IN / pa-IN).
   const TTS_PROVIDERS = [
@@ -1206,6 +1411,8 @@
     if (typeof out.openaiApiKey !== 'string') out.openaiApiKey = '';
     if (!out.openaiModel) out.openaiModel = OPENAI_MODEL;
     if (!['off', 'backup', 'primary'].includes(out.openaiChatMode)) out.openaiChatMode = 'primary';
+    if (typeof out.openaiWebSearch !== 'boolean') out.openaiWebSearch = true;          // 2.7.0: Luna web search on by default
+    if (!OPENAI_REASONING_LEVELS.includes(out.openaiReasoning)) out.openaiReasoning = OPENAI_REASONING;
     // 2.3.1: users already on the Groq preset move from retired Llama ids to Qwen 3.8 27B (provider selection itself is untouched)
     if (out.provider === 'Groq') {
       if (GROQ_OLD_MODELS.includes(out.chatModel)) out.chatModel = GROQ_MODEL;
@@ -1536,7 +1743,7 @@
     keywords, questionRx, wikiLang, greetingReply, medicalWarning, noAi, visionNeedsKey, remembered, memoryList, forgot, help, word, notOnIphone, t4,
     money, perTola, perGram, fxText, metalText, cryptoText, weatherCode, weatherText, askPlace, failed,
     parseRss2Json, parseChatCompletion, cleanAi, tones, modes, modelPresets, MODEL_MAP, systemPrompt, systemPromptCompact, MEMORY_PROMPT_MAX, systemPromptLegacy, recent, searchPrompt, PRESETS, PROVIDER_FREE,
-    GROQ_BASE, GROQ_MODEL, GROQ_TIMEOUT_MS, GROQ_FIRST_MS, GROQ_TOTAL_MS, OWN_FIRST_MS, OWN_TOTAL_MS, CHAIN_BUDGET_MS, GROQ_MODELS, groqModelInfo, groqExtraFor, XAI_CHAT_BASE, XAI_CHAT_MODEL, OPENAI_BASE, OPENAI_MODEL, OPENAI_MODELS, openaiExtraFor, openaiKeyOf, openaiErrorText, groqKeyOf, ownProviderOf, aiRoute, failureKind, fallbackNotice, routeSummary, redactKeys, runAiChain,
+    GROQ_BASE, GROQ_MODEL, GROQ_TIMEOUT_MS, GROQ_FIRST_MS, GROQ_TOTAL_MS, OWN_FIRST_MS, OWN_TOTAL_MS, CHAIN_BUDGET_MS, GROQ_MODELS, groqModelInfo, groqExtraFor, XAI_CHAT_BASE, XAI_CHAT_MODEL, OPENAI_BASE, OPENAI_MODEL, OPENAI_MODELS, openaiModelInfo, openaiEffortFor, openaiExtraFor, openaiKeyOf, openaiErrorText, OPENAI_REASONING, OPENAI_REASONING_LEVELS, openaiReasoningOf, openaiWebSearchOn, lunaSearchActive, toResponsesInput, toResponsesTools, buildResponsesRequest, parseResponsesOutput, parseResponsesStream, responsesCitations, responsesShouldFallback, openaiResponsesCall, groqKeyOf, ownProviderOf, aiRoute, failureKind, fallbackNotice, routeSummary, redactKeys, runAiChain,
     VERSION, TTS_PROVIDERS, DEFAULT_VOICE_SETTINGS, XAI_TTS_URL, XAI_VOICES, TTS_CHUNK, effectiveTtsProvider, activeVoiceLabel, PIPER_VOICES, piperVoiceFor, ttsLocalesFor, rankNativeVoices, buildXaiTtsRequest, mapXaiTtsError, cleanSpeakText, chunkSpeakText, scoreDeviceVoice, pickBestDeviceVoice, describeDefaultVoice, mergeVoiceSettings, ttsProviderReady, speechErrorMessage, assertNoHardcodedSecrets,
     MEMORY_CATEGORIES, FILE_LIMITS, migrateSettings, searchConversations, renameConversationRecord, validateUpload, fileMetadata,
     parseSSEChunk, parseStreamBuffer, selectAiProvider, selectImageProvider, selectVideoProvider, imageOpPrompt, imageTestMessage, buildOpenAiImageGen, parseOpenAiImage, imageBaseOk, IMAGE_EDIT_OPS,

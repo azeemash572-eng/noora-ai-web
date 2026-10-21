@@ -1,4 +1,4 @@
-/* NOORA AI 2.6.0 command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
+/* NOORA AI 2.7.0 command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
 (function () {
   'use strict';
   const C = window.NooraCore, L = C.Lang;
@@ -383,6 +383,24 @@
         return t || toolCalls.length ? { text: t || '', toolCalls } : { failure: 'empty reply' };
       } catch (e) { return { failure: 'bad JSON' }; }
     },
+    /**
+     * 2.7.0: OpenAI via the Responses API (POST /v1/responses: instructions + input + reasoning + hosted web_search), streaming
+     * response.output_text.delta. Falls back to Chat Completions automatically on 404 or a CORS / network failure.
+     * Same result shape as openAi() plus `citations` (url_citation annotations) and `api` ('responses' | 'chat').
+     */
+    async openaiResponses(a, model, messages, opts = {}) {
+      const webSearch = !!a.webSearch && opts.webSearch !== false;
+      const body = C.buildResponsesRequest(messages, { model, tools: opts.tools, webSearch, reasoning: a.reasoning });
+      const r = await C.openaiResponsesCall({
+        http, url: a.url, key: a.key, body, stream: !!opts.stream, onDelta: opts.onDelta, onSearch: () => { try { status('🔎 Luna is searching the web…'); } catch (e) {} },
+        firstMs: opts.firstMs, total: opts.timeout,
+        probe: () => openaiProbe(a.key, model),
+        chatFallback: () => this.openAi(a.chatUrl || (C.OPENAI_BASE + '/chat/completions'), model, messages, a.key, Object.assign({}, opts, { extra: C.openaiExtraFor(model) },
+          (C.openaiModelInfo(model) || {}).chatTools === false ? { tools: null } : {}))   // GPT-6.1 Sol: Chat Completions without tool calling
+      });
+      if (r.api === 'responses' && r.toolCalls && r.toolCalls.length) r.toolCalls = T.parseToolCalls({ tool_calls: r.toolCalls });
+      return r;
+    },
     async plain(messages) {
       if (messages.some((m) => typeof m.content !== 'string')) return { failure: 'no image support' };
       const r = await http('https://text.pollinations.ai/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages, model: 'openai', referrer: 'noora-ai-web' }) }, 60000);
@@ -399,12 +417,12 @@
       const apiTools = withTools ? T.toolsForApi(PLATFORM) : null;
       const sysAppend = (msgsIn, extra) => msgsIn.map((m, i) => (i === 0 && m.role === 'system' && typeof m.content === 'string') ? Object.assign({}, m, { content: m.content + '\n\n' + extra }) : m);
       const fallbackMsgs = withTools ? sysAppend(messages, T.toolPromptFallback(PLATFORM)) : messages;
-      const done = (r, via, extra) => { lastAnswer = { via, fellBack: !!(extra && extra.notice), ts: Date.now() }; try { refreshStatus(); } catch (e) {} return Object.assign({ text: C.cleanAi(r.text || ''), via, streamed: r.streamed, toolCalls: r.toolCalls || [] }, extra || {}); };
+      const done = (r, via, extra) => { lastAnswer = { via, fellBack: !!(extra && extra.notice), ts: Date.now() }; try { refreshStatus(); } catch (e) {} return Object.assign({ text: C.cleanAi(r.text || ''), via, streamed: r.streamed, toolCalls: r.toolCalls || [], citations: r.citations || [], searched: !!r.searched }, extra || {}); };
       // 2.4.0: never burn ~20s on Groq / Gemini / Pollinations when offline or Offline mode is forced
       if (C.shouldSkipCloudAi(S, navigator.onLine)) {
         return { text: null, failure: 'no internet', network: true, skippedCloud: true };
       }
-      const server = (S.serverUrl || '').trim().replace(/\/+$/, '');
+      const server = opts.only ? '' : (S.serverUrl || '').trim().replace(/\/+$/, '');   // 2.7.0: `only` = ask just that provider (Luna web search)
       if (server) {
         const model = vision && S.visionModel ? S.visionModel : (S.chatModel || 'gemini-2.5-flash');
         const r = await this.openAi(server + '/ai/chat', model, fallbackMsgs, null, { stream: tryStream, onDelta });
@@ -413,14 +431,16 @@
       }
       // 2.3.1: keyed attempts in order — Groq (Qwen 3.8 27B) first when a Groq key exists, then the user's own provider (Gemini).
       // Stops at the first provider that answers, so tool calls come from exactly one provider and are never run twice.
-      const attempts = C.aiRoute(S, { vision });
+      const attempts = C.aiRoute(S, { vision }).filter((x) => !opts.only || x.id === opts.only);
       const budgetEnd = Date.now() + C.CHAIN_BUDGET_MS;   // 2.5.0: total time we are willing to spend on keyed providers before using free Pollinations
       const tryProvider = async (a) => {
         if (Date.now() > budgetEnd) return { failure: 'skipped (time budget)', status: -1 };
         const model = vision ? (a.visionModel || a.model) : a.model;
         const po = { timeout: a.timeout, firstMs: a.firstMs, extra: a.extra };
         const nativeMsgs = withTools ? sysAppend(messages, T.toolPromptNative(PLATFORM)) : messages;
-        let r = await this.openAi(a.url, model, nativeMsgs, a.key, Object.assign({ stream: tryStream, onDelta, tools: apiTools }, po));
+        // 2.7.0: OpenAI goes through the Responses API (with Chat Completions fallback inside); every other provider is unchanged
+        const call = (msgs, o) => a.api === 'responses' ? this.openaiResponses(a, model, msgs, o) : this.openAi(a.url, model, msgs, a.key, o);
+        let r = await call(nativeMsgs, Object.assign({ stream: tryStream, onDelta, tools: apiTools }, po));
         if (r.text || (r.toolCalls && r.toolCalls.length)) return Object.assign(r, { model });
         if (a.id === 'openai') r = await openaiExplain(r, a.key, model);   // 2.6.0: readable invalid-key / no-credits reason
         // a 429 / 401 / 403 / timeout / network error won't get better by asking the same provider again → move on
@@ -430,11 +450,11 @@
           return Object.assign(r, { failure: r.failure || 'empty reply' });
         // provider rejected `tools` (HTTP 400/422) → retry without native tools, JSON-block fallback prompt
         if (withTools && (r.status === 400 || r.status === 422)) {
-          const rj = await this.openAi(a.url, model, fallbackMsgs, a.key, Object.assign({ stream: tryStream, onDelta }, po));
+          const rj = await call(fallbackMsgs, Object.assign({ stream: tryStream, onDelta }, po));
           if (rj.text) return Object.assign(rj, { model, jsonTools: true });
         }
         if (tryStream) {
-          const r2 = await this.openAi(a.url, model, withTools && r.status !== 400 ? nativeMsgs : (withTools ? fallbackMsgs : messages), a.key, Object.assign({ stream: false, tools: withTools && r.status !== 400 && r.status !== 422 ? apiTools : null }, po));
+          const r2 = await call(withTools && r.status !== 400 ? nativeMsgs : (withTools ? fallbackMsgs : messages), Object.assign({ stream: false, tools: withTools && r.status !== 400 && r.status !== 422 ? apiTools : null }, po));
           if (r2.text || (r2.toolCalls && r2.toolCalls.length)) return Object.assign(r2, { model });
           return { failure: r.failure || r2.failure, status: r.status || r2.status };
         }
@@ -443,12 +463,13 @@
       const chain = await C.runAiChain(attempts, tryProvider);
       if (chain.result) {
         const a = chain.attempt; const res = chain.result;
-        const lbl = a.id === 'groq' ? 'Groq · ' + res.model : a.id === 'openai' ? 'OpenAI · ' + res.model : `${a.id === 'gemini' ? S.provider : a.label} · ${res.model}${res.jsonTools ? ' · json-tools' : ''}`;
+        const lbl = a.id === 'groq' ? 'Groq · ' + res.model : a.id === 'openai' ? 'OpenAI · ' + res.model + (res.api === 'chat' ? ' · chat fallback' : res.searched ? ' · web search' : '') : `${a.id === 'gemini' ? S.provider : a.label} · ${res.model}${res.jsonTools ? ' · json-tools' : ''}`;
         const notice = chain.notices.length ? '↪︎ ' + chain.notices.join(' · ') : null;
         if (notice) { try { status(notice); } catch (e) {} }
         return done(res, lbl, notice ? { notice } : {});
       }
       chain.failures.forEach((f) => reasons.push(`${f.label}: ${f.kind} — ${f.failure}`));
+      if (opts.only) return { text: null, failure: C.redactKeys(reasons.join('; ') || 'not configured', [S.openaiApiKey]), network: false };
       const keyed = chain.failures;
       const warning = keyed.length ? '↪︎ ' + keyed.map((f) => f.label + ' ' + f.kind).join(', ') + ', answered with free Pollinations — check Settings → AI.' : null;
       for (let attempt = 0; attempt < 2; attempt++) {
@@ -1858,8 +1879,19 @@
     const b = document.createElement('div'); b.className = 'bubble' + (m.pending ? ' pending' : ''); b.dir = 'auto';
     if (m.image) { const img = document.createElement('img'); img.src = m.image; img.alt = 'image'; img.onclick = () => openImage(m.image); b.appendChild(img); }
     if (m.text) renderMarkdownish(m.text, b);
-    // 2.5.0: no sources / citations are ever rendered under replies
+    // 2.5.0: no Wikipedia / news source lists are rendered under replies.
+    // 2.7.0 exception: links OpenAI's hosted web search actually cited (url_citation annotations) for Luna answers.
     const meta = m.meta || {};
+    if (!m.pending && Array.isArray(meta.lunaLinks) && meta.lunaLinks.length) {
+      const box = document.createElement('div'); box.className = 'lunaLinks';
+      const h = document.createElement('div'); h.className = 'lunaLinksHead'; h.textContent = '🔎 Luna web search'; box.appendChild(h);
+      meta.lunaLinks.forEach((c) => {
+        if (!c || !/^https?:\/\//i.test(String(c.url || ''))) return;
+        const a = document.createElement('a'); a.href = c.url; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = String(c.title || c.url).slice(0, 90); a.dir = 'auto';
+        box.appendChild(a);
+      });
+      b.appendChild(box);
+    }
     if (meta.action) {
       const a = document.createElement('a'); a.className = 'act'; a.href = meta.action.href; a.textContent = meta.action.label;
       if (/^https?:/.test(meta.action.href)) { a.target = '_blank'; a.rel = 'noopener'; }
@@ -2114,7 +2146,9 @@
       case 'Metal': return liveMetal(r.symbol, lang);
       case 'Crypto': return liveCrypto(r.symbol, lang);
       case 'Weather': return liveWeather(r.place, lang);
-      case 'LiveSearch': return S.webSearchOn !== false ? liveSearch(r.query, text, r.numeric, lang) : chat(text, lang, false, false);
+      // 2.7.0: with an OpenAI key and "Luna web search" on, live-fact questions are answered by Luna's hosted web search
+      // (falls back to the Google News search below if OpenAI fails)
+      case 'LiveSearch': return S.webSearchOn !== false ? (C.lunaSearchActive(S) ? chat(text, lang, false, false, { luna: { query: r.query, numeric: r.numeric } }) : liveSearch(r.query, text, r.numeric, lang)) : chat(text, lang, false, false);
       default: return chat(text, lang, r.medical, r.emergency);
     }
   }
@@ -2148,8 +2182,8 @@
   }
   const short = (f) => String(f || 'unknown').replace(/\s+/g, ' ').slice(0, 160);
 
-  async function chat(text, lang, medical, emergency) {
-    showPending(C.word(lang, 'thinking')); status('Thinking…');
+  async function chat(text, lang, medical, emergency, xo = {}) {
+    showPending(C.word(lang, xo.luna ? 'searching' : 'thinking')); status(xo.luna ? '🔎 Luna web search…' : 'Thinking…');
     // Live streaming into pending bubble when possible
     let streamEl = null;
     const onDelta = (delta, full) => {
@@ -2165,11 +2199,12 @@
     };
     setVoiceState('THINKING');
     ssBegin(lang, !medical);
-    const r = await AI.chat(await buildMessages(lang, medical, null), false, { stream: true, onDelta, tools: !medical && T.looksActionable(text) });
+    const r = await AI.chat(await buildMessages(lang, medical, null), false, Object.assign({ stream: true, onDelta, tools: !medical && T.looksActionable(text) }, xo.luna ? { only: 'openai' } : {}));
+    if (xo.luna && !(r.toolCalls && r.toolCalls.length) && (!r.text || /chat fallback/.test(r.via || ''))) { ssAbort(); removePending(); return liveSearch(xo.luna.query, text, xo.luna.numeric, lang); }   // no live answer from Luna → Google News search
     if (r.warning || r.text == null) ssAbort();
     const warn = medical ? C.medicalWarning(lang, emergency) + '\n\n' : '';
     if (r.text != null && !medical && await handleAiToolCalls(r, lang)) { ssAbort(); return; }
-    if (r.text) return reply((r.warning ? r.warning + '\n\n' : '') + warn + r.text, lang, { streamedSpeech: r.text, meta: { notice: r.notice || null, via: r.via + (r.streamed ? ' · stream' : '') } });
+    if (r.text) return reply((r.warning ? r.warning + '\n\n' : '') + warn + r.text, lang, { streamedSpeech: r.text, meta: { notice: r.notice || null, via: r.via + (r.streamed ? ' · stream' : ''), lunaLinks: (r.citations || []).slice(0, 6) } });
     const note = C.noAi(lang, short(r.failure));
     if (medical) return reply(warn + note, lang, { meta: { via: 'offline' } });
     if (r.network || !navigator.onLine) {
@@ -3000,6 +3035,9 @@
     if ($('sOpenaiMode')) $('sOpenaiMode').value = S.openaiChatMode || 'primary';
     if ($('sOpenaiKey')) $('sOpenaiKey').value = S.openaiApiKey || '';
     if ($('sOpenaiModel')) $('sOpenaiModel').value = S.openaiModel || C.OPENAI_MODEL;
+    syncOpenaiModelPick();
+    if ($('sOpenaiWeb')) $('sOpenaiWeb').checked = C.openaiWebSearchOn(S);
+    if ($('sOpenaiReasoning')) $('sOpenaiReasoning').value = C.openaiReasoningOf(S);
     if ($('sOpenaiTestResult')) $('sOpenaiTestResult').textContent = '';
     if ($('sKeepAlive')) $('sKeepAlive').checked = !!S.keepAlive;
     renderRouteLine();
@@ -3105,6 +3143,8 @@
     if ($('sOpenaiMode')) S.openaiChatMode = $('sOpenaiMode').value || 'primary';
     if ($('sOpenaiKey')) S.openaiApiKey = $('sOpenaiKey').value.trim();
     if ($('sOpenaiModel')) S.openaiModel = $('sOpenaiModel').value.trim() || C.OPENAI_MODEL;
+    if ($('sOpenaiWeb')) S.openaiWebSearch = !!$('sOpenaiWeb').checked;
+    if ($('sOpenaiReasoning')) S.openaiReasoning = C.OPENAI_REASONING_LEVELS.includes($('sOpenaiReasoning').value) ? $('sOpenaiReasoning').value : C.OPENAI_REASONING;
     S.modelPreset = $('sPreset').value; S.provider = $('sProvider').value;
     S.baseUrl = $('sBase').value.trim().replace(/\/+$/, ''); S.apiKey = $('sKey').value.trim();
     S.chatModel = $('sModel').value.trim(); S.visionModel = $('sVision').value.trim();
@@ -3114,7 +3154,7 @@
     if ($('sServerUrl')) S.serverUrl = ($('sServerUrl').value || '').trim().replace(/\/+$/, '');
     saveS(); updateEmpty(); refreshStatus(); renderRouteLine();
   }
-  ['sGroqKey', 'sGroqModel', 'sGroqAlt', 'sCustomInstr', 'sOpenaiMode', 'sOpenaiKey', 'sOpenaiModel', 'sXaiChatMode', 'sXaiChatKey', 'sXaiChatModel', 'sBase', 'sKey', 'sModel', 'sVision', 'sWeb', 'sAiName', 'sTone', 'sMode', 'sFormality', 'sGender', 'sPrefLang', 'sServerUrl'].forEach((id) => {
+  ['sGroqKey', 'sGroqModel', 'sGroqAlt', 'sCustomInstr', 'sOpenaiMode', 'sOpenaiKey', 'sOpenaiModel', 'sOpenaiWeb', 'sOpenaiReasoning', 'sXaiChatMode', 'sXaiChatKey', 'sXaiChatModel', 'sBase', 'sKey', 'sModel', 'sVision', 'sWeb', 'sAiName', 'sTone', 'sMode', 'sFormality', 'sGender', 'sPrefLang', 'sServerUrl'].forEach((id) => {
     const el = $(id); if (el) el.addEventListener('change', saveAiFields);
   });
   $('sProvider').addEventListener('change', () => {
@@ -3133,7 +3173,25 @@
     $('sTestResult').textContent = r.text ? (r.warning ? r.warning + '\n' : '') + (r.notice ? r.notice + '\n' : '') + `✅ ${r.via}: ${r.text.slice(0, 80)}` : '❌ ' + r.failure;
   };
 
-  // 2.6.0: Settings → AI → OpenAI → Test: checks key + model (GET /v1/models/<id>), then a tiny chat completion (no fallback).
+  // 2.7.0: Settings → AI → OpenAI model picker (Luna / Sol / Astra / custom id typed in the field below) + cost note
+  function syncOpenaiModelPick() {
+    const pick = $('sOpenaiModelPick'), inp = $('sOpenaiModel'), note = $('sOpenaiModelNote');
+    if (!pick || !inp) return;
+    const id = inp.value.trim() || C.OPENAI_MODEL; const info = C.openaiModelInfo(id);
+    pick.value = info ? info.id : 'custom';
+    (inp.closest('label') || inp).hidden = !!info;   // custom-id field only for "Custom model id…"
+    if (note) note.textContent = info ? info.label + ' · ' + info.cost + (info.noNone ? ' · reasoning effort "None" is sent as "Low" for this model' : '') : 'Custom model id — billed at that model\'s OpenAI price.';
+  }
+  if ($('sOpenaiModelPick')) $('sOpenaiModelPick').onchange = () => {
+    const v = $('sOpenaiModelPick').value;
+    if (v !== 'custom') $('sOpenaiModel').value = v; else { if (C.openaiModelInfo($('sOpenaiModel').value)) $('sOpenaiModel').value = ''; }
+    syncOpenaiModelPick(); if (v === 'custom') { ($('sOpenaiModel').closest('label') || $('sOpenaiModel')).hidden = false; $('sOpenaiModel').focus(); }
+    saveAiFields();
+  };
+  if ($('sOpenaiModel')) $('sOpenaiModel').addEventListener('input', () => { const n = $('sOpenaiModelNote'); if (n && !C.openaiModelInfo($('sOpenaiModel').value)) n.textContent = 'Custom model id — billed at that model\'s OpenAI price.'; });
+
+  // 2.6.0: Settings → AI → OpenAI → Test: checks key + model (GET /v1/models/<id>), then a tiny request (no provider fallback).
+  // 2.7.0: the tiny request goes to /v1/responses (no web search, to keep it cheap); Chat Completions only if Responses is 404 / blocked.
   if ($('sOpenaiTest')) $('sOpenaiTest').onclick = async () => {
     saveAiFields(); const out = $('sOpenaiTestResult'); const key = C.openaiKeyOf(S); const model = S.openaiModel || C.OPENAI_MODEL;
     if (!key) { out.textContent = '❌ Paste your OpenAI API key first (platform.openai.com/api-keys).'; return; }
@@ -3141,9 +3199,9 @@
     out.textContent = 'Testing OpenAI · ' + model + '…';
     const p = await openaiProbe(key, model);
     if (!p.ok) { out.textContent = '❌ ' + (p.status > 0 ? C.openaiErrorText(p.status, p.code, p.message) : C.openaiErrorText(-1, '', p.error)); return; }
-    const ex = C.openaiExtraFor(model);
-    let r = await AI.openAi(C.OPENAI_BASE + '/chat/completions', model, [{ role: 'user', content: 'Reply with exactly: NOORA OK' }], key, { stream: false, timeout: 30000, extra: ex });
-    if (r.text) { out.textContent = '✅ OpenAI · ' + model + ': ' + C.cleanAi(r.text).slice(0, 80); return; }
+    const att = C.aiRoute(Object.assign({}, S, { openaiChatMode: 'primary' }), { webSearch: false }).find((x) => x.id === 'openai');
+    let r = await AI.openaiResponses(Object.assign({}, att, { webSearch: false }), model, [{ role: 'user', content: 'Reply with exactly: NOORA OK' }], { stream: false, timeout: 30000, firstMs: 30000 });
+    if (r.text) { out.textContent = '✅ OpenAI · ' + model + (r.api === 'chat' ? ' (chat/completions fallback — /v1/responses was not reachable)' : ' (Responses API)') + ': ' + C.cleanAi(r.text).slice(0, 80) + (C.openaiWebSearchOn(S) ? ' · Luna web search on' : ''); return; }
     r = await openaiExplain(r, key, model);
     out.textContent = '❌ ' + C.redactKeys(r.failure || 'failed', [key]);
   };

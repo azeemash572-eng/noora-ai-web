@@ -8,7 +8,7 @@ const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
 const GEM = { apiKey: 'AIzaTESTKEY000', provider: 'Google Gemini', baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', chatModel: 'gemini-2.5-flash' };
 const ids = (s, o) => C.aiRoute(s, o).map((a) => a.id).join('>');
 
-test('VERSION is 2.6.0', () => { assert.equal(C.VERSION, '2.6.0'); assert.equal(read('VERSION').trim(), '2.6.0'); assert.match(read('sw.js'), /noora-shell-2\.6\.0/); });
+test('VERSION is 2.7.0', () => { assert.equal(C.VERSION, '2.7.0'); assert.equal(read('VERSION').trim(), '2.7.0'); assert.match(read('sw.js'), /noora-shell-2\.7\.0/); });
 test('defaults: gpt-6-luna, primary mode after migration', () => {
   assert.equal(C.OPENAI_MODEL, 'gpt-6-luna');
   const m = C.migrateSettings({}, {});
@@ -27,9 +27,10 @@ test('OpenAI primary / backup / off ordering', () => {
   assert.equal(ids(Object.assign({}, GEM, k), { vision: true }), 'openai>gemini');
   assert.equal(ids(k), 'openai');
 });
-test('OpenAI attempt uses chat completions, bearer key, model + reasoning_effort none', () => {
+test('OpenAI attempt: Responses API first, chat completions fallback keeps reasoning_effort none (2.7.0)', () => {
   const a = C.aiRoute({ openaiApiKey: 'sk-test-abcdefghijkl' })[0];
-  assert.equal(a.url, 'https://api.openai.com/v1/chat/completions');
+  assert.equal(a.url, 'https://api.openai.com/v1/responses'); assert.equal(a.api, 'responses');
+  assert.equal(a.chatUrl, 'https://api.openai.com/v1/chat/completions');
   assert.equal(a.model, 'gpt-6-luna'); assert.equal(a.visionModel, 'gpt-6-luna');
   assert.deepEqual(a.extra, { reasoning_effort: 'none', noTemperature: true });
   const b = C.aiRoute({ openaiApiKey: 'sk-test-abcdefghijkl', openaiModel: 'gpt-4o-mini' })[0];
@@ -46,8 +47,8 @@ test('error mapping: invalid key, no credits, rate limit, model', () => {
   assert.ok(!/sk-test-abcdefghijkl/.test(C.redactKeys('Bearer sk-test-abcdefghijkl')));
 });
 test('route summary names OpenAI', () => {
-  assert.equal(C.routeSummary({ openaiApiKey: 'sk-test-abcdefghijkl' }), 'Primary: OpenAI (gpt-6-luna), then free Pollinations');
-  assert.match(C.routeSummary(Object.assign({ groqApiKey: 'gsk_x', openaiChatMode: 'backup', openaiApiKey: 'sk-test-abcdefghijkl' }, GEM)), /^Primary: Groq .*, then OpenAI \(gpt-6-luna\)$/);
+  assert.equal(C.routeSummary({ openaiApiKey: 'sk-test-abcdefghijkl' }), 'Primary: OpenAI (gpt-6-luna + web search), then free Pollinations');
+  assert.match(C.routeSummary(Object.assign({ groqApiKey: 'gsk_x', openaiChatMode: 'backup', openaiApiKey: 'sk-test-abcdefghijkl' }, GEM)), /^Primary: Groq .*, then OpenAI \(gpt-6-luna \+ web search\)$/);
 });
 test('Settings → AI has the OpenAI card (password key, editable model, test button)', () => {
   const h = read('index.html');
@@ -64,5 +65,5 @@ test('icons: new sizes present and referenced', () => {
   }
   const man = JSON.parse(read('manifest.webmanifest'));
   assert.ok(man.icons.some((i) => i.purpose === 'maskable'));
-  assert.match(read('index.html'), /apple-touch-icon\.png\?v=2\.6\.0/);
+  assert.match(read('index.html'), /apple-touch-icon\.png\?v=2\.7\.0/);
 });

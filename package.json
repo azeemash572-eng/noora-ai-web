@@ -1,10 +1,11 @@
 {
   "name": "noora-ai-web",
-  "version": "2.6.0",
+  "version": "2.7.0",
   "private": true,
   "scripts": {
-    "test": "node --test ./test/openai-260.test.js && node --test ./test/scanpdf-252.test.js && node --test ./test/nosources-250.test.js && node --test ./test/final-250.test.js && node --test ./test/core.test.js && node --test ./test/cc.test.js && node --test ./test/tools.test.js && node --test ./test/groq.test.js && node --test ./test/contacts-big.test.js && node --test ./test/offline-240.test.js && node --test ./test/local-llm-241.test.js && node --test ./test/voiceid-242.test.js && node --test ./test/piper-243.test.js",
+    "test": "node --test ./test/openai-responses-270.test.js && node --test ./test/openai-260.test.js && node --test ./test/scanpdf-252.test.js && node --test ./test/nosources-250.test.js && node --test ./test/final-250.test.js && node --test ./test/core.test.js && node --test ./test/cc.test.js && node --test ./test/tools.test.js && node --test ./test/groq.test.js && node --test ./test/contacts-big.test.js && node --test ./test/offline-240.test.js && node --test ./test/local-llm-241.test.js && node --test ./test/voiceid-242.test.js && node --test ./test/piper-243.test.js",
     "test:e2e:ios": "node test/e2e/ios-252.mjs",
+    "test:e2e:openai": "node test/e2e/openai-270.mjs",
     "test:e2e": "node test/e2e/cc-smoke.mjs && node test/e2e/voice-smoke.mjs && node test/e2e/actions-smoke.mjs && node test/e2e/android-230.mjs && node test/e2e/groq-231.mjs",
     "test:e2e:cc": "node test/e2e/cc-smoke.mjs",
     "server": "node server/index.js"

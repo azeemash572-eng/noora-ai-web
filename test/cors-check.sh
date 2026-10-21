@@ -37,3 +37,7 @@ pre "OpenAI (user key)" "https://api.openai.com/v1/chat/completions"
 pre "Gemini (user key)" "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
 pre "Groq (user key)" "https://api.groq.com/openai/v1/chat/completions"
 pre "OpenRouter (user key)" "https://openrouter.ai/api/v1/chat/completions"
+# 2.7.0: OpenAI Responses API (Settings → AI → OpenAI). No real key: a 401 that carries Access-Control-Allow-Origin = reachable from the page.
+pre "OpenAI /responses" "https://api.openai.com/v1/responses"
+row "OpenAI /responses no key" POST "https://api.openai.com/v1/responses" '{"model":"gpt-6-luna","input":"Reply with exactly: NOORA OK","tools":[{"type":"web_search"}],"reasoning":{"effort":"low"}}'
+row "OpenAI /chat no key" POST "https://api.openai.com/v1/chat/completions" '{"model":"gpt-6-luna","messages":[{"role":"user","content":"Reply with exactly: NOORA OK"}]}'

@@ -21,7 +21,7 @@ jobs:
       - name: Stage static site only
         run: |
           mkdir -p _site
-          cp index.html app.css app.js core.js tools.js sw.js VERSION manifest.webmanifest apple-touch-icon.png .nojekyll _site/
+          cp index.html app.css astra.css app.js core.js tools.js sw.js VERSION manifest.webmanifest apple-touch-icon.png .nojekyll _site/
           cp -a icons _site/icons
           cp -a scan _site/scan
           # docs optional (screenshots) — skip large docs to keep deploy light

@@ -129,7 +129,7 @@ test('every tool prepares on its platforms and is honestly unavailable elsewhere
     }
   }
   // spot-check native payloads
-  assert.deepEqual(T.prepare('set_alarm', { hour: 7, minute: 0 }, ctxA).action.payload, { type: 'alarm', hour: 7, minute: 0, label: 'NOORA' });
+  assert.deepEqual(T.prepare('set_alarm', { hour: 7, minute: 0 }, ctxA).action.payload, { type: 'alarm', hour: 7, minute: 0, label: 'Astra' });
   assert.equal(T.prepare('open_maps', { query: 'Testmall', navigate: true }, ctxA).action.payload.type, 'navigate');
   assert.equal(T.prepare('open_settings', { panel: 'bluetooth' }, ctxA).note.includes('does not let apps'), true);
   assert.equal(T.prepare('run_shortcut', { name: 'x' }, ctxA).ok, false);

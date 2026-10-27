@@ -1,4 +1,4 @@
-/* NOORA AI 2.7.1 command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
+/* Astra AI 2.8.0 (formerly Astra AI) command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
 (function () {
   'use strict';
   const C = window.NooraCore, L = C.Lang;
@@ -31,7 +31,7 @@
   const setIcon = (el, i) => { if (el) el.style.backgroundImage = ICON[i]; };
 
   const DEF = Object.assign({
-    userName: '', aiName: 'Noora', tone: 'Warm & caring', mode: 'caring', formality: 'balanced',
+    userName: '', aiName: 'Astra', tone: 'Warm & caring', mode: 'caring', formality: 'balanced',
     provider: C.PROVIDER_FREE, baseUrl: '', apiKey: '', chatModel: '', visionModel: '',
     modelPreset: 'Fast', webSearchOn: true, memoryOn: true,
     pinOn: false, pinHash: '', continuousVoice: false, activeAssistantId: null,
@@ -40,10 +40,11 @@
     netMode: 'auto', defaultMessenger: 'ask', imageEditModel: '',
     groqApiKey: '', groqModel: C.GROQ_MODEL, groqAltOn: true,
     customInstructions: '', xaiChatMode: 'off', xaiChatModel: C.XAI_CHAT_MODEL,
-    openaiApiKey: '', openaiModel: C.OPENAI_MODEL, openaiChatMode: 'primary', keepAlive: false, theme: 'auto',
+    openaiApiKey: '', openaiModel: C.OPENAI_MODEL, openaiChatMode: 'primary', keepAlive: false, theme: 'dark',
     ownerOnly: false, voiceIdSens: C.VOICEID.SENS_DEFAULT
   }, C.DEFAULT_VOICE_SETTINGS);
   let S = Object.assign({}, DEF);
+  let wakeMode = false, silentCount = 0, wakePausedUntil = 0, astraOpen = null; // 2.8.0 hands-free / wake word / proactive greeting
   try {
     const raw = JSON.parse(localStorage.getItem('noora.settings') || '{}');
     S = C.migrateSettings(raw, DEF);
@@ -52,7 +53,7 @@
     const t = S.theme === 'light' || S.theme === 'dark' ? S.theme : 'auto';
     const el = document.documentElement; if (t === 'auto') el.removeAttribute('data-theme'); else el.setAttribute('data-theme', t);
     const light = t === 'light' || (t === 'auto' && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches);
-    const m = document.querySelector('meta[name=theme-color]'); if (m) m.setAttribute('content', light ? '#F4F4FA' : '#05070D');
+    const m = document.querySelector('meta[name=theme-color]'); if (m) m.setAttribute('content', light ? '#F4F4FA' : '#141414');
   }
   try { if (window.matchMedia) window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => applyTheme()); } catch (e) {}
   const saveS = () => { try { localStorage.setItem('noora.settings', JSON.stringify(S)); } catch (e) {} };
@@ -60,7 +61,7 @@
   const openaiOn = () => !!(C.openaiKeyOf(S) && S.openaiChatMode !== 'off');
   const hasAnyKey = () => !!(hasOwnKey() || C.groqKeyOf(S) || openaiOn());
   const prefLang = () => (S.voiceLang ? L[S.voiceLang] : null);
-  const aiName = () => (S.aiName && S.aiName.trim()) || 'Noora';
+  const aiName = () => (S.aiName && S.aiName.trim()) || 'Astra';
 
   async function sha256(text) {
     const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
@@ -575,6 +576,7 @@
     const orb = $('homeVoiceBtn');
     if (orb) { orb.dataset.state = st.toLowerCase(); orb.setAttribute('aria-label', 'Voice: ' + VS_LABEL[st]); }
     const vo = $('vsOrb'); if (vo) { vo.dataset.state = st.toLowerCase(); vo.setAttribute('aria-label', 'Voice: ' + VS_LABEL[st]); }
+    try { if (typeof hfRender === 'function' && $('handsFree')) setTimeout(hfRender, 0); } catch (e) {}
     const co = $('chatVoiceOrb'); if (co) { co.dataset.state = st.toLowerCase(); co.setAttribute('aria-label', 'Voice: ' + VS_LABEL[st]); }
     if ($('vsLabel')) $('vsLabel').textContent = VS_LABEL[st] + (detail ? ' · ' + detail : '');
     const panel = $('voiceState'); if (panel) panel.hidden = st === 'IDLE' && !continuous && !detail && !pending;
@@ -660,7 +662,7 @@
     pending = { type: 'confirm', cardId: id, prep };
     const q = isTap ? T.say('tap_to_open', {}, lang) : T.say('confirm_q', {}, lang);
     setVoiceState('IDLE', isTap ? 'tap to open' : 'waiting for haan / nahi'); setActionInfo((stepLabel || '') + prep.summary);
-    return reply(q, lang, { meta: { card: { id, title, details: prep.details, note: prep.note, buttons }, via: 'NOORA tools' }, speakText: speakLine(prep) + ' ' + q });
+    return reply(q, lang, { meta: { card: { id, title, details: prep.details, note: prep.note, buttons }, via: 'Astra tools' }, speakText: speakLine(prep) + ' ' + q });
   }
   function confirmPending() {
     const p = pending; pending = null;
@@ -673,7 +675,7 @@
     if (p && p.cardId) markCard(p.cardId, '✕ Cancelled');
     const lang = plan ? plan.lang : (prefLang() || L.ENGLISH);
     plan = null; setActionInfo('');
-    reply(T.say('cancelled', {}, lang), lang, { meta: { via: 'NOORA tools' } });
+    reply(T.say('cancelled', {}, lang), lang, { meta: { via: 'Astra tools' } });
   }
   async function afterExecute(prep, res) {
     const lang = plan ? plan.lang : (prefLang() || L.ENGLISH);
@@ -703,7 +705,7 @@
     else if (res.code === 'permission') text = T.say('action_failed', { reason: (res.message || 'permission needed') + ' — allow it and ask me again.' }, lang);
     else text = T.say('action_failed', { reason: res.message || 'unknown error' }, lang);
     if (res.ok && res.message && (prep.confirm || res.leftApp) && res.note) text += '\n' + res.note;
-    await reply(text + (more && res.ok ? '' : ''), lang, { meta: { via: 'NOORA tools' + (IS_ANDROID_WV ? ' · Android' : '') }, speak: !(res.leftApp && more) });
+    await reply(text + (more && res.ok ? '' : ''), lang, { meta: { via: 'Astra tools' + (IS_ANDROID_WV ? ' · Android' : '') }, speak: !(res.leftApp && more) });
     if (res.code === 'not_installed' && res.fallbackUrl) {
       const fb = { ok: true, tool: 'open_url', label: 'Browser', summary: 'Open ' + res.fallbackUrl.split('?')[0] + ' in the browser instead', what: 'the browser', confirm: false, details: [], action: { kind: 'native', payload: { type: 'browser', url: res.fallbackUrl }, needsTap: true, tapLabel: '🌐 Open in browser' } };
       plan = plan || { steps: [], i: 0, lang };
@@ -732,7 +734,7 @@
         const blob = new Blob([a.content], { type: 'text/calendar;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         if (typeof window.__nooraOpenHook === 'function') { window.__nooraOpenHook('ics:' + a.content); }
-        else { const el = document.createElement('a'); el.href = url; el.download = a.filename || 'noora.ics'; document.body.appendChild(el); el.click(); el.remove(); }
+        else { const el = document.createElement('a'); el.href = url; el.download = a.filename || 'astra.ics'; document.body.appendChild(el); el.click(); el.remove(); }
         setTimeout(() => URL.revokeObjectURL(url), 60000);
         return { ok: true, message: 'calendar file ready — tap "Add" / "Add to Calendar" to save it' };
       }
@@ -792,7 +794,7 @@
           const text = prep.code === 'unavailable' ? T.say('unavailable', { what: prep.label || st.tool, reason }, lang) : T.say('action_failed', { reason: prep.error }, lang);
           plan = null; setActionInfo('');
           setVoiceState('ERROR', prep.label || '');
-          return reply(text, lang, { meta: { via: 'NOORA tools' } });
+          return reply(text, lang, { meta: { via: 'Astra tools' } });
         }
         const stepLabel = plan.steps.length > 1 ? '(' + (plan.i + 1) + '/' + plan.steps.length + ') ' : '';
         const a = prep.action || {};
@@ -816,7 +818,7 @@
   }
   async function runLocal(prep, lang) {
     const a = prep.action;
-    if (a.kind === 'result') return reply(a.text, lang, { meta: { via: 'NOORA tools' } });
+    if (a.kind === 'result') return reply(a.text, lang, { meta: { via: 'Astra tools' } });
     if (a.op === 'web_search') {
       if (S.webSearchOn === false) return reply('Live answers (news, prices) are off in Settings — turn them on to look things up.', lang);
       return liveSearch(a.query, a.query, false, lang);
@@ -903,7 +905,7 @@
     const st = $('contactsAccessState'); if (!st) return;
     const p = contactsPermState();
     const btn = $('btnContactsAccess'), ref = $('btnContactsRefresh'), op = $('btnContactsAppSettings');
-    if (!p.android) { st.textContent = 'Contacts access is only available in the NOORA Android app.'; if (btn) btn.hidden = true; if (ref) ref.hidden = true; if (op) op.hidden = true; return; }
+    if (!p.android) { st.textContent = 'Contacts access is only available in the Astra Android app.'; if (btn) btn.hidden = true; if (ref) ref.hidden = true; if (op) op.hidden = true; return; }
     if (p.granted) {
       contactsBlocked = false;
       const n = contactsCache ? contactsCache.list.length : 0;
@@ -914,7 +916,7 @@
       st.textContent = '🚫 Contacts access was denied with "Don\'t ask again", so Android won\'t show the dialog any more. Open app settings → Permissions → Contacts → Allow.';
       if (btn) btn.hidden = true; if (ref) ref.hidden = true; if (op) op.hidden = false;
     } else {
-      st.textContent = 'Not allowed yet. NOORA needs Contacts to call or message people by name. Numbers never leave this phone.';
+      st.textContent = 'Not allowed yet. Astra needs Contacts to call or message people by name. Numbers never leave this phone.';
       if (btn) btn.hidden = false; if (ref) ref.hidden = true; if (op) op.hidden = true;
     }
   }
@@ -985,14 +987,14 @@
     else if (type === 'email') text = T.langKey(lang) === 'en' ? 'What is ' + (name || 'their') + ' email address?' : 'Jaanu, ' + (name || 'unka') + ' email address kya hai?';
     else text = T.langKey(lang) === 'en' ? "What's your home address? I'll remember it for next time." : 'Jaanu, ghar ka address bata do — main yaad rakh lungi.';
     setVoiceState('IDLE', 'waiting for your answer');
-    return reply(text, lang, { meta: { via: 'NOORA tools' } });
+    return reply(text, lang, { meta: { via: 'Astra tools' } });
   }
   function askApp(name, lang) {
     const id = 'card' + (++cardSeq) + '_' + Date.now().toString(36);
     pending = { type: 'app', cardId: id, name };
     const buttons = [{ label: '🟢 WhatsApp', value: 'whatsapp', go: true }, { label: '✉️ SMS', value: 'sms' }, { label: 'Cancel', value: 'cancel' }];
     setVoiceState('IDLE', 'WhatsApp or SMS?');
-    return reply(T.say('ask_app', { name: name || '' }, lang), lang, { meta: { card: { id, title: '💬 ' + (name || ''), details: [], note: 'I\'ll remember your choice — change it in Tools → Action preferences.', buttons }, via: 'NOORA tools' } });
+    return reply(T.say('ask_app', { name: name || '' }, lang), lang, { meta: { card: { id, title: '💬 ' + (name || ''), details: [], note: 'I\'ll remember your choice — change it in Tools → Action preferences.', buttons }, via: 'Astra tools' } });
   }
   function chooseApp(app) {
     const p = pending; pending = null;
@@ -1018,7 +1020,7 @@
     st.args.number = c.number; st.args.contactName = c.name;
     busy = true; advancePlan();
   }
-  /** Typed / spoken reply while NOORA waits (haan / nahi / a choice / a number). Returns true if consumed. */
+  /** Typed / spoken reply while Astra waits (haan / nahi / a choice / a number). Returns true if consumed. */
   async function handlePendingReply(text) {
     const p = pending; if (!p) return false;
     const yn = T.parseYesNo(text);
@@ -1132,7 +1134,7 @@
   }
   async function saveImageData(dataUrl, name) {
     const b64 = String(dataUrl).split(',')[1] || ''; const mime = (String(dataUrl).match(/^data:([^;]+)/) || [])[1] || 'image/png';
-    if (bridge()) { const r = nativeRun({ type: 'saveImage', name, mime, data: b64 }); return r.ok ? { ok: true, message: r.message || 'saved to Pictures/NOORA' } : { ok: false, message: r.message || 'could not save' }; }
+    if (bridge()) { const r = nativeRun({ type: 'saveImage', name, mime, data: b64 }); return r.ok ? { ok: true, message: r.message || 'saved to Pictures/Astra' } : { ok: false, message: r.message || 'could not save' }; }
     if (typeof window.__nooraOpenHook === 'function') { window.__nooraOpenHook('download:' + name); return { ok: true, message: 'downloaded ' + name }; }
     const a = document.createElement('a'); a.href = dataUrl; a.download = name; document.body.appendChild(a); a.click(); a.remove();
     return { ok: true, message: 'downloaded ' + name };
@@ -1192,14 +1194,14 @@
       history.push(ctx.getImageData(0, 0, W, H)); await showResult(r.dataUrl);
       setNote('✨ Gemini edited the photo' + (r.text ? ' — ' + r.text.slice(0, 140) : '') + '. Save or Share it, or keep editing.');
     }, false, 'ieAi');
-    mk('💾 Save', async () => { const r = await saveImageData(current, 'noora-edit-' + Date.now() + '.png'); setNote(r.ok ? '💾 ' + r.message : '⚠ ' + r.message); toast(r.ok ? 'Saved ✓' : r.message); }, false, 'ieSave');
-    mk('📤 Share', async () => { const r = await shareImageData(current, 'noora-edit.png'); if (!r.ok) setNote('⚠ ' + r.message); }, false, 'ieShare');
+    mk('💾 Save', async () => { const r = await saveImageData(current, 'astra-edit-' + Date.now() + '.png'); setNote(r.ok ? '💾 ' + r.message : '⚠ ' + r.message); toast(r.ok ? 'Saved ✓' : r.message); }, false, 'ieSave');
+    mk('📤 Share', async () => { const r = await shareImageData(current, 'astra-edit.png'); if (!r.ok) setNote('⚠ ' + r.message); }, false, 'ieShare');
     mk('✓ Done', async () => {
       $('modal').hidden = true; window.removeEventListener('pointerup', up);
       if (current !== src) {
         const blob = await (await fetch(current)).blob();
-        lastAttachment = { name: 'noora-edit.png', mime: blob.type || 'image/png', file: new File([blob], 'noora-edit.png', { type: blob.type || 'image/png' }), dataUrl: current };
-        await Store.addFile({ name: 'noora-edit.png', mime: lastAttachment.mime, kind: 'image', ts: Date.now(), dataUrl: current });
+        lastAttachment = { name: 'astra-edit.png', mime: blob.type || 'image/png', file: new File([blob], 'astra-edit.png', { type: blob.type || 'image/png' }), dataUrl: current };
+        await Store.addFile({ name: 'astra-edit.png', mime: lastAttachment.mime, kind: 'image', ts: Date.now(), dataUrl: current });
         reply(T.langKey(lang) === 'en' ? 'Here is your edited photo 💜 (saved in Files — use Save / Share in the editor to put it in your gallery or send it).' : 'Yeh lo jaanu, edited photo 💜 (Files mein save hai — gallery mein ya kisi ko bhejne ke liye editor mein Save / Share dabao).', lang, { image: current, meta: { via: 'photo editor', attachChips: true } });
       } else busy = false;
     }, false, 'ieDone');
@@ -1315,16 +1317,16 @@
     if (act === 'send') return runPlan([{ tool: 'share_file', args: { source: 'last_attachment' } }], lang);
     if (act === 'save') {
       const a = lastAttachment;
-      const r = /^image\//.test(a.mime || '') ? await saveImageData(a.dataUrl, a.name || 'noora-photo.jpg') : await saveFileData(a);
+      const r = /^image\//.test(a.mime || '') ? await saveImageData(a.dataUrl, a.name || 'astra-photo.jpg') : await saveFileData(a);
       return reply(r.ok ? (T.langKey(lang) === 'en' ? '💾 Saved: ' : '💾 Save ho gaya: ') + r.message + (T.langKey(lang) === 'en' ? ' (also kept in the Files tab)' : ' (Files tab mein bhi hai)') : T.say('action_failed', { reason: r.message }, lang), lang, { meta: { via: 'Files' } });
     }
   }
   async function saveFileData(a) {
     const b64 = String(a.dataUrl || '').split(',')[1] || '';
     if (!b64) return { ok: false, message: 'the file is too large to keep in memory — it is still in the Files tab' };
-    if (bridge()) { const r = nativeRun({ type: 'saveFile', name: a.name || 'noora-file', mime: a.mime || 'application/octet-stream', data: b64 }); return { ok: !!r.ok, message: r.message || (r.ok ? 'saved to Downloads/NOORA' : 'could not save') }; }
+    if (bridge()) { const r = nativeRun({ type: 'saveFile', name: a.name || 'astra-file', mime: a.mime || 'application/octet-stream', data: b64 }); return { ok: !!r.ok, message: r.message || (r.ok ? 'saved to Downloads/Astra' : 'could not save') }; }
     if (typeof window.__nooraOpenHook === 'function') { window.__nooraOpenHook('download:' + a.name); return { ok: true, message: 'downloaded ' + a.name }; }
-    const el = document.createElement('a'); el.href = a.dataUrl; el.download = a.name || 'noora-file'; document.body.appendChild(el); el.click(); el.remove();
+    const el = document.createElement('a'); el.href = a.dataUrl; el.download = a.name || 'astra-file'; document.body.appendChild(el); el.click(); el.remove();
     return { ok: true, message: 'downloaded ' + (a.name || 'file') };
   }
   function offerAttachmentChips(processed, lang) {
@@ -1418,7 +1420,7 @@
       const v = await videoFrame(f); await keep();
       const m = v.meta;
       const metaTxt = m ? ('video ' + (isFinite(m.duration) ? m.duration.toFixed(1) + ' s' : 'unknown length') + ', ' + m.width + '×' + m.height) : 'video (this browser could not decode it)';
-      if (v.dataUrl) return Object.assign(base, { dataUrl: v.dataUrl, note: metaTxt + '. Only ONE frame (at ' + (m.at || 0).toFixed(1) + ' s) is attached — NOORA cannot watch the whole video or hear its audio.' });
+      if (v.dataUrl) return Object.assign(base, { dataUrl: v.dataUrl, note: metaTxt + '. Only ONE frame (at ' + (m.at || 0).toFixed(1) + ' s) is attached — Astra cannot watch the whole video or hear its audio.' });
       return Object.assign(base, { note: metaTxt + '. No frame could be extracted, so I can only see the file details — not the video content.' });
     }
     throw new Error('unsupported');
@@ -1668,7 +1670,7 @@
       const msg = r.message || 'Voice check could not start.'; setListening(false, msg); setVoiceState('ERROR', msg); continuous = false; updateVoiceBar(); return;
     }
     setListening(true);
-    const el = $('listening'); if (el) el.textContent = '🔒 Voice check — say a few words (e.g. “Noora, suno”)…';
+    const el = $('listening'); if (el) el.textContent = '🔒 Voice check — say a few words (e.g. “Astra, suno”)…';
   }
   function onVoiceIdEvent(ev) {
     if (ev.phase === 'download_progress' || ev.phase === 'download_done' || ev.phase === 'download_error' || ev.phase === 'download_cancel' || ev.phase === 'deleted') {
@@ -1713,7 +1715,7 @@
     const st = $('voiceIdState'); if (!st) return;
     const bm = $('btnVoiceIdModel'), bc = $('btnVoiceIdModelCancel'), be = $('btnVoiceIdEnroll'), en = $('voiceIdEnroll'), op = $('voiceIdOptions');
     const hide = () => [bm, bc, be, en, op].forEach((x) => { if (x) x.hidden = true; });
-    if (!vidBridge()) { st.textContent = 'Owner voice is only in the NOORA Android app.'; hide(); return; }
+    if (!vidBridge()) { st.textContent = 'Owner voice is only in the Astra Android app.'; hide(); return; }
     const s = vidStatus(); hide();
     if (s.state === 'downloading') { st.textContent = '⬇ Downloading voice model (' + (s.progress || 0) + '%)…'; bc.hidden = false; return; }
     if (!s.modelReady) { st.textContent = 'Voice model not downloaded yet (~28 MB, one time). ' + (s.lastError ? '⚠ ' + s.lastError : ''); bm.hidden = false; return; }
@@ -1764,13 +1766,13 @@
       nativeListening = false; setListening(false);
       const t = String(ev.text || '').trim(); input.value = t; autoGrow();
       setTranscript(t, true);
-      if (t) send(t); else { setVoiceState('IDLE'); if (continuous) setTimeout(() => { if (continuous && !busy) startListening(); }, 600); }
+      if (t && wakeMode) astraWakeHeard(t); else if (t) send(t); else { setVoiceState('IDLE'); afterSilence(600); }
       return;
     }
     if (ev.phase === 'error') {
       nativeListening = false;
       const code = ev.code || 'error';
-      if (code === 'no-speech' || code === 'no-match') { setListening(false); setVoiceState('IDLE', 'didn\'t catch that'); if (continuous) setTimeout(() => { if (continuous && !busy) startListening(); }, 800); return; }
+      if (code === 'no-speech' || code === 'no-match') { setListening(false); setVoiceState('IDLE', wakeMode ? '' : 'didn\'t catch that'); afterSilence(800); return; }
       const msg = friendlySpeechError(code) || 'Mic error — try again.';
       setListening(false, msg); setVoiceState('ERROR', msg); toast(msg, 6000);
       if (code === 'permission' || code === 'not-allowed') continuous = false;
@@ -1806,7 +1808,7 @@
   try { wireVoiceId(); } catch (e) {}
   try { wirePiper(); } catch (e) {}
   window.__nooraStartVoice = () => {
-    showTab('chat'); unlockSpeech();
+    showTab('chat'); unlockSpeech(); wakeMode = false; silentCount = 0;
     continuous = true; S.continuousVoice = true; saveS(); updateVoiceBar(); refreshStatus();
     if (!listening) startListening();
   };
@@ -1921,8 +1923,8 @@
   function append(m) { msgs.push(m); list.appendChild(renderMsg(m)); updateEmpty(); scrollEnd(); }
   const scrollEnd = () => requestAnimationFrame(() => { list.scrollTop = list.scrollHeight; });
   function updateEmpty() {
-    $('empty').hidden = msgs.length > 0; list.hidden = msgs.length === 0;
-    $('welcome').textContent = S.userName ? `Hi ${S.userName}, I'm ${aiName()}` : `Hi, I'm ${aiName()}`;
+    $('empty').hidden = msgs.length > 0; list.hidden = msgs.length === 0; if ($('suggestions')) $('suggestions').hidden = msgs.length > 0;
+    astraRenderGreeting();
     $('aiDisplayName').textContent = aiName();
     input.placeholder = `Message ${aiName()}…`;
   }
@@ -1973,7 +1975,7 @@
       const zip = new JSZip();
       files.forEach((f) => zip.file(f.name, f.content));
       const blob = await zip.generateAsync({ type: 'blob' });
-      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'noora-project.zip'; a.click();
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'astra-project.zip'; a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 2000);
     } catch (e) { toast('ZIP download failed: ' + e.message); }
   }
@@ -1996,12 +1998,14 @@
     stopSpeaking(); continuous = false; S.continuousVoice = false; saveS(); updateVoiceBar(); await loadConversation(await Store.newConversation()); toast('New chat started');
   }
 
-  const DOC_ASK = /^(?:please\s+|noora\s+|janu\s+|jaanu\s+)?(?:read|summari[sz]e|parho|parh do|parh ke sunao|khulasa (?:karo|batao)|summary (?:do|batao|banao))\s+(?:this|the|my|ye|yeh|is|meri|mera)?\s*(?:latest\s+)?(?:pdf|document|doc|file|docx|report)\b/i;
+  const DOC_ASK = /^(?:please\s+|noora\s+|astra\s+|janu\s+|jaanu\s+)?(?:read|summari[sz]e|parho|parh do|parh ke sunao|khulasa (?:karo|batao)|summary (?:do|batao|banao))\s+(?:this|the|my|ye|yeh|is|meri|mera)?\s*(?:latest\s+)?(?:pdf|document|doc|file|docx|report)\b/i;
   const DOC_ASK2 = /^(?:ye|yeh|is|this)\s+(?:pdf|document|file|report)\s+(?:ko\s+)?(?:parho|parh do|summari[sz]e karo|ka khulasa batao|ki summary do)$/i;
   async function send(raw) {
     const text = (raw || '').trim();
     if (chatPending.length && chatPending.some((x) => x.status === 'ready')) return sendWithAttachments(text);
     if (!text) return;
+    if (continuous && C.isStopPhrase(text)) { input.value = ''; autoGrow(); updateMicIcon(); return stopVoiceMode('bas'); }
+    silentCount = 0; astraLog('ask', text);
     if (pending) {
       input.value = ''; autoGrow(); updateMicIcon();
       if (await handlePendingReply(text)) return;
@@ -2013,7 +2017,7 @@
       await addUser(text);
       const l0 = C.detect(text, prefLang());
       return reply(T.langKey(l0) === 'en'
-        ? 'Please attach the file with 📎 first, then ask again. ' + (IS_ANDROID_WV ? 'NOORA can only read files you pick — it does not scan your storage.' : 'A web app can\'t browse your phone\'s files or find your "latest PDF" by itself.')
+        ? 'Please attach the file with 📎 first, then ask again. ' + (IS_ANDROID_WV ? 'Astra can only read files you pick — it does not scan your storage.' : 'A web app can\'t browse your phone\'s files or find your "latest PDF" by itself.')
         : 'Jaanu, pehle 📎 se file attach kar do, phir dobara kaho. ' + (IS_ANDROID_WV ? 'Main sirf wohi file parh sakti hoon jo aap chuno — storage scan nahi karti.' : 'Web app aap ke phone ki files khud nahi dekh sakti, na "latest PDF" dhoond sakti hai.'), l0, { meta: { via: 'honest' } });
     }
     unlockSpeech();
@@ -2058,7 +2062,7 @@
     const s = localLlmStatus();
     const dl = $('btnLocalLlmDownload'), dlm = $('btnLocalLlmDownloadMobile'), cancel = $('btnLocalLlmCancel'), del = $('btnLocalLlmDelete');
     if (!localLlmBridge()) {
-      stEl.textContent = 'On-device AI is only in the NOORA Android app.';
+      stEl.textContent = 'On-device AI is only in the Astra Android app.';
       [dl, dlm, cancel, del].forEach((b) => { if (b) b.hidden = true; });
       return;
     }
@@ -2130,7 +2134,7 @@
         { label: 'Cancel', fn: () => { busy = false; reply('OK, kept them.', lang); } }]);
       case 'Flashlight': return runPlan([{ tool: 'torch', args: { on: r.on !== false } }], lang);
       case 'Alarm':
-        if (r.hour != null) return runPlan([{ tool: 'set_alarm', args: { hour: r.hour, minute: r.minute || 0, label: 'NOORA' } }], lang);
+        if (r.hour != null) return runPlan([{ tool: 'set_alarm', args: { hour: r.hour, minute: r.minute || 0, label: 'Astra' } }], lang);
         return chat(text, lang, false, false);
       case 'Timer':
         if (r.seconds) return runPlan([{ tool: 'set_timer', args: { seconds: r.seconds } }], lang);
@@ -2606,7 +2610,7 @@
     try { return JSON.parse(n.piperStatus() || '{}'); } catch (e) { return { ok: false, state: 'error', voices: [] }; }
   }
   function piperCall(fn, arg) {
-    const n = piperBridge(); if (!n || typeof n[fn] !== 'function') return { ok: false, message: 'Piper is only in the NOORA Android app.' };
+    const n = piperBridge(); if (!n || typeof n[fn] !== 'function') return { ok: false, message: 'Piper is only in the Astra Android app.' };
     try { return JSON.parse((arg === undefined ? n[fn]() : n[fn](JSON.stringify(arg))) || '{}'); } catch (e) { return { ok: false, message: 'Piper error' }; }
   }
   function piperStop() { const n = piperBridge(); if (n && typeof n.piperStop === 'function') { try { n.piperStop(); } catch (e) {} } }
@@ -2631,7 +2635,7 @@
     const stEl = $('piperState'); const sel = $('sPiperVoice');
     const dl = $('btnPiperDownload'), dlm = $('btnPiperDownloadMobile'), cancel = $('btnPiperCancel'), del = $('btnPiperDelete');
     const hide = (b, h) => { if (b) b.hidden = h; };
-    if (!piperBridge()) { if (stEl) stEl.textContent = 'Piper is only in the NOORA Android app.'; [dl, dlm, cancel, del].forEach((b) => hide(b, true)); return; }
+    if (!piperBridge()) { if (stEl) stEl.textContent = 'Piper is only in the Astra Android app.'; [dl, dlm, cancel, del].forEach((b) => hide(b, true)); return; }
     const st = piperStatus(); const voices = st.voices || [];
     if (sel) {
       const cur = piperSel || S.piperVoice || (voices[0] && voices[0].id) || '';
@@ -2753,6 +2757,7 @@
     unlockSpeech(); speak(lastSpeakPayload.text, lastSpeakPayload.lang || prefLang() || L.ENGLISH, null, { force: true });
   }
   function updateVoiceBar() {
+    try { setTimeout(hfRender, 0); } catch (e) {}
     const bar = $('voiceBar'); if (!bar) return;
     bar.hidden = !continuous;
     $('btnVoiceMode').classList.toggle('on', !!continuous);
@@ -2761,14 +2766,17 @@
     const micBtn = $('btnVoiceMic');
     if (micBtn) { micBtn.textContent = listening ? '⏹ Mic' : '🎤 Mic'; micBtn.classList.toggle('on', !!listening); }
   }
-  function stopVoiceMode() {
-    continuous = false; S.continuousVoice = false; saveS();
+  function stopVoiceMode(why) {
+    continuous = false; S.continuousVoice = false; saveS(); wakeMode = false; silentCount = 0; wakePausedUntil = Date.now() + 8000;
     stopSpeaking();
     if (listening && rec) { try { if (rec.abort) rec.abort(); else rec.stop(); } catch (e) {} }
     if (nativeListening) { try { window.NooraNative.sttStop(); } catch (e) {} nativeListening = false; }
     setListening(false); setVoiceState('IDLE');
     updateVoiceBar(); refreshStatus();
-    toast('Voice conversation stopped');
+    if (why === 'bas') { const m = 'Theek hai janu, main yahin hoon 🤍'; toast(m); speak(m, L.ROMAN_URDU); }
+    else if (why === 'silence') toast('Aap chup ho gaye, to hands-free band kar diya janu 🤍', 4500);
+    else toast('Hands-free band');
+    try { hfRender(); } catch (e) {}
   }
   function renderVoiceInfo() {
     const al = $('activeVoiceLine'); if (al) { try { al.textContent = activeVoiceText(); } catch (e) { al.textContent = 'Active voice: unknown'; } }
@@ -2858,7 +2866,8 @@
       };
       rec.onerror = (e) => {
         errored = true;
-        if (e.error === 'no-speech' && continuous) { setListening(false); setVoiceState('IDLE', 'didn\'t catch that'); setTimeout(() => { if (continuous && !busy) startListening(); }, 800); return; }
+        if (e.error === 'no-speech' && (continuous || wakeMode)) { setListening(false); setVoiceState('IDLE', wakeMode ? '' : 'didn\'t catch that'); afterSilence(800); return; }
+        if (wakeMode) { wakeMode = false; setListening(false); return; }
         const msg = friendlySpeechError(e.error) || C.speechErrorMessage(e.error, rec && rec.lang);
         if (e.error !== 'aborted') setVoiceState('ERROR', msg);
         setListening(false, e.error === 'aborted' ? null : msg);
@@ -2872,8 +2881,8 @@
         if (listening) setListening(false);
         if (errored) return;
         const t = input.value.trim();
-        if (finalText.trim() && t) send(t);
-        else if (continuous) setTimeout(() => { if (continuous && !busy) startListening(); }, 500);
+        if (finalText.trim() && t) { if (wakeMode) astraWakeHeard(t); else send(t); }
+        else afterSilence(500);
       };
       rec.start(); setListening(true);
     } catch (e) {
@@ -2897,6 +2906,7 @@
   updateMicIcon();
 
   function stopMic() {
+    if (wakeMode) { wakeMode = false; wakePausedUntil = Date.now() + 20000; }
     if (voiceIdChecking) { voiceIdChecking = false; try { vidCall('voiceIdCancel'); } catch (e) {} }
     if (nativeListening) { try { window.NooraNative.sttStop(); } catch (e) {} nativeListening = false; }
     if (rec) { try { rec.stop(); } catch (e) {} }
@@ -2952,16 +2962,21 @@
       toast(id ? `Language: ${L[id].label}` : 'Language: auto'); };
     $('langRow').appendChild(b);
   });
-  ['kesi ho?', 'مرحبا كيف حالك؟', 'latest news Pakistan', 'dollar rate in PKR', 'gold price today', 'weather in Lahore', 'generate image of a sunset over Badshahi Mosque', 'what can you do']
-    .forEach((s) => { const b = document.createElement('button'); b.className = 'sugg'; b.textContent = s; b.onclick = () => send(s); $('suggestions').appendChild(b); });
+  [['Aaj ki sale', 'Aaj ki sale ka hisaab karna hai'], ['Stock report', 'Stock report bana do'], ['Kuch bolo', 'Kuch bolo janu'], ['Yaad dilana', null]]
+    .forEach(([label, q]) => { const b = document.createElement('button'); b.className = 'sugg'; b.textContent = label;
+      b.onclick = () => { if (q) return send(q); input.value = 'Yaad dilana '; autoGrow(); updateMicIcon(); input.focus(); toast('Kab aur kya? Jaise: kal 9 baje yaad dilana dawai leni hai'); };
+      $('suggestions').appendChild(b); });
 
   if (IS_IOS && !STANDALONE && !localStorage.getItem('noora.hint')) $('installHint').hidden = false;
   $('hintClose').onclick = () => { $('installHint').hidden = true; localStorage.setItem('noora.hint', '1'); };
 
   function showTab(name) {
-    const tabs = ['home', 'chat', 'chats', 'create', 'files', 'tools', 'memory', 'settings'];
-    // legacy alias: old "home" chat callers → chat
+    const tabs = ['home', 'chat', 'chats', 'create', 'files', 'tools', 'memory', 'settings', 'profile', 'connect'];
+    // legacy alias: old "home" chat callers → chat; 2.8.0: the old dashboard is replaced by the chat-first home
     if (name === 'ai') name = 'settings';
+    if (name === 'home') name = 'chat';
+    if (name !== lastTab) { prevTab = lastTab; lastTab = name; }
+    try { closePops(); } catch (e) {}
     tabs.forEach((t) => { const el = $('tab-' + t); if (el) el.hidden = t !== name; });
     document.querySelectorAll('#bottomNav button').forEach((b) => b.classList.toggle('on', b.dataset.tab === name || (name === 'chats' && b.dataset.tab === 'chat')));
     if (name === 'home') openHomeDash();
@@ -2970,7 +2985,9 @@
     if (name === 'files') openFiles();
     if (name === 'tools') openTools();
     if (name === 'memory') openMemoryTab();
-    if (name === 'settings') { openSettings(); openAiTab(); }
+    if (name === 'settings') { openSettings(); openAiTab(); try { openSettingsSheet(); } catch (e) {} }
+    if (name === 'profile') openProfile();
+    if (name === 'connect') renderConnect();
   }
   document.querySelectorAll('#bottomNav button').forEach((b) => { b.onclick = () => showTab(b.dataset.tab); });
   if ($('btnChatsList')) $('btnChatsList').onclick = () => showTab('chats');
@@ -3046,7 +3063,7 @@
     if ($('vidBase')) $('vidBase').value = S.videoBaseUrl || '';
     if ($('vidKey')) $('vidKey').value = S.videoApiKey || '';
     renderImageSettings();
-    $('sAiName').value = S.aiName || 'Noora';
+    $('sAiName').value = S.aiName || 'Astra';
     $('sTone').innerHTML = C.tones.map((t) => `<option${t === S.tone ? ' selected' : ''}>${t}</option>`).join('');
     $('sMode').innerHTML = C.modes.map((t) => `<option${t === S.mode ? ' selected' : ''}>${t}</option>`).join('');
     $('sFormality').value = S.formality || 'balanced';
@@ -3056,7 +3073,7 @@
     $('presetNote').textContent = S.modelPreset === 'Local/private'
       ? 'Local/private: enter your own OpenAI-compatible base URL.'
       : 'Presets map to real model IDs. Free Pollinations anonymous tier currently lists only openai-fast (alias openai).';
-    $('aiAbout').textContent = `NOORA AI ${C.VERSION}`;
+    $('aiAbout').textContent = `Astra AI ${C.VERSION}`;
     renderAssistants();
   }
   async function renderAssistants() {
@@ -3108,17 +3125,17 @@
     sel.innerHTML = C.GROQ_MODELS.map((m) => `<option value="${m.id}"${m.id === cur ? ' selected' : ''}>${m.label}</option>`).join('');
     if (!C.groqModelInfo(cur)) sel.insertAdjacentHTML('afterbegin', `<option value="${String(cur).replace(/"/g, '')}" selected>${String(cur).replace(/[<>"]/g, '')} (custom)</option>`);
     const note = $('groqModelNote');
-    if (note) note.textContent = 'Groq free tier (per model, console.groq.com/docs/rate-limits): 30 requests/min, 1,000/day, 8K tokens/min, 200K tokens/day. Llama 3.3 70B and Llama 3.1 8B were retired for free/developer keys on 2026-08-16 (only enterprise contracts still have them) — if Groq rejects them NOORA falls through to the next provider automatically. GPT-OSS 120B is Groq\'s recommended replacement.';
+    if (note) note.textContent = 'Groq free tier (per model, console.groq.com/docs/rate-limits): 30 requests/min, 1,000/day, 8K tokens/min, 200K tokens/day. Llama 3.3 70B and Llama 3.1 8B were retired for free/developer keys on 2026-08-16 (only enterprise contracts still have them) — if Groq rejects them Astra falls through to the next provider automatically. GPT-OSS 120B is Groq\'s recommended replacement.';
   }
   // ---- 2.5.0 background listening (Android foreground service, microphone type) ----
   const keepAliveBridge = () => ((IS_ANDROID_WV && window.NooraNative && typeof window.NooraNative.keepAliveSet === 'function') ? window.NooraNative : null);
   function setKeepAlive(on, quiet) {
     const n = keepAliveBridge();
-    if (!n) { if (!quiet) toast('Background listening is only in the NOORA Android app.'); S.keepAlive = false; saveS(); return false; }
+    if (!n) { if (!quiet) toast('Background listening is only in the Astra Android app.'); S.keepAlive = false; saveS(); return false; }
     let res; try { res = JSON.parse(n.keepAliveSet(JSON.stringify({ on })) || '{}'); } catch (e) { res = { ok: false, message: 'Service error' }; }
     if (on && !res.ok) { S.keepAlive = false; saveS(); if ($('sKeepAlive')) $('sKeepAlive').checked = false; if (!quiet) toast(res.message || 'Could not start the background service.', 6000); return false; }
     S.keepAlive = !!on; saveS();
-    if (!quiet) toast(on ? 'NOORA will keep listening in the background (see the notification).' : 'Background service stopped.', 4000);
+    if (!quiet) toast(on ? 'Astra will keep listening in the background (see the notification).' : 'Background service stopped.', 4000);
     return true;
   }
   if ($('sTheme')) { $('sTheme').value = S.theme || 'auto'; $('sTheme').addEventListener('change', () => { S.theme = $('sTheme').value; saveS(); applyTheme(); }); }
@@ -3148,7 +3165,7 @@
     S.modelPreset = $('sPreset').value; S.provider = $('sProvider').value;
     S.baseUrl = $('sBase').value.trim().replace(/\/+$/, ''); S.apiKey = $('sKey').value.trim();
     S.chatModel = $('sModel').value.trim(); S.visionModel = $('sVision').value.trim();
-    S.webSearchOn = $('sWeb').checked; S.aiName = $('sAiName').value.trim() || 'Noora';
+    S.webSearchOn = $('sWeb').checked; S.aiName = $('sAiName').value.trim() || 'Astra';
     S.tone = $('sTone').value; S.mode = $('sMode').value; S.formality = $('sFormality').value;
     S.gender = $('sGender').value; S.voiceLang = $('sPrefLang').value || null;
     if ($('sServerUrl')) S.serverUrl = ($('sServerUrl').value || '').trim().replace(/\/+$/, '');
@@ -3169,7 +3186,7 @@
   });
   $('sTest').onclick = async () => {
     saveAiFields(); $('sTestResult').textContent = 'Testing…';
-    const r = await AI.chat([{ role: 'user', content: 'Reply with exactly: NOORA OK' }]);
+    const r = await AI.chat([{ role: 'user', content: 'Reply with exactly: Astra OK' }]);
     $('sTestResult').textContent = r.text ? (r.warning ? r.warning + '\n' : '') + (r.notice ? r.notice + '\n' : '') + `✅ ${r.via}: ${r.text.slice(0, 80)}` : '❌ ' + r.failure;
   };
 
@@ -3200,7 +3217,7 @@
     const p = await openaiProbe(key, model);
     if (!p.ok) { out.textContent = '❌ ' + (p.status > 0 ? C.openaiErrorText(p.status, p.code, p.message) : C.openaiErrorText(-1, '', p.error)); return; }
     const att = C.aiRoute(Object.assign({}, S, { openaiChatMode: 'primary' }), { webSearch: false }).find((x) => x.id === 'openai');
-    let r = await AI.openaiResponses(Object.assign({}, att, { webSearch: false }), model, [{ role: 'user', content: 'Reply with exactly: NOORA OK' }], { stream: false, timeout: 30000, firstMs: 30000 });
+    let r = await AI.openaiResponses(Object.assign({}, att, { webSearch: false }), model, [{ role: 'user', content: 'Reply with exactly: Astra OK' }], { stream: false, timeout: 30000, firstMs: 30000 });
     if (r.text) { out.textContent = '✅ OpenAI · ' + model + (r.api === 'chat' ? ' (chat/completions fallback — /v1/responses was not reachable)' : ' (Responses API)') + ': ' + C.cleanAi(r.text).slice(0, 80) + (C.openaiWebSearchOn(S) ? ' · Luna web search on' : ''); return; }
     r = await openaiExplain(r, key, model);
     out.textContent = '❌ ' + C.redactKeys(r.failure || 'failed', [key]);
@@ -3279,7 +3296,7 @@
     $('sRate').value = S.rate; $('sPitch').value = S.pitch || 1; $('sVolume').value = S.volume == null ? 1 : S.volume;
     $('sMemOn').checked = S.memoryOn !== false; $('sPinOn').checked = !!S.pinOn; $('sPin').value = '';
     syncTtsProviderFields(); fillVoiceSelect(); renderVoiceInfo();
-    $('privacyNote').textContent = 'All chats, memories, files, notes and settings stay on this device. Nothing is uploaded to NOORA servers (there are none). Messages go only to the AI provider you choose (or free Pollinations) and to live search APIs you trigger. TTS provider keys (if any) stay in local Settings only. No ads. This is NOT end-to-end encryption.';
+    $('privacyNote').textContent = 'All chats, memories, files, notes and settings stay on this device. Nothing is uploaded to Astra servers (there are none). Messages go only to the AI provider you choose (or free Pollinations) and to live search APIs you trigger. TTS provider keys (if any) stay in local Settings only. No ads. This is NOT end-to-end encryption.';
     $('sIphone').textContent = (IS_ANDROID_WV
       ? 'Android: WebView + native bridges for call/SMS/maps/alarm/timer/torch/open-app.\n'
       : 'iPhone web: chat, live data, images, memory, call/SMS/Maps links (you confirm).\n') +
@@ -3287,7 +3304,7 @@
       `Voice input: ${SR ? 'available (may be refused by OS — then use keyboard 🎤)' : 'NOT available — use keyboard 🎤'}.\n` +
       `TTS: ${PROV_LABEL[activeTtsProvider()]} (Auto = phone voice on Android). Optional Grok / OpenAI-compatible keys stay in Voice settings only.\n` +
       `Storage: ${Store.kind}. Installed: ${STANDALONE || IS_ANDROID_WV ? 'yes' : 'no'}.`;
-    $('about').textContent = `NOORA AI ${C.VERSION}\nLive: rss2json (news), open.er-api.com, gold-api.com, Coinbase, Open-Meteo, Pollinations`;
+    $('about').textContent = `Astra AI ${C.VERSION}\nLive: rss2json (news), open.er-api.com, gold-api.com, Coinbase, Open-Meteo, Pollinations`;
   }
   function saveSettings() {
     S.userName = $('sName').value.trim();
@@ -3362,7 +3379,7 @@
   $('sExport').onclick = async () => {
     const data = await Store.exportAll();
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'noora-ai-export-' + Date.now() + '.json'; a.click();
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'astra-ai-export-' + Date.now() + '.json'; a.click();
   };
   $('sImport').onclick = () => $('importFile').click();
   $('importFile').onchange = async (e) => {
@@ -3560,10 +3577,10 @@
     shot.innerHTML = '<img alt=""><div class="row"><button type="button" class="dl">Download</button><button type="button" class="sh">Share</button></div>';
     shot.querySelector('img').src = dataUrl;
     shot.querySelector('img').onclick = () => openImage(dataUrl);
-    shot.querySelector('.dl').onclick = () => { const a = document.createElement('a'); a.href = dataUrl; a.download = 'noora-' + seed + '.jpg'; a.click(); };
+    shot.querySelector('.dl').onclick = () => { const a = document.createElement('a'); a.href = dataUrl; a.download = 'astra-' + seed + '.jpg'; a.click(); };
     shot.querySelector('.sh').onclick = async () => {
       try {
-        if (navigator.share) { const blob = await (await fetch(dataUrl)).blob(); await navigator.share({ files: [new File([blob], 'noora.jpg', { type: blob.type || 'image/jpeg' })], title: 'NOORA image' }); }
+        if (navigator.share) { const blob = await (await fetch(dataUrl)).blob(); await navigator.share({ files: [new File([blob], 'astra.jpg', { type: blob.type || 'image/jpeg' })], title: 'Astra image' }); }
         else { await navigator.clipboard.writeText(prompt); toast('Share unavailable — prompt copied'); }
       } catch (e) { toast('Share cancelled or failed'); }
     };
@@ -3672,7 +3689,7 @@
   function openTools() {
     if ($('toolsPlatformNote')) {
       $('toolsPlatformNote').textContent = PLATFORM === 'android'
-        ? 'Android app: real intents via the native bridge (dial/call, SMS, WhatsApp, email, maps, camera, alarm, timer, calendar, settings, media keys, share). Contacts need permission. Calls/messages always ask you first. Android 10+ cannot toggle Bluetooth/Wi-Fi from apps — NOORA opens the settings panel.'
+        ? 'Android app: real intents via the native bridge (dial/call, SMS, WhatsApp, email, maps, camera, alarm, timer, calendar, settings, media keys, share). Contacts need permission. Calls/messages always ask you first. Android 10+ cannot toggle Bluetooth/Wi-Fi from apps — Astra opens the settings panel.'
         : (IS_IOS ? 'iPhone (web app): deep links — Phone, Messages, Mail, WhatsApp, Maps, Shortcuts, calendar (.ics). iOS does not let web apps set alarms, open other apps by name, read contacts or listen in the background. Use Shortcuts for alarms/timers.'
           : 'Web: deep links (tel, sms, mailto, WhatsApp, maps, .ics calendar). Alarms, torch, app launching and contacts need the Android app.');
     }
@@ -3718,16 +3735,248 @@
   if ($('btnOpenMemory')) $('btnOpenMemory').onclick = () => showTab('memory');
 
 
+  // ======== 2.8.0 Astra UI: chat-first shell, profile menu, settings sheet, connect list, hands-free screen ========
+  let lastTab = 'chat', prevTab = 'chat';
+  const haptic = (ms) => { try { if (S.haptics !== false && navigator.vibrate) navigator.vibrate(ms || 8); } catch (e) {} };
+  function closePops() { document.querySelectorAll('.popMenu').forEach((m) => { m.hidden = true; }); }
+  function togglePop(id) { const m = $(id); const open = m.hidden; closePops(); m.hidden = !open; haptic(); }
+  document.addEventListener('click', (e) => { if (!e.target.closest('.popMenu') && !e.target.closest('#btnMore') && !e.target.closest('#btnAttach')) closePops(); });
+  function go(where) {
+    closePops();
+    if (where === 'back') return showTab(prevTab && prevTab !== 'settings' ? prevTab : 'chat');
+    if (where === 'routine') { showTab('memory'); setTimeout(() => { const h = $('routineHead'); if (h) h.scrollIntoView({ block: 'start' }); }, 60); return; }
+    if (where === 'phone') { showTab('tools'); setTimeout(() => { const h = $('phoneActions'); if (h) h.scrollIntoView({ block: 'start' }); }, 60); return; }
+    showTab(where);
+  }
+  document.querySelectorAll('[data-go]').forEach((b) => { b.addEventListener('click', () => { haptic(); go(b.dataset.go); }); });
+  // a round back button on every secondary page (Create, Library, Tools, Memory, Chats) → back to the menu
+  ['create', 'files', 'tools', 'memory', 'chats'].forEach((t) => {
+    const h = document.querySelector('#tab-' + t + ' .pageHead'); if (!h || h.querySelector('.rbtn')) return;
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'rbtn'; b.setAttribute('aria-label', 'Back');
+    b.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>';
+    b.onclick = () => { haptic(); showTab(t === 'chats' ? 'chat' : 'profile'); }; h.prepend(b);
+  });
+  if ($('btnMenu')) $('btnMenu').onclick = () => { haptic(); showTab('chats'); };
+  if ($('btnProfile')) $('btnProfile').onclick = () => { haptic(); showTab('profile'); };
+  if ($('btnMore')) $('btnMore').onclick = (e) => { e.stopPropagation(); togglePop('moreMenu'); };
+  ['btnNew', 'btnChatsList', 'btnVoiceMode', 'btnNewProject'].forEach((id) => { if ($(id)) $(id).addEventListener('click', closePops); });
+  if ($('btnTts')) $('btnTts').addEventListener('click', () => { closePops(); astraTtsLabel(); toast(S.ttsOn ? 'Ab main bol kar jawab dungi 🤍' : 'Theek hai, sirf likh kar jawab dungi'); });
+  function astraTtsLabel() { if ($('ttsLabel')) $('ttsLabel').textContent = S.ttsOn ? 'Awaaz mein jawab: On' : 'Awaaz mein jawab: Off'; }
+  astraTtsLabel();
+  // composer: + popover → Photo or Video / Take Photo / Choose File
+  $('btnAttach').onclick = (e) => { e.stopPropagation(); togglePop('attachMenu'); };
+  const pickInto = (id) => { closePops(); $(id).click(); };
+  if ($('amMedia')) $('amMedia').onclick = () => pickInto('fileMedia');
+  if ($('amCamera')) $('amCamera').onclick = () => pickInto('fileCam');
+  if ($('amFile')) $('amFile').onclick = () => pickInto('file');
+  ['fileMedia', 'fileCam'].forEach((id) => { if ($(id)) $(id).addEventListener('change', (e) => { const fs = Array.from(e.target.files || []); e.target.value = ''; if (fs.length) addChatFiles(fs); }); });
+  if ($('btnHandsFree')) $('btnHandsFree').onclick = () => { haptic(12); unlockSpeech(); if (continuous) { hfRender(); return; } window.__nooraStartVoice(); hfRender(); };
+  // hands-free full screen
+  const HF_LABEL = { IDLE: 'Main yahin hoon…', LISTENING: 'Sun rahi hoon…', THINKING: 'Soch rahi hoon…', EXECUTING: 'Kar rahi hoon…', SPEAKING: 'Bol rahi hoon…', ERROR: 'Mic mein masla' };
+  function hfRender() {
+    const el = $('handsFree'); if (!el) return;
+    el.hidden = !continuous;
+    if (!continuous) return;
+    const st = voiceState || 'IDLE';
+    $('hfOrb').dataset.state = st.toLowerCase();
+    $('hfLabel').textContent = HF_LABEL[st] || HF_LABEL.IDLE;
+    const tr = $('vsTranscript') ? $('vsTranscript').textContent : '';
+    $('hfText').textContent = tr || (st === 'LISTENING' ? 'Boliye janu…' : '');
+    if ($('hfMute')) $('hfMute').classList.toggle('on', !!S.muted);
+  }
+  if ($('hfStop')) $('hfStop').onclick = () => { haptic(12); stopVoiceMode(); hfRender(); };
+  if ($('hfClose')) $('hfClose').onclick = () => { stopVoiceMode(); hfRender(); };
+  if ($('hfType')) $('hfType').onclick = () => { stopVoiceMode(); hfRender(); input.focus(); };
+  if ($('hfMute')) $('hfMute').onclick = () => { if ($('btnVoiceMute')) $('btnVoiceMute').click(); hfRender(); };
+  setInterval(() => { if (continuous || !$('handsFree').hidden) hfRender(); }, 400);
+  // profile
+  async function openProfile() {
+    $('profName').textContent = aiName();
+    $('profSub').textContent = 'Aap ki apni AI' + (S.userName ? ' · ' + S.userName + ' ke liye' : '') + ' 🤍';
+    renderRoutineCard();
+    try { const n = (await Store.memoryRows()).length; $('profMemCount').textContent = n ? String(n) : ''; } catch (e) {}
+    try { const n = (await Store.conversations()).length; $('profChatCount').textContent = n ? String(n) : ''; } catch (e) {}
+    $('profPhoneVal').textContent = PLATFORM === 'android' ? 'Android' : PLATFORM === 'ios-web' ? 'iPhone' : 'Web';
+    const c = connItems().filter((i) => i.state() === 'on').length; $('profConnCount').textContent = c ? c + ' on' : '';
+    if ($('sNotify')) $('sNotify').checked = !!S.notifyOn && notifGranted();
+  }
+  function notifGranted() { if (PLATFORM === 'android') return true; try { return 'Notification' in window && Notification.permission === 'granted'; } catch (e) { return false; } }
+  if ($('btnEditProfile')) $('btnEditProfile').onclick = () => { showTab('settings'); setTimeout(() => { const i = $('sAiName'); if (i) { i.scrollIntoView({ block: 'center' }); i.focus(); } }, 80); };
+  if ($('sNotify')) $('sNotify').onchange = async () => {
+    S.notifyOn = $('sNotify').checked; saveS();
+    if (S.notifyOn && PLATFORM !== 'android') {
+      try { if ('Notification' in window && Notification.permission !== 'granted') { const r = await Notification.requestPermission(); if (r !== 'granted') { S.notifyOn = false; saveS(); $('sNotify').checked = false; toast(IS_IOS ? 'iPhone par reminders Calendar alarm se aate hain (.ics) 🤍' : 'Notifications ki ijazat nahi mili.'); } } } catch (e) {}
+    }
+    if (S.notifyOn && $('sNotify').checked) toast('Notifications on 🤍');
+  };
+  // settings sheet rows
+  async function openSettingsSheet() {
+    const tz = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { return 'Asia/Muscat'; } })();
+    $('tzVal').textContent = tz || 'Asia/Muscat';
+    $('sHaptics').checked = S.haptics !== false;
+    $('sWakeWord').checked = !!S.wakeWordOn; $('sWakeWord').disabled = !wakeSupported();
+    $('wakeSub').textContent = IS_IOS ? 'iPhone web app par mumkin nahi — Siri Shortcut use karein' : PLATFORM === 'android' ? 'Sirf jab app khuli ho (screen on)' : 'Sirf jab yeh tab khula ho';
+    $('footVer').textContent = C.VERSION + ' (' + (PLATFORM === 'android' ? 'Android' : 'web') + ' · 77)';
+    const perms = [];
+    try { if (navigator.permissions) { const m = await navigator.permissions.query({ name: 'microphone' }); perms.push('Mic: ' + (m.state === 'granted' ? 'on' : m.state === 'denied' ? 'off' : 'pucho')); } } catch (e) {}
+    try { if ('Notification' in window) perms.push('Notifications: ' + (Notification.permission === 'granted' ? 'on' : Notification.permission === 'denied' ? 'off' : 'pucho')); } catch (e) {}
+    $('permSub').textContent = perms.length ? perms.join(' · ') : 'Mic · Notifications · Contacts';
+    checkUpdate();
+  }
+  $('sHaptics').onchange = () => { S.haptics = $('sHaptics').checked; saveS(); haptic(15); };
+  async function checkUpdate() {
+    try {
+      const r = await fetch('VERSION?t=' + Date.now(), { cache: 'no-store' }); if (!r.ok) return;
+      const v = (await r.text()).trim(); const newer = v && v !== C.VERSION && v.localeCompare(C.VERSION, undefined, { numeric: true }) > 0;
+      $('updDot').hidden = !newer;
+      $('updTitle').textContent = newer ? 'Update to latest version' : 'Astra is up to date';
+      $('updSub').textContent = newer ? C.VERSION + ' → ' + v : C.VERSION;
+      $('rowUpdate').dataset.newer = newer ? '1' : '';
+    } catch (e) {}
+  }
+  $('rowUpdate').onclick = async () => {
+    if ($('rowUpdate').dataset.newer) { try { const rs = await navigator.serviceWorker.getRegistrations(); await Promise.all(rs.map((r) => r.update())); } catch (e) {} location.reload(); }
+    else { toast('Aap latest Astra ' + C.VERSION + ' par hain 🤍'); checkUpdate(); }
+  };
+  $('rowPerms').onclick = () => modal('Permissions', [
+    'Mic — voice ke liye. ' + (IS_IOS ? 'iPhone par har baar mic tap se shuru hota hai.' : ''),
+    'Notifications — reminders/alarms ke liye (Android notification, iPhone par Calendar alarm).',
+    'Contacts — sirf Android app mein, numbers phone par hi rehte hain.',
+    'Location — sirf jab aap mausam/raasta poochein.'].join('\n'), [{ label: 'Phone actions kholo', go: true, fn: () => go('phone') }, { label: 'OK' }]);
+  $('rowHelp').onclick = () => modal('Help', C.help ? (typeof C.help === 'function' ? C.help(L.ROMAN_URDU) : String(C.help)) : 'Mujh se Roman Urdu, Urdu, English ya Arabic mein baat karein.', [{ label: 'OK' }]);
+  $('rowPrivacy').onclick = () => modal('Privacy', 'Sab kuch isi phone par: chats, memory, routine log aur API keys (localStorage / IndexedDB). Routine log mein sirf waqt aur topic ki category hoti hai, messages nahi. AI jawab ke liye sirf aap ka sawal aap ke chune hue AI provider ko jaata hai.', [{ label: 'OK' }]);
+  $('rowWhatsNew').onclick = () => modal('Astra 2.8.0', 'NOORA ab Astra hai 🤍\n• Nayi chat-first design\n• Hands-free voice: waveform button ya “Astra” bolein; “bas” se band\n• Aap ki routine seekhti hai (sirf is phone par)\n• App kholne par ek chhota sa suggestion\n• Aap ki saari chats, memory, settings aur keys waisi hi hain', [{ label: 'OK' }]);
+  $('rowReset').onclick = () => { if ($('sDeleteAll')) $('sDeleteAll').click(); };
+  // connect tools list
+  function connItems() {
+    const and = PLATFORM === 'android';
+    const gotoS = (id) => () => { showTab('settings'); setTimeout(() => { const el = $(id); if (el) { el.scrollIntoView({ block: 'center' }); try { el.focus(); } catch (e) {} } }, 80); };
+    return [
+      { id: 'groq', cat: 'ai', t: 'Groq (fast AI)', s: 'Free key — tez aur smart jawab', state: () => (C.groqKeyOf(S) ? 'on' : 'off'), go: gotoS('sGroqKey') },
+      { id: 'openai', cat: 'ai', t: 'OpenAI / GPT', s: 'Apni key se GPT models, web search', state: () => (C.openaiKeyOf(S) ? 'on' : 'off'), go: gotoS('sOpenaiKey') },
+      { id: 'xai', cat: 'ai', t: 'xAI voice', s: 'Natural female voice (apni key)', state: () => (S.xaiApiKey ? 'on' : 'off'), go: gotoS('sXaiKey') },
+      { id: 'contacts', cat: 'phone', t: 'Phone contacts', s: and ? 'Naam se call / WhatsApp' : 'Sirf Android app mein', state: () => (and ? (contactsBlocked ? 'auth' : 'auth') : 'na'), go: () => go('phone') },
+      { id: 'reminders', cat: 'phone', t: 'Reminders & alarms', s: and ? 'Phone notification' : 'Calendar alarm (.ics)', state: () => (and || notifGranted() ? 'on' : 'auth'), go: () => { if ($('sNotify')) { showTab('profile'); } } },
+      { id: 'image', cat: 'create', t: 'Image Studio', s: 'Tasveer banao (free)', state: () => 'on', go: () => { showTab('create'); setCreatePane('image'); } },
+      { id: 'video', cat: 'create', t: 'Video Studio', s: 'Video provider ki key chahiye', state: () => (S.videoApiKey ? 'on' : 'off'), go: () => { showTab('create'); setCreatePane('video'); } },
+      { id: 'scan', cat: 'productivity', t: 'Scan / PDF', s: 'Barcode stock list, photos → PDF', state: () => 'on', go: () => { if ($('btnScanOpen')) $('btnScanOpen').click(); } },
+      { id: 'calc', cat: 'productivity', t: 'Calculator & time', s: 'Hisaab, date/time', state: () => 'on', go: () => go('tools') },
+      { id: 'web', cat: 'productivity', t: 'Web search', s: 'Khabrein, rates, mausam', state: () => (S.webSearchOn !== false ? 'on' : 'off'), go: gotoS('sWeb') },
+      { id: 'siri', cat: 'phone', t: 'Siri Shortcut', s: 'iPhone: “Hey Siri, Astra”', state: () => (IS_IOS ? 'off' : 'na'), go: () => go('tools') }
+    ];
+  }
+  let connFilter = 'all';
+  function renderConnect() {
+    const q = ($('connSearch').value || '').toLowerCase().trim();
+    const items = connItems(); const box = $('connList'); box.innerHTML = '';
+    $('connCount').textContent = items.filter((i) => i.state() === 'on').length + ' connected';
+    items.filter((i) => (connFilter === 'all' || i.cat === connFilter) && (!q || (i.t + ' ' + i.s).toLowerCase().includes(q))).forEach((i) => {
+      const st = i.state(); const r = document.createElement('div'); r.className = 'connRow';
+      r.innerHTML = '<span class="cIcon"></span><span class="cTxt"><b></b><small></small></span><button type="button" class="cBtn"></button>';
+      r.querySelector('.cIcon').textContent = i.t.slice(0, 1);
+      r.querySelector('b').textContent = i.t; r.querySelector('small').textContent = i.s;
+      const b = r.querySelector('.cBtn');
+      b.textContent = st === 'on' ? 'Connected' : st === 'auth' ? 'Authorize' : st === 'na' ? 'N/A' : 'Connect';
+      b.classList.add(st === 'on' ? 'muted' : st === 'auth' ? 'blue' : st === 'na' ? 'muted' : 'dark');
+      b.disabled = st === 'na'; b.onclick = () => { haptic(); i.go(); };
+      box.appendChild(r);
+    });
+  }
+  $('connSearch').oninput = renderConnect;
+  document.querySelectorAll('#connChips .chip').forEach((c) => { c.onclick = () => { connFilter = c.dataset.cf; document.querySelectorAll('#connChips .chip').forEach((x) => x.classList.toggle('sel', x === c)); renderConnect(); }; });
+  // splash: fade out once the shell is ready
+  function hideSplash() { const sp = $('splash'); if (!sp || sp.classList.contains('out')) return; sp.classList.add('out'); setTimeout(() => { sp.hidden = true; }, 450); }
+  setTimeout(hideSplash, 2500);
+
+  // ======== 2.8.0 Astra: routine learning, proactive greeting (one offer per open), hands-free silence/stop, foreground wake word ========
+  const RKEY = 'astra.routine';
+  function astraLoad() { try { const a = JSON.parse(localStorage.getItem(RKEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+  function astraLog(kind, text) {
+    if (S.routineOn === false) return;
+    try { localStorage.setItem(RKEY, JSON.stringify(C.routineAdd(astraLoad(), kind, text))); } catch (e) {}
+  }
+  function astraRenderGreeting() {
+    const g = astraOpen || C.proactiveGreeting([], new Date(), { proactive: false });
+    const h = new Date().getHours();
+    if ($('welcome')) $('welcome').textContent = C.greetingFor(h);
+    const hello = C.greetingFor(h).replace(/\s*[☀️🤍🌙]+$/u, '');
+    const sub = g.offer ? (g.text.startsWith(hello + ', ') ? g.text.slice(hello.length + 2) : g.text) : ('Main ' + aiName() + ' hoon, aap ki apni AI. Batayein, aaj kya karna hai?');
+    if ($('welcomeSub')) $('welcomeSub').textContent = sub.charAt(0).toUpperCase() + sub.slice(1);
+    const box = $('proactiveOffer'); if (!box) return;
+    box.innerHTML = ''; box.hidden = !g.offer;
+    if (g.offer) {
+      const b = document.createElement('button'); b.className = 'sugg offer'; b.textContent = '✨ ' + g.offer.label;
+      b.onclick = () => { astraOpen = { text: g.text, offer: null }; box.hidden = true; send(g.offer.send); };
+      const x = document.createElement('button'); x.className = 'sugg ghost'; x.textContent = 'Abhi nahi';
+      x.onclick = () => { astraOpen = { text: g.text, offer: null }; box.hidden = true; };
+      box.append(b, x);
+    }
+  }
+  function astraRoutineText() {
+    const pats = C.routinePatterns(astraLoad());
+    return pats.length ? C.routineSummary(pats) : 'Abhi main aap ki routine seekh rahi hoon, janu. Kuch din istemal ke baad yahan patterns nazar aayenge 🤍';
+  }
+  function renderRoutineCard() {
+    const n = C.routinePatterns(astraLoad()).length;
+    if ($('routineSummary')) $('routineSummary').textContent = S.routineOn === false ? 'Routine seekhna band hai.' : astraRoutineText();
+    if ($('sRoutineOn')) $('sRoutineOn').checked = S.routineOn !== false;
+    if ($('sProactiveOn')) $('sProactiveOn').checked = S.proactiveOn !== false;
+    if ($('sWakeWord')) $('sWakeWord').checked = !!S.wakeWordOn;
+    document.querySelectorAll('[data-routine-count]').forEach((el) => { el.textContent = S.routineOn === false ? 'Off' : (n ? n + ' on' : 'Seekh rahi'); });
+  }
+  function astraWireRoutine() {
+    const on = (id, fn) => { if ($(id)) $(id).onchange = fn; };
+    on('sRoutineOn', () => { S.routineOn = $('sRoutineOn').checked; saveS(); renderRoutineCard(); });
+    on('sProactiveOn', () => { S.proactiveOn = $('sProactiveOn').checked; saveS(); });
+    on('sWakeWord', () => {
+      S.wakeWordOn = $('sWakeWord').checked; saveS();
+      if (S.wakeWordOn && !wakeSupported()) { toast(IS_IOS ? 'iPhone par wake word mumkin nahi — mic ke liye tap zaroori hai.' : 'Is browser mein wake word nahi chal sakta.', 6000); }
+      else if (S.wakeWordOn) { toast('Theek hai janu — app khuli ho to "Astra" bolein 🤍'); wakePausedUntil = 0; astraWakeResume(); }
+      else if (wakeMode) stopMic();
+    });
+    if ($('btnRoutineSpeak')) $('btnRoutineSpeak').onclick = () => { unlockSpeech(); speak(astraRoutineText(), L.ROMAN_URDU, null, { force: true }); };
+    if ($('btnRoutineClear')) $('btnRoutineClear').onclick = () => modal('Routine data saaf karein?', 'Sirf routine ka log mitega — chats, memory aur settings waisi hi rahengi.', [
+      { label: 'Saaf karo', go: true, fn: () => { try { localStorage.removeItem(RKEY); } catch (e) {} renderRoutineCard(); toast('Routine data saaf ho gaya 🤍'); } }, { label: 'Cancel' }]);
+    renderRoutineCard();
+    setInterval(astraWakeResume, 4000);
+    document.addEventListener('visibilitychange', () => { if (document.hidden && wakeMode) { wakeMode = false; try { if (rec && rec.abort) rec.abort(); } catch (e) {} if (nativeListening) { try { window.NooraNative.sttStop(); } catch (e) {} nativeListening = false; } setListening(false); } });
+  }
+  function afterSilence(ms) {
+    if (wakeMode) { wakeMode = false; setListening(false); return; }         // the 4 s loop restarts the wake listener
+    if (!continuous) return;
+    if (++silentCount >= 2) return stopVoiceMode('silence');
+    setTimeout(() => { if (continuous && !busy) startListening(); }, ms);
+  }
+  const wakeSupported = () => !!(NATIVE_STT || (SR && !IS_IOS));
+  function astraWakeResume() {
+    if (!S.wakeWordOn || !wakeSupported() || continuous || busy || listening || wakeMode || pending || document.hidden) return;
+    if (Date.now() < wakePausedUntil || voiceState === 'SPEAKING' || voiceState === 'THINKING' || voiceState === 'EXECUTING') return;
+    try { if (window.speechSynthesis && speechSynthesis.speaking) return; } catch (e) {}
+    try { if (ownerOnlyActive()) return; } catch (e) {}
+    wakeMode = true; startListening();
+    const el = $('listening'); if (el && wakeMode) el.textContent = '👂 "Astra" bolein…';
+  }
+  function astraWakeHeard(t) {
+    wakeMode = false; input.value = ''; autoGrow(); updateMicIcon();
+    const rest = C.wakeStrip(t);
+    if (rest === null) return;                                                   // not for us — keep waiting quietly
+    showTab('chat'); continuous = true; silentCount = 0; updateVoiceBar(); refreshStatus(); try { hfRender(); } catch (e) {}
+    if (rest && !C.isStopPhrase(rest)) send(rest);
+    else speak('Ji janu?', L.ROMAN_URDU, () => { if (continuous && !busy && !listening) startListening(); });
+  }
+
   (async () => {
     const ok = await Store.open();
     if (!ok) toast('IndexedDB unavailable — using localStorage.');
     await checkLock();
     await loadConversation(convId);
-    continuous = !!S.continuousVoice;
-    refreshStatus(); updateEmpty(); updateVoiceBar();
+    continuous = false; S.continuousVoice = false; // hands-free always starts from a tap or the wake word
+    astraLog('open'); astraOpen = C.proactiveGreeting(astraLoad(), new Date(), { proactive: S.proactiveOn !== false });
+    refreshStatus(); updateEmpty(); updateVoiceBar(); astraWireRoutine();
     openHomeDash();
     setVoiceState('IDLE');
     handleLaunchParams();
+    setTimeout(hideSplash, 650);
     if ('serviceWorker' in navigator && document.querySelector('link[data-pwa]') && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
       navigator.serviceWorker.register('./sw.js').catch(() => {});
     }

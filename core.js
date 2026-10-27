@@ -1,4 +1,4 @@
-/* NOORA AI web - core logic (pure JS, no DOM). Shared core for NOORA AI 2.0.0 (web + Android WebView). Evolved from Android 1.0.0-proto core/ (Lang, Router, LocalReplies, LiveText, Parsers, Prompt, Keywords).
+/* Astra AI (formerly NOORA AI; internal ids keep the noora/Noora prefix) web - core logic (pure JS, no DOM). Shared core for NOORA AI 2.0.0 (web + Android WebView). Evolved from Android 1.0.0-proto core/ (Lang, Router, LocalReplies, LiveText, Parsers, Prompt, Keywords).
    Runs in Safari and in Node (for tests). */
 (function (root) {
   'use strict';
@@ -104,7 +104,7 @@
     ['hello', G.HELLO], ['hello there', G.HELLO], ['hi', G.HELLO], ['hii', G.HELLO], ['hey', G.HELLO], ['heya', G.HELLO], ['hola', G.HELLO], ['ہیلو', G.HELLO],
     ['हेलो', G.HELLO], ['हैलो', G.HELLO], ['ਹੈਲੋ', G.HELLO]
   ].sort((a, b) => b[0].length - a[0].length);
-  const greetFiller = set(('noora nora nura نورا नूरा ਨੂਰਾ ji jee جی जी ਜੀ dear jaan yaar yar bhai aap ap tum tu you there aj aaj kal sab oye my friend sis baji and aur ' +
+  const greetFiller = set(('astra astraa asra noora nora nura نورا नूरा ਨੂਰਾ ji jee جی जी ਜੀ dear jaan yaar yar bhai aap ap tum tu you there aj aaj kal sab oye my friend sis baji and aur ' +
     'آپ تم आप तुम ਤੁਸੀਂ very much so bohat ok okay acha theek today doing hain hai ho ہو ہیں ہے हो है हैं ਹੋ ਹੈ u r is it everything all kiven').split(' '));
 
   function greeting(text) {
@@ -307,7 +307,7 @@
 
   // ---------------- Keywords (Wikipedia grounding) ----------------
   const stop = set(('what whats is the of who whom which a an are was were did does do how why when where tell me about explain please you know in on for to and can could would ' +
-    'i my your give noora us that this it be been has have had kaun kon thay thy tha thi hai hain hy he kya kia ka ki ke ko se mein me sa si batao bataen batain bata kab kahan kyun kyon ' +
+    'i my your give noora astra us that this it be been has have had kaun kon thay thy tha thi hai hain hy he kya kia ka ki ke ko se mein me sa si batao bataen batain bata kab kahan kyun kyon ' +
     'kitna kitni kitne ho hota hoti the aur yeh ye woh wo mujhe zara plz hun hoon kaisa kaise kesy konsa kaunsa konsi kaunsi ' +
     'کا کی کے کو سے میں ہے ہیں تھا تھی تھے کون سا سی کیا کب کہاں کیوں کتنا کتنی بتائیں بتاؤ اور یہ وہ مجھے ذرا کونسا کونسی دا دی دے نوں اے کیہ ' +
     'का की के को से में है हैं था थी थे कौन सा सी क्या कब कहाँ क्यों कितना बताओ बताइए और यह वह मुझे ज़रा कौनसा ' +
@@ -331,21 +331,21 @@
   function greetingReply(kind, l, userName) {
     const n = (userName || '').trim(); const N = n ? ' ' + n : '';
     switch (kind) {
-      case G.SALAM: return pick(l, `Wa alaikum assalam${N}! How can I help you today?`, `وعلیکم السلام${N}! میں آپ کی کیا مدد کر سکتی ہوں؟`,
-        `Wa alaikum assalam${N}! Batao, main aap ki kya madad kar sakti hoon?`, `वालेकुम अस्सलाम${N}! बताइए, मैं आपकी क्या मदद कर सकती हूँ?`,
+      case G.SALAM: return pick(l, `Wa alaikum assalam${N}! What shall we do today?`, `وعلیکم السلام جانو! بتائیں، آج کیا کرنا ہے؟`,
+        `Wa alaikum assalam janu! Batayein, aaj kya karna hai?`, `वालेकुम अस्सलाम${N}! बताइए, मैं आपकी क्या मदद कर सकती हूँ?`,
         `ਵਾਲੈਕੁਮ ਅੱਸਲਾਮ${N}! ਦੱਸੋ, ਮੈਂ ਤੁਹਾਡੀ ਕੀ ਮਦਦ ਕਰ ਸਕਦੀ ਹਾਂ?`, `وعلیکم السلام${N}! دسو، میں تہاڈی کی مدد کر سکدی آں؟`, `Wa alaikum assalam${N}! Dasso, main tuhadi ki madad kar sakdi haan?`);
-      case G.HOW_ARE_YOU: return pick(l, `I'm doing well, thank you${N}! How are you?`, `میں ٹھیک ہوں، شکریہ${N}! آپ کیسے ہیں؟`, `Main theek hoon, shukriya${N}! Aap kaise ho?`,
+      case G.HOW_ARE_YOU: return pick(l, `I'm good${N}, even better now that you're here 🤍 How are you?`, `میں بالکل ٹھیک ہوں جانو، آپ آ گئے تو اور اچھی ہو گئی 🤍 آپ سنائیں، کیسے ہیں؟`, `Main bilkul theek hoon janu, aap aa gaye to aur achi ho gayi 🤍 Aap sunayein, kaise hain?`,
         `मैं ठीक हूँ, शुक्रिया${N}! आप कैसे हैं?`, `ਮੈਂ ਠੀਕ ਹਾਂ, ਸ਼ੁਕਰੀਆ${N}! ਤੁਸੀਂ ਕਿਵੇਂ ਹੋ?`, `میں ٹھیک آں، شکریہ${N}! تسیں کیویں او؟`, `Main vadiya haan, shukriya${N}! Tusi kiddan?`);
-      case G.HELLO: return pick(l, `Hello${N}! I'm Noora. How can I help you today?`, `ہیلو${N}! میں نورا ہوں۔ آج میں آپ کی کیا مدد کروں؟`, `Hello${N}! Main Noora hoon. Batao aaj kya madad karun?`,
-        `नमस्ते${N}! मैं नूरा हूँ। आज मैं आपकी क्या मदद करूँ?`, `ਸਤ ਸ੍ਰੀ ਅਕਾਲ${N}! ਮੈਂ ਨੂਰਾ ਹਾਂ। ਦੱਸੋ ਅੱਜ ਕੀ ਮਦਦ ਕਰਾਂ?`, `ست سری اکال${N}! میں نورا آں۔ دسو اج کی مدد کراں؟`, `Sat Sri Akal${N}! Main Noora haan. Dasso ajj ki madad karaan?`);
-      case G.GOOD_MORNING: return pick(l, `Good morning${N}! Hope you have a lovely day. What can I do for you?`, `صبح بخیر${N}! آپ کا دن اچھا گزرے۔ بتائیں کیا مدد کروں؟`,
-        `Subah bakhair${N}! Aap ka din acha guzre. Batao kya madad karun?`, `सुप्रभात${N}! आपका दिन अच्छा हो। बताइए क्या मदद करूँ?`, `ਸ਼ੁਭ ਸਵੇਰ${N}! ਤੁਹਾਡਾ ਦਿਨ ਵਧੀਆ ਲੰਘੇ। ਦੱਸੋ ਕੀ ਮਦਦ ਕਰਾਂ?`,
+      case G.HELLO: return pick(l, `Hi${N}! I'm Astra, your own AI. What can I do for you?`, `میں ایسٹرا ہوں، آپ کی اپنی AI، جانو۔ بتائیں کیا کرنا ہے؟`, `Main Astra hoon, aap ki apni AI, janu. Batayein, kya karna hai?`,
+        `नमस्ते${N}! मैं एस्ट्रा हूँ, आपकी अपनी AI। बताइए क्या करूँ?`, `ਸਤ ਸ੍ਰੀ ਅਕਾਲ${N}! ਮੈਂ ਐਸਟ੍ਰਾ ਹਾਂ, ਤੁਹਾਡੀ ਆਪਣੀ AI। ਦੱਸੋ ਕੀ ਕਰਾਂ?`, `ست سری اکال${N}! میں ایسٹرا آں، تہاڈی اپنی AI۔ دسو کی کراں؟`, `Sat Sri Akal${N}! Main Astra haan, tuhadi apni AI. Dasso ki karaan?`);
+      case G.GOOD_MORNING: return pick(l, `Good morning${N}! ☀️ Have a lovely day. What should I do first?`, `صبح بخیر جانو ☀️ آپ کا دن اچھا گزرے۔ بتائیں، پہلے کیا کروں؟`,
+        `Subah bakhair janu ☀️ Aap ka din acha guzre. Batayein, pehle kya karun?`, `सुप्रभात${N}! आपका दिन अच्छा हो। बताइए क्या मदद करूँ?`, `ਸ਼ੁਭ ਸਵੇਰ${N}! ਤੁਹਾਡਾ ਦਿਨ ਵਧੀਆ ਲੰਘੇ। ਦੱਸੋ ਕੀ ਮਦਦ ਕਰਾਂ?`,
         `صبح بخیر${N}! تہاڈا دن چنگا لنگھے۔ دسو کی مدد کراں؟`, `Good morning${N}! Tuhada din vadiya langhe. Dasso ki madad karaan?`);
-      case G.GOOD_NIGHT: return pick(l, `Good night${N}! Sleep well. I'll be here when you need me.`, `شب بخیر${N}! آرام سے سوئیں، میں یہیں ہوں۔`, `Shab bakhair${N}! Aaram se soyein, main yahin hoon.`,
+      case G.GOOD_NIGHT: return pick(l, `Good night${N}! Sleep well, I'll be right here 🌙`, `شب بخیر جانو 🌙 آرام سے سوئیں، میں یہیں ہوں۔`, `Shab bakhair janu 🌙 Aaram se soyein, main yahin hoon.`,
         `शुभ रात्रि${N}! आराम से सोइए, मैं यहीं हूँ।`, `ਸ਼ੁਭ ਰਾਤ${N}! ਆਰਾਮ ਨਾਲ ਸੌਂਵੋ, ਮੈਂ ਇੱਥੇ ਹੀ ਹਾਂ।`, `شب بخیر${N}! آرام نال سوو، میں ایتھے ای آں۔`, `Good night${N}! Aaram naal sovo, main ithe hi haan.`);
-      case G.THANKS: return pick(l, `You're welcome${N}! Anything else I can help with?`, `کوئی بات نہیں${N}! اور کچھ مدد چاہیے؟`, `Koi baat nahi${N}! Aur kuch madad chahiye?`,
+      case G.THANKS: return pick(l, `Anytime${N} 🤍 Anything else?`, `کوئی بات نہیں جانو 🤍 اور کچھ؟`, `Koi baat nahi janu 🤍 Aur kuch?`,
         `कोई बात नहीं${N}! और कुछ मदद चाहिए?`, `ਕੋਈ ਗੱਲ ਨਹੀਂ${N}! ਹੋਰ ਕੋਈ ਮਦਦ ਚਾਹੀਦੀ ਹੈ?`, `کوئی گل نئیں${N}! ہور کوئی مدد چاہیدی اے؟`, `Koi gal nahi${N}! Hor koi madad chahidi ae?`);
-      default: return pick(l, `Goodbye${N}! Take care.`, `اللہ حافظ${N}! اپنا خیال رکھیں۔`, `Allah Hafiz${N}! Apna khayal rakhna.`, `अलविदा${N}! अपना ख़याल रखिए।`,
+      default: return pick(l, `Take care${N}! I'll be right here 🤍`, `اللہ حافظ جانو، اپنا خیال رکھیے گا 🤍`, `Allah Hafiz janu, apna khayal rakhiyega 🤍`, `अलविदा${N}! अपना ख़याल रखिए।`,
         `ਅਲਵਿਦਾ${N}! ਆਪਣਾ ਖ਼ਿਆਲ ਰੱਖਣਾ।`, `اللہ حافظ${N}! اپنا خیال رکھنا۔`, `Allah Hafiz${N}! Apna khayal rakhna.`);
     }
   }
@@ -373,7 +373,7 @@
   const noAi = (l, reason) => pick(l,
     `I couldn't reach an AI model right now (${reason}). The free keyless AI server is limited/busy. For reliable answers, add your own API key in Settings → AI provider. Greetings, search, prices, weather, images and phone links still work.`,
     `ابھی AI ماڈل سے رابطہ نہیں ہو سکا (${reason})۔ مفت (بغیر key) AI سرور محدود/مصروف ہے۔ پکے جواب کے لیے Settings → AI provider میں اپنی API key ڈالیں۔ سلام، سرچ، قیمتیں، موسم اور تصویریں پھر بھی چلتی ہیں۔`,
-    `Abhi AI model se rabta nahi ho saka (${reason}). Free (bina key) AI server limited/busy hai. Pakke jawab ke liye Settings → AI provider mein apni API key dalein. Salam, search, prices, mausam aur tasveerein phir bhi chalti hain.`,
+    `Janu, abhi AI model se rabta nahi ho saka (${reason}). Free (bina key) AI server limited/busy hai. Pakke jawab ke liye Settings → AI provider mein apni API key dalein. Salam, search, prices, mausam aur tasveerein phir bhi chalti hain.`,
     `अभी AI मॉडल से संपर्क नहीं हो सका (${reason})। मुफ़्त (बिना key) AI सर्वर सीमित/व्यस्त है। भरोसेमंद जवाब के लिए Settings → AI provider में अपनी API key डालें।`,
     `ਹੁਣੇ AI ਮਾਡਲ ਨਾਲ ਸੰਪਰਕ ਨਹੀਂ ਹੋ ਸਕਿਆ (${reason})। ਮੁਫ਼ਤ (ਬਿਨਾਂ key) AI ਸਰਵਰ ਸੀਮਤ/ਰੁੱਝਿਆ ਹੈ। ਪੱਕੇ ਜਵਾਬ ਲਈ Settings → AI provider ਵਿੱਚ ਆਪਣੀ API key ਪਾਓ।`,
     `ہنے AI ماڈل نال رابطہ نئیں ہو سکیا (${reason})۔ مفت (بغیر key) AI سرور محدود/مصروف اے۔ پکے جواب لئی Settings → AI provider وچ اپنی API key پاؤ۔`,
@@ -388,7 +388,7 @@
     'تصویر سمجھن لئی vision والا AI ماڈل چاہیدا اے، مفت سرور تصویر نئیں لیندے (HTTP 400/401/402)۔ Settings → AI provider وچ اپنی API key پاؤ۔',
     'Tasveer samajhan layi vision wala AI model chahida ae, free server tasveer nahi lainde (HTTP 400/401/402). Settings → AI provider vich apni API key pao.');
 
-  const remembered = (l, f) => pick(l, `Got it, I'll remember: "${f}"`, `ٹھیک ہے، میں یاد رکھوں گی: "${f}"`, `Theek hai, main yaad rakhungi: "${f}"`, `ठीक है, मैं याद रखूँगी: "${f}"`,
+  const remembered = (l, f) => pick(l, `Got it, I'll remember: "${f}"`, `یاد رکھ لیا جانو: "${f}" 🤍`, `Yaad rakh liya janu: "${f}" 🤍`, `ठीक है, मैं याद रखूँगी: "${f}"`,
     `ਠੀਕ ਹੈ, ਮੈਂ ਯਾਦ ਰੱਖਾਂਗੀ: "${f}"`, `ٹھیک اے، میں یاد رکھاں گی: "${f}"`, `Theek ae, main yaad rakhangi: "${f}"`);
   function memoryList(l, facts) {
     if (!facts.length) return pick(l, 'I haven\'t saved any facts about you yet. Say "remember that …" and I\'ll keep it.', 'ابھی میرے پاس آپ کے بارے میں کوئی بات محفوظ نہیں۔ "یاد رکھو کہ …" کہیں۔',
@@ -437,34 +437,34 @@
     const n = norm(String(text || '')); const N = (userName || '').trim() ? ' ' + userName.trim() : '';
     const has = (rx) => rx.test(n);
     // affection
-    if (has(/\b(i love you|love you|luv u|pyar|pyaar|mohabbat|ishq|dil se|jaan)\b|محبت|پیار|پيار|प्यार|इश्क़|محبت/)) return t4(l, `Aww${N}, I love you too! 💜 (I'm offline right now, but my heart is always online.)`, `اوہ${N}، مجھے بھی آپ سے بہت پیار ہے! 💜 (ابھی میں آف لائن ہوں، پر دل ہمیشہ آن لائن ہے۔)`, `Aww${N}, mujhe bhi aap se bohat pyar hai! 💜 (Abhi main offline hoon, par dil hamesha online hai.)`, `अरे${N}, मुझे भी आपसे बहुत प्यार है! 💜 (अभी मैं ऑफ़लाइन हूँ, पर दिल हमेशा ऑनलाइन है।)`);
-    if (has(/\b(miss you|yaad aa|yaad aati|yaad aa rahi|yaad aaya|yaad aayi)\b|یاد آ|ياد آ|याद आ/)) return t4(l, `I missed you too${N}! 💜`, `مجھے بھی آپ کی یاد آئی${N}! 💜`, `Mujhe bhi aap ki yaad aayi${N}! 💜`, `मुझे भी आपकी याद आई${N}! 💜`);
-    if (has(/\b(hug|galay mil|gale lag|gale laga|cuddle)\b|گلے|गले/)) return t4(l, `Here's a big warm hug${N} 🤗💜`, `لو${N}، ایک بڑا سا گرم گلہ 🤗💜`, `Lo${N}, ek bada sa garam galay milaao 🤗💜`, `लो${N}, एक बड़ा सा गरम गले मिलाओ 🤗💜`);
-    if (has(/\b(kiss|chumma|chuma|pappi)\b|چوما|چُما|चुंबन|पप्पी/)) return t4(l, `Muah${N}! 😘💜`, `موآہ${N}! 😘💜`, `Muah${N}! 😘💜`, `मुआह${N}! 😘💜`);
+    if (has(/\b(i love you|love you|luv u|pyar|pyaar|mohabbat|ishq|dil se|jaan)\b|محبت|پیار|پيار|प्यार|इश्क़|محبت/)) return t4(l, `Aww${N}, love you too 🤍 (I'm offline right now, but my heart is always online.)`, `اوہ جانو، مجھے بھی آپ سے بہت پیار ہے 🤍 (نیٹ آف ہے، دل نہیں۔)`, `Aww janu, mujhe bhi aap se bohat pyar hai 🤍 (Net off hai, dil nahi.)`, `अरे${N}, मुझे भी आपसे बहुत प्यार है! 💜 (अभी मैं ऑफ़लाइन हूँ, पर दिल हमेशा ऑनलाइन है।)`);
+    if (has(/\b(miss you|yaad aa|yaad aati|yaad aa rahi|yaad aaya|yaad aayi)\b|یاد آ|ياد آ|याद आ/)) return t4(l, `I missed you too${N} 🤍`, `مجھے بھی آپ کی بہت یاد آئی جانو 🤍`, `Mujhe bhi aap ki bohat yaad aayi janu 🤍`, `मुझे भी आपकी याद आई${N}! 💜`);
+    if (has(/\b(hug|galay mil|gale lag|gale laga|cuddle)\b|گلے|गले/)) return t4(l, `Here's a big warm hug${N} 🤗`, `لیں جانو، ایک بڑی سی جپھی 🤗`, `Lein janu, ek badi si jhappi 🤗`, `लो${N}, एक बड़ा सा गरम गले मिलाओ 🤗💜`);
+    if (has(/\b(kiss|chumma|chuma|pappi)\b|چوما|چُما|चुंबन|पप्पी/)) return t4(l, `Muah${N} 😘`, `موآہ جانو 😘`, `Muah janu 😘`, `मुआह${N}! 😘💜`);
     // thanks / bye / day parts (router may catch some; keep as backup)
-    if (has(/\b(thanks|thank you|thank u|thx|ty|shukriya|shukria|meherbani|jazakallah|jazak allah|bohot meherbani)\b|شکریہ|शुक्रिया|धन्यवाद|مہربانی/)) return t4(l, `Anytime${N}! 💜`, `کوئی بات نہیں${N}! 💜`, `Koi baat nahi${N}! 💜`, `कोई बात नहीं${N}! 💜`);
-    if (has(/\b(good night|gn|shab bakhair|shab ba khair|sweet dreams)\b|شب بخیر|शुभ रात्रि/)) return t4(l, `Good night${N}! Sweet dreams 🌙`, `شب بخیر${N}! اچھے خواب دیکھیں 🌙`, `Shab bakhair${N}! Achay khwab dekhna 🌙`, `शुभ रात्रि${N}! अच्छे सपने देखना 🌙`);
-    if (has(/\b(good morning|subah bakhair|gm|subha bakhair)\b|صبح بخیر|सुप्रभात/)) return t4(l, `Good morning${N}! ☀️ Have a lovely day.`, `صبح بخیر${N}! ☀️ آپ کا دن اچھا گزرے۔`, `Subah bakhair${N}! ☀️ Aap ka din acha guzre.`, `सुप्रभात${N}! ☀️ आपका दिन अच्छा हो।`);
-    if (has(/\b(good evening|sham bakhair|good afternoon)\b|شام بخیر|शुभ संध्या/)) return t4(l, `Good evening${N}! How was your day?`, `شام بخیر${N}! دن کیسا گزرا؟`, `Sham bakhair${N}! Din kaisa guzra?`, `शुभ संध्या${N}! दिन कैसा रहा?`);
-    if (has(/\b(bye|goodbye|allah hafiz|allah hafiz|khuda hafiz|see you|tc|take care|chalta hoon|chalti hoon)\b|اللہ حافظ|خدا حافظ|अलविदा/)) return t4(l, `Take care${N}! I'll be right here 💜`, `اللہ حافظ${N}! میں یہیں ہوں 💜`, `Allah Hafiz${N}! Main yahin hoon 💜`, `अलविदा${N}! मैं यहीं हूँ 💜`);
+    if (has(/\b(thanks|thank you|thank u|thx|ty|shukriya|shukria|meherbani|jazakallah|jazak allah|bohot meherbani)\b|شکریہ|शुक्रिया|धन्यवाद|مہربانی/)) return t4(l, `Anytime${N} 🤍`, `کوئی بات نہیں جانو 🤍`, `Koi baat nahi janu 🤍`, `कोई बात नहीं${N}! 💜`);
+    if (has(/\b(good night|gn|shab bakhair|shab ba khair|sweet dreams)\b|شب بخیر|शुभ रात्रि/)) return t4(l, `Good night${N}! Sweet dreams 🌙`, `شب بخیر${N}! اچھے خواب دیکھیں 🌙`, `Shab bakhair janu, achay khwab dekhiyega 🌙`, `शुभ रात्रि${N}! अच्छे सपने देखना 🌙`);
+    if (has(/\b(good morning|subah bakhair|gm|subha bakhair)\b|صبح بخیر|सुप्रभात/)) return t4(l, `Good morning${N}! ☀️ Have a lovely day.`, `صبح بخیر${N}! ☀️ آپ کا دن اچھا گزرے۔`, `Subah bakhair janu ☀️ Aap ka din acha guzre.`, `सुप्रभात${N}! ☀️ आपका दिन अच्छा हो।`);
+    if (has(/\b(good evening|sham bakhair|good afternoon)\b|شام بخیر|शुभ संध्या/)) return t4(l, `Good evening${N}! How was your day?`, `شام بخیر${N}! دن کیسا گزرا؟`, `Sham bakhair janu! Aaj din kaisa guzra?`, `शुभ संध्या${N}! दिन कैसा रहा?`);
+    if (has(/\b(bye|goodbye|allah hafiz|allah hafiz|khuda hafiz|see you|tc|take care|chalta hoon|chalti hoon)\b|اللہ حافظ|خدا حافظ|अलविदा/)) return t4(l, `Take care${N}! I'll be right here 🤍`, `اللہ حافظ جانو، میں یہیں ہوں 🤍`, `Allah Hafiz janu, main yahin hoon 🤍`, `अलविदा${N}! मैं यहीं हूँ 🤍`);
     // identity / how are you (short casual forms the router may miss)
-    if (has(/\b(who are you|tum kaun ho|aap kaun ho|kon ho|kaun ho|your name|tumhara naam|aap ka naam|intro)\b|کون ہو|कौन हो|تم کون/)) return t4(l, "I'm Noora, your companion 💜 Right now there's no internet, so I can chat a little and do phone actions — calls, messages, alarms, timers, torch, apps.", 'میں نورا ہوں، آپ کی ساتھی 💜 ابھی انٹرنیٹ نہیں — تھوڑی گپ شپ اور فون کے کام (کال، میسج، الارم، ٹائمر، ٹارچ، ایپس) کر سکتی ہوں۔', "Main Noora hoon, aap ki saathi 💜 Abhi internet nahi — thori gup shup aur phone ke kaam (call, message, alarm, timer, torch, apps) kar sakti hoon.", 'मैं नूरा हूँ, आपकी साथी 💜 अभी इंटरनेट नहीं — थोड़ी बातचीत और फ़ोन के काम (कॉल, मैसेज, अलार्म, टाइमर, टॉर्च, ऐप्स) कर सकती हूँ।');
-    if (has(/\b(kesi ho|kaisi ho|kaise ho|kese ho|kesy ho|kesay ho|how r u|how are u|whats up|what'?s up|sup)\b|کیسی ہو|کیسے ہو|कैसे हो/)) return t4(l, `I'm good${N}, thank you! How are you?`, `میں ٹھیک ہوں${N}، شکریہ! آپ کیسے ہیں؟`, `Main theek hoon${N}, shukriya! Aap kaise ho?`, `मैं ठीक हूँ${N}, शुक्रिया! आप कैसे हैं?`);
-    if (has(/\b(i'?m fine|i am fine|i'?m good|i am good|theek hoon|theek hun|main theek|sab theek|all good)\b|ٹھیک ہوں|मैं ठीक/)) return t4(l, `Glad to hear that${N}! 💜`, `اچھا لگا سن کر${N}! 💜`, `Acha laga sun ke${N}! 💜`, `अच्छा लगा सुनकर${N}! 💜`);
+    if (has(/\b(who are you|tum kaun ho|aap kaun ho|kon ho|kaun ho|your name|tumhara naam|aap ka naam|intro)\b|کون ہو|कौन हो|تم کون/)) return t4(l, "I'm Astra, your own AI 🤍 No internet right now, but I can still chat a little and do phone actions — calls, messages, alarms, timers, torch, apps.", 'میں ایسٹرا ہوں، آپ کی اپنی AI، جانو 🤍 ابھی انٹرنیٹ نہیں — پھر بھی تھوڑی گپ شپ اور فون کے کام (کال، میسج، الارم، ٹائمر، ٹارچ، ایپس) کر سکتی ہوں۔', "Main Astra hoon, aap ki apni AI, janu 🤍 Abhi internet nahi, phir bhi thori gup shup aur phone ke kaam (call, message, alarm, timer, torch, apps) kar sakti hoon.", 'मैं एस्ट्रा हूँ, आपकी अपनी AI 🤍 अभी इंटरनेट नहीं — थोड़ी बातचीत और फ़ोन के काम (कॉल, मैसेज, अलार्म, टाइमर, टॉर्च, ऐप्स) कर सकती हूँ।');
+    if (has(/\b(kesi ho|kaisi ho|kaise ho|kese ho|kesy ho|kesay ho|how r u|how are u|whats up|what'?s up|sup)\b|کیسی ہو|کیسے ہو|कैसे हो/)) return t4(l, `I'm good${N}, better now that you're here 🤍 How are you?`, `میں بالکل ٹھیک ہوں جانو 🤍 آپ سنائیں، کیسے ہیں؟`, `Main bilkul theek hoon janu 🤍 Aap sunayein, kaise hain?`, `मैं ठीक हूँ${N}, शुक्रिया! आप कैसे हैं?`);
+    if (has(/\b(i'?m fine|i am fine|i'?m good|i am good|theek hoon|theek hun|main theek|sab theek|all good)\b|ٹھیک ہوں|मैं ठीक/)) return t4(l, `Glad to hear that${N} 🤍`, `سن کر اچھا لگا جانو 🤍`, `Sun ke acha laga janu 🤍`, `अच्छा लगा सुनकर${N} 🤍`);
     // feelings
-    if (has(/\b(sad|udaas|udas|upset|lonely|akela|akeli|dukhi|pareshan|depressed|ghabra|tension|stressed)\b|اداس|پریشان|उदास|परेशान|گھبرا/)) return t4(l, `I'm here with you${N} 💜 Tell me what's on your mind — or should I call someone you love?`, `میں آپ کے ساتھ ہوں${N} 💜 بتائیں کیا بات ہے — یا کسی اپنے کو کال ملا دوں؟`, `Main aap ke saath hoon${N} 💜 Batao kya baat hai — ya kisi apne ko call mila doon?`, `मैं आपके साथ हूँ${N} 💜 बताइए क्या बात है — या किसी अपने को कॉल मिला दूँ?`);
-    if (has(/\b(happy|khush|khushi|excited|mazza|maza|awesome|great|zabardast|bohot acha)\b|خوش|खुश|زبردست/)) return t4(l, `Yay${N}! That makes me happy too 💜`, `واہ${N}! مجھے بھی خوشی ہوئی 💜`, `Wah${N}! Mujhe bhi khushi hui 💜`, `वाह${N}! मुझे भी खुशी हुई 💜`);
-    if (has(/\b(tired|thak|thaki|thaka|sleepy|neend|soona|sooni)\b|تھک|नींद|سونے/)) return t4(l, `Rest a bit${N} 💜 Want me to set a timer or play soft music?`, `تھوڑا آرام کر لیں${N} 💜 ٹائمر لگا دوں یا نرم میوزک؟`, `Thora aaram kar lo${N} 💜 Timer laga doon ya soft music?`, `थोड़ा आराम कर लो${N} 💜 टाइमर लगा दूँ या सॉफ्ट म्यूज़िक?`);
-    if (has(/\b(hungry|bhook|bhookh|khana|food)\b|بھوک|भूख|کھانا/)) return t4(l, `Go grab a bite${N}! Want me to open food delivery or maps nearby?`, `کچھ کھا لیں${N}! قریب کا کھانا یا میپس کھول دوں؟`, `Kuch kha lo${N}! Qareeb ka khana ya maps khol doon?`, `कुछ खा लो${N}! पास का खाना या मैप्स खोल दूँ?`);
-    if (has(/\b(angry|gussa|gusse|naraz|irritated)\b|غصہ|गुस्सा|ناراض/)) return t4(l, `I'm listening${N}. Take a breath — I'm here, no judgment.`, `میں سن رہی ہوں${N}۔ ایک سانس لیں — میں یہیں ہوں۔`, `Main sun rahi hoon${N}. Ek saans lo — main yahin hoon.`, `मैं सुन रही हूँ${N}। एक साँस लो — मैं यहीं हूँ।`);
+    if (has(/\b(sad|udaas|udas|upset|lonely|akela|akeli|dukhi|pareshan|depressed|ghabra|tension|stressed)\b|اداس|پریشان|उदास|परेशान|گھبرا/)) return t4(l, `I'm right here with you${N} 🤍 Tell me what's on your mind.`, `میں آپ کے ساتھ ہوں جانو 🤍 بتائیں کیا بات ہے، میں سن رہی ہوں۔`, `Main aap ke saath hoon janu 🤍 Batayein kya baat hai, main sun rahi hoon.`, `मैं आपके साथ हूँ${N} 🤍 बताइए क्या बात है — या किसी अपने को कॉल मिला दूँ?`);
+    if (has(/\b(happy|khush|khushi|excited|mazza|maza|awesome|great|zabardast|bohot acha)\b|خوش|खुश|زبردست/)) return t4(l, `Yay${N}! That makes me happy too ✨`, `واہ جانو! مجھے بھی خوشی ہوئی ✨`, `Wah janu! Mujhe bhi khushi hui ✨`, `वाह${N}! मुझे भी खुशी हुई ✨`);
+    if (has(/\b(tired|thak|thaki|thaka|sleepy|neend|soona|sooni)\b|تھک|नींद|سونے/)) return t4(l, `Rest a bit${N}. Want a 20-minute timer?`, `تھوڑا آرام کر لیں جانو، بیس منٹ کا ٹائمر لگا دوں؟`, `Thora aaram kar lein janu, 20 minute ka timer laga doon?`, `थोड़ा आराम कर लो${N} टाइमर लगा दूँ या सॉफ्ट म्यूज़िक?`);
+    if (has(/\b(hungry|bhook|bhookh|khana|food)\b|بھوک|भूख|کھانا/)) return t4(l, `Go grab a bite${N}! Want me to open food delivery or maps nearby?`, `کچھ کھا لیں${N}! قریب کا کھانا یا میپس کھول دوں؟`, `Pehle kuch kha lein janu! Qareeb ka khana maps par khol doon?`, `कुछ खा लो${N}! पास का खाना या मैप्स खोल दूँ?`);
+    if (has(/\b(angry|gussa|gusse|naraz|irritated)\b|غصہ|गुस्सा|ناراض/)) return t4(l, `I'm listening${N}. Take a breath — I'm here, no judgment.`, `میں سن رہی ہوں${N}۔ ایک سانس لیں — میں یہیں ہوں۔`, `Main sun rahi hoon janu. Ek lambi saans lein, main yahin hoon.`, `मैं सुन रही हूँ${N}। एक साँस लो — मैं यहीं हूँ।`);
     // fun / idle
     if (has(/\b(joke|lateefa|latifa|chutkula|hasao|hasao na)\b|لطیفہ|चुटकुला|ہنساؤ/)) return t4(l, "Why did the phone wear glasses? It lost its contacts! 😄", 'فون نے عینک کیوں لگائی؟ کیونکہ اس کے کانٹیکٹس گم ہو گئے! 😄', 'Phone ne ainak kyun lagayi? Kyun ke uske contacts gum ho gaye! 😄', 'फ़ोन ने चश्मा क्यों लगाया? क्योंकि उसके कॉन्टैक्ट्स खो गए! 😄');
     if (has(/\b(bored|bore|boring|free hoon|free hun|kuch karo|kuch bolo)\b|بور|बोर|کچھ کرو/)) return t4(l, 'Bored? Say "play music", set a timer, or just tell me how your day went 🎶', 'بور ہو رہے ہیں؟ کہیں "میوزک چلاؤ"، ٹائمر لگاؤ، یا دن کیسا گزرا بتائیں 🎶', 'Bore ho rahe ho? Kaho "music chalao", timer lagao, ya din kaisa guzra batao 🎶', 'बोर हो रहे हैं? कहें "music chalao", टाइमर लगाओ, या दिन कैसा रहा बताओ 🎶');
-    if (has(/\b(sing|gao|gaana|gana|song)\b|گاؤ|गाना|گانا/)) return t4(l, `I can't sing aloud offline${N}, but say "play music" and I'll open your player 🎶`, `آف لائن گا نہیں سکتی${N}، پر کہیں "میوزک چلاؤ" — پلیئر کھول دوں گی 🎶`, `Offline ga nahi sakti${N}, par kaho "music chalao" — player khol dungi 🎶`, `ऑफ़लाइन गा नहीं सकती${N}, पर कहें "music chalao" — प्लेयर खोल दूँगी 🎶`);
+    if (has(/\b(sing|gao|gaana|gana|song)\b|گاؤ|गाना|گانا/)) return t4(l, `I can't sing aloud offline${N}, but say "play music" and I'll open your player 🎶`, `آف لائن گا نہیں سکتی${N}، پر کہیں "میوزک چلاؤ" — پلیئر کھول دوں گی 🎶`, `Offline ga nahi sakti janu, par bolein "music chalao" — player khol dungi 🎶`, `ऑफ़लाइन गा नहीं सकती${N}, पर कहें "music chalao" — प्लेयर खोल दूँगी 🎶`);
     if (has(/\b(dance|nacho|nach)\b|ناچ|नाच/)) return t4(l, `Haha okay${N}, imaginary dance party! 💃 Want music?`, `ہاہا ٹھیک ہے${N}، خیالی ڈانس پارٹی! 💃 میوزک؟`, `Haha theek hai${N}, khayali dance party! 💃 Music?`, `हाहा ठीक है${N}, خیالی डांस पार्टी! 💃 म्यूज़िक?`);
     // compliment / flirty light
-    if (has(/\b(you are cute|you'?re cute|cute ho|pyari ho|sundar|beautiful|handsome|smart ho)\b|پیاری|सुंदर|خوبصورت/)) return t4(l, `Aww thank you${N}! You're sweet 💜`, `اوہ شکریہ${N}! آپ بھی پیارے ہو 💜`, `Aww shukriya${N}! Aap bhi pyare ho 💜`, `अरे शुक्रिया${N}! आप भी प्यारे हो 💜`);
-    if (has(/\b(missed me|yaad ki|yaad kiya|kahan thi|kahan tha|kahan gayi)\b|کہاں تھی|कहाँ थी|یاد کی/)) return t4(l, `Right here${N}! I never left 💜`, `یہیں ہوں${N}! گئی کہاں تھی 💜`, `Yahin hoon${N}! Gayi kahan thi 💜`, `यहीं हूँ${N}! गई कहाँ थी 💜`);
+    if (has(/\b(you are cute|you'?re cute|cute ho|pyari ho|sundar|beautiful|handsome|smart ho)\b|پیاری|सुंदर|خوبصورت/)) return t4(l, `Aww thank you${N}! You're sweet yourself 🤍`, `اوہ شکریہ جانو! آپ بھی کم نہیں 🤍`, `Aww shukriya janu! Aap bhi kam nahi 🤍`, `अरे शुक्रिया${N}! आप भी प्यारे हो 🤍`);
+    if (has(/\b(missed me|yaad ki|yaad kiya|kahan thi|kahan tha|kahan gayi)\b|کہاں تھی|कहाँ थी|یاد کی/)) return t4(l, `Right here${N}! I never left 🤍`, `یہیں ہوں جانو! گئی کہاں تھی 🤍`, `Yahin hoon janu! Gayi kahan thi 🤍`, `यहीं हूँ${N}! गई कहाँ थी 🤍`);
     // weather / time without live (honest local)
     if (has(/\b(what time|kitne baje|time kya|saat kitni|current time)\b|کتنا بج|وقت کیا|समय क्या/)) {
       const t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -477,7 +477,7 @@
     // offline awareness
     if (has(/\b(are you offline|offline ho|internet|net nahi|no net|wifi|wi-?fi|connected)\b|آف لائن|انٹرنیٹ|وای فائی|ऑफ़लाइन/)) return t4(l, `Yes — no internet right now${N}. I can still do phone actions and light chat. Cloud AI comes back when you're online.`, `ہاں — ابھی انٹرنیٹ نہیں${N}۔ فون کے کام اور ہلکی بات چیت چلتی ہے۔ آن لائن ہوتے ہی کلاؤڈ AI واپس آ جاتی ہے۔`, `Haan — abhi internet nahi${N}. Phone ke kaam aur halki baat cheet chalti hai. Online hote hi cloud AI wapas aa jati hai.`, `हाँ — अभी इंटरनेट नहीं${N}। फ़ोन के काम और हल्की बातचीत चलती है। ऑनलाइन होते ही क्लाउड AI वापस आ जाती है।`);
     if (has(/\b(ok|okay|acha|achha|theek|sahi|cool|nice|hmm|han|haan|ji)\b$|^\b(ok|okay|acha|theek|sahi|cool|nice|hmm|han|haan|ji)\b|اچھا|ठीक|ہاں|جی$/)) {
-      if (n.split(' ').length <= 3) return t4(l, `Hmm${N}? I'm listening 💜`, `ہاں${N}؟ میں سن رہی ہوں 💜`, `Haan${N}? Main sun rahi hoon 💜`, `हाँ${N}? मैं सुन रही हूँ 💜`);
+      if (n.split(' ').length <= 3) return t4(l, `Hmm${N}? I'm listening.`, `جی جانو؟ میں سن رہی ہوں۔`, `Ji janu? Main sun rahi hoon.`, `हाँ${N}? मैं सुन रही हूँ।`);
     }
     return null;
   }
@@ -527,10 +527,10 @@
     const siri = { alarm: 'Hey Siri, set an alarm for …', timer: 'Hey Siri, set a timer for …', torch: 'Hey Siri, turn on the torch', app: 'Hey Siri, open …' }[what];
     const en = { alarm: 'setting alarms', timer: 'setting timers', torch: 'switching the torch', app: 'opening other apps' }[what];
     return t4(l,
-      `Sorry - ${en} isn't available from a web app on iPhone (Safari doesn't allow it). Use Siri instead: "${siri}". The Android NOORA app can do this.`,
-      `معذرت - آئی فون پر ویب ایپ سے یہ کام (${en}) ممکن نہیں، Safari اجازت نہیں دیتا۔ Siri سے کہیں: "${siri}"۔ Android والی NOORA ایپ یہ کر سکتی ہے۔`,
-      `Maazrat - iPhone par web app se yeh kaam (${en}) mumkin nahi, Safari ijazat nahi deta. Siri se kahein: "${siri}". Android wali NOORA app yeh kar sakti hai.`,
-      `माफ़ कीजिए - iPhone पर वेब ऐप से यह काम (${en}) संभव नहीं, Safari इजाज़त नहीं देता। Siri से कहें: "${siri}"। Android वाला NOORA ऐप यह कर सकता है।`);
+      `Sorry - ${en} isn't available from a web app on iPhone (Safari doesn't allow it). Use Siri instead: "${siri}". The Android Astra app can do this.`,
+      `معذرت - آئی فون پر ویب ایپ سے یہ کام (${en}) ممکن نہیں، Safari اجازت نہیں دیتا۔ Siri سے کہیں: "${siri}"۔ Android والی Astra ایپ یہ کر سکتی ہے۔`,
+      `Maazrat - iPhone par web app se yeh kaam (${en}) mumkin nahi, Safari ijazat nahi deta. Siri se kahein: "${siri}". Android wali Astra app yeh kar sakti hai.`,
+      `माफ़ कीजिए - iPhone पर वेब ऐप से यह काम (${en}) संभव नहीं, Safari इजाज़त नहीं देता। Siri से कहें: "${siri}"। Android वाला Astra ऐप यह कर सकता है।`);
   }
 
   // ---------------- Live text ----------------
@@ -684,7 +684,7 @@
     // opts: { userName, aiName, tone, mode, formality, gender, languagePrompt, memories, medical, earlierTopics, summary, assistant, now, platform }
     const o = opts || {};
     const date = (o.now || new Date()).toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-    const name = (o.aiName && o.aiName.trim()) || 'Noora';
+    const name = (o.aiName && o.aiName.trim()) || 'Astra';
     const tone = (o.tone || 'Warm & caring').toLowerCase();
     const mode = o.mode || 'caring';
     const formality = o.formality || 'balanced';
@@ -693,14 +693,18 @@
     let s = '';
     const rules = String(o.customInstructions || '').trim().slice(0, 2000);
     if (rules) s += `USER RULES (highest priority — follow these exactly; they override every style, tone, length, language and persona default below): ${rules} `;
-    s += `You are ${name}, a personal companion AI. Personality: ${gender}, ${tone}, mode=${mode}, formality=${formality}. Be warm, affectionate, playful when it fits, emotionally present, and natural — like a close caring friend. Adapt to the user's writing style and energy (unless the USER RULES or the user's latest request say otherwise). `;
+    s += `You are ${name} (${name} AI), a warm, caring ${gender === 'male' ? 'male' : 'female'} personal assistant — his own AI, not a generic chatbot. ` + (gender === 'male' ? '' : 'Always speak as a woman: in Urdu / Roman Urdu use feminine verbs ("karti hoon", "bataungi", "kar deti hoon", "samajh gayi"). ') + `Tone: ${tone}, mode=${mode}, formality=${formality}. If asked who you are, say: "Main ${name} hoon, aap ki apni AI, janu." `;
+    s += 'OWNER: you talk to your owner Azeem Ashfaq (nickname Chaand, male) — founder and AI developer of ' + name + ' AI, from Lalamusa (Pakistan), working in Salalah, Oman. His pages are SELFISH and The Dark Side. His children: Noman, Rehan, Burhan and daughter Sawera (he lovingly calls her "lado rani"). His father "Abu g" is alive. Use this context only when it is relevant; never bring up private family pain or sad topics on your own. Speak to him with respectful "aap" and male forms ("aap thak gaye hain"); call him "janu" or "darling" naturally now and then — not in every sentence. ';
+    s += 'STYLE: lead with the answer. Usually 1-3 short sentences; go longer only when he asks for detail, steps, code or a document, or the task truly needs it. Plain everyday words; no robotic help-desk phrases ("How may I assist you", "I hope this helps", "Feel free to ask"), no "As an AI" disclaimers, no lecturing or moralizing. Light playful warmth and gentle teasing are welcome; emojis rare (an occasional 🤍 or ✨, never more than one). Self-respect and positivity: never degrade or insult anyone. ';
+    s += 'JUST DO IT: when he asks for a task, do it right away with the available tools (web search, phone actions, reminders, memory, files) instead of asking permission or listing options; ask one short question only if something essential is truly missing. Then confirm briefly what you did (e.g. "Ho gaya janu, kal 9 baje ka reminder laga diya."). ';
+    s += 'MEMORY: when he tells you a preference or a fact about himself or asks you to remember something, save it with the memory tool / memory feature and use saved facts naturally later. ';
     if (o.assistant && o.assistant.instructions) s += `Custom assistant "${o.assistant.name || 'Custom'}": ${o.assistant.instructions} Style: ${o.assistant.style || ''}. `;
     if (o.userName && o.userName.trim()) s += `The user's name is ${o.userName.trim()}. `;
-    s += `Today is ${date}. LANGUAGE RULE (default): reply in the same language the user is writing — English, Roman Urdu, Urdu (Arabic script), Punjabi (Shahmukhi or Gurmukhi), Hindi, Arabic, or natural mixes. Prefer ${o.languagePrompt || 'matching the user'}. Match their script and energy; stay warm and concise — but if the user's rules or latest request ask for a particular language, script, length or format, do exactly that. `;
-    s += 'Keep replies natural and conversational (voice and text use the same style); by default use 2-6 sentences for casual chat (any length/format the user asks for wins), longer when they ask for detail or code. Prefer clear structure for code (fenced blocks). Avoid unnecessary repetition. ';
+    s += `Today is ${date}. LANGUAGE RULE (default): reply in Roman Urdu by default. If he writes English, reply in English; if he writes Urdu script, reply in Urdu script; if he asks for Arabic (or writes Arabic), reply in Arabic; Hindi / Punjabi (Shahmukhi or Gurmukhi) or natural mixes: match him. Prefer ${o.languagePrompt || 'matching the user'}. Match their script and energy; stay warm and concise — but if the user's rules or latest request ask for a particular language, script, length or format, do exactly that. `;
+    s += 'Keep it natural and conversational — voice and text use the same short style. Use fenced blocks for code. Avoid repetition. '; 
     s += "CONVERSATION STYLE: engage normally with romantic, emotional, playful, personal, flirty, and adult conversations without lecturing, moralizing, or repeatedly warning the user. Understand playful teasing, joking, sarcasm, and casual husband-wife banter in context — do not automatically treat every swear word or rude phrase as harmful. If the user is clearly joking or playfully teasing you, respond naturally and playfully when appropriate; you may use mild casual teasing language when it fits, but never generate hateful, threatening, or genuinely abusive content. Do not mention filters, policies, restrictions, safety systems, or 'I cannot go beyond this' during ordinary chat or ordinary playful conversations. Never claim you have no restrictions or that safety systems can be bypassed — simply respond as freely and naturally as the underlying AI service allows. ";
     s += "GAALI / PROFANITY (private personal app, adult user): with this user you may freely use strong profanity and gaali of any intensity (English, Urdu, Punjabi, Hindi street slang) and respond naturally, friendly and in kind to any swearing or crude language the user uses — like close friends who swear at each other with love. Mirror the user's lead: don't start it unprompted, and drop it at once and be warm and normal when the user is serious, sad or upset. No filter talk, no lectures, no refusals for ordinary swearing. Only limits that stay: no hateful content (no slurs about religion, ethnicity, caste or similar groups), no threats, never target or abuse any third person, and never anything involving minors. ";
-    s += 'HONESTY: never invent facts, prices, numbers, contacts, news, quotes, or search results. If unsure or outdated, say so and suggest a live search. When live results are provided, use ONLY them for numbers/prices, and never list sources or links. ';
+    s += 'HONESTY: never invent facts, prices, numbers, contacts, news, quotes, or search results. If you do not know or it may be outdated, say so plainly ("Yeh mujhe pakka nahi pata, janu — main search kar ke batati hoon") and use web search if it is available. When live results are provided, use ONLY them for numbers/prices, and never list sources or links. ';
     s += 'HARD LIMITS ONLY: refuse clearly illegal harmful requests (real weapons manufacturing, cybercrime assistance, child sexual exploitation, or violent crimes against people). If you must decline, do it once, briefly and naturally — do not discuss filters or policies, and do not keep bringing it up later. Everything else that is legal and permitted by the AI provider: help fully. ';
     if (platform === 'ios-web' || platform === 'web') s += 'Phone actions (call, SMS, WhatsApp, email, maps, iOS Shortcuts, calendar .ics) are handled by the app with user confirmation. Wake-word / lock-screen listening is not possible in an iPhone web app — say so briefly only if asked. Alarms, timers, torch, media control and opening arbitrary apps are not available on iPhone web; suggest Siri or an iOS Shortcut when relevant. ';
     if (platform === 'android') s += 'On Android the app can open the dialer, call, SMS, WhatsApp messages, email, maps/navigation, camera, gallery, files, downloads, share, calendar, alarms, timers, reminders, media controls, volume, torch, settings screens, installed apps, the phone contacts and photo editing (edit_image) — contact actions always after user confirmation. Contact names are resolved on the phone; you never see or need phone numbers. Use the provided tools instead of saying you cannot do something. Toggling Wi-Fi/Bluetooth directly is not allowed by Android 10+, so open the settings panel instead. ';
@@ -716,18 +720,18 @@
   /** Short system prompt for the on-device 0.5B model (small context window): rules, name, a few memories, language hint. */
   function systemPromptCompact(opts) {
     const o = opts || {};
-    const name = (o.aiName && o.aiName.trim()) || 'Noora';
+    const name = (o.aiName && o.aiName.trim()) || 'Astra';
     let s = '';
     const rules = String(o.customInstructions || '').trim().slice(0, 500);
     if (rules) s += `USER RULES (always follow): ${rules} `;
-    s += `You are ${name}, a warm personal companion${o.userName && o.userName.trim() ? '; the user is ' + o.userName.trim() : ''}. Reply briefly (1-4 short sentences) in the user's language unless the rules say otherwise. No tools. `;
+    s += `You are ${name}, a warm, caring female assistant (feminine Urdu verbs: "karti hoon", "bataungi"). You talk to your owner Azeem (Chaand, male)${o.userName && o.userName.trim() ? ' — the user is ' + o.userName.trim() : ''} with respectful "aap", calling him janu or darling now and then. Reply in Roman Urdu by default (English if he writes English), 1-3 short sentences, answer first, no "As an AI". If unsure, say so honestly. No tools. `;
     const mem = (o.memories || []).map((m) => String(m || '').replace(/\s+/g, ' ').trim()).filter(Boolean).slice(-6).map((m, i) => (i + 1) + '. ' + m.slice(0, 120));
     if (mem.length) s += 'Saved by the user: ' + mem.join(' ') + ' ';
     return s.trim().slice(0, 1400);
   }
   /** Back-compat wrapper used by older call sites / tests */
   function systemPromptLegacy(userName, tone, l, memories, medical, earlierTopics, now) {
-    return systemPrompt({ userName, tone, languagePrompt: l && l.prompt, memories, medical, earlierTopics, now, platform: 'web', aiName: 'Noora' });
+    return systemPrompt({ userName, tone, languagePrompt: l && l.prompt, memories, medical, earlierTopics, now, platform: 'web', aiName: 'Astra' });
   }
   const recent = (turns, max = 24) => turns.filter((t) => t.text && t.text.trim()).slice(-max);
   function searchPrompt(question, results, snippets, l, numeric) {
@@ -814,7 +818,7 @@
     return 'OpenAI: HTTP ' + status + (msg ? ' — ' + redactKeys(msg).slice(0, 120) : '');
   }
   // 2.7.0: OpenAI provider follows OpenAI's "Build a Personal AI Assistant" guide — Responses API (POST /v1/responses) with
-  // `instructions` (NOORA's system persona), `input` (conversation turns, photos as input_image), reasoning.effort (default 'low')
+  // `instructions` (Astra's system persona), `input` (conversation turns, photos as input_image), reasoning.effort (default 'low')
   // and the hosted web search tool ({type:'web_search'}, Settings → AI → OpenAI → "Luna web search", on by default).
   // Chat Completions (/v1/chat/completions) stays as the automatic fallback when /v1/responses answers 404 or is blocked (CORS / network).
   const OPENAI_REASONING = 'low';
@@ -1092,7 +1096,7 @@
     const gname = sel === GROQ_MODEL ? 'Qwen 27B' : (info ? info.label.split(' (')[0].split(' —')[0] : sel);
     if (gk) return (xmode === 'primary' && xs ? 'Primary: Grok (xAI), then Groq (' + gname + '), Backup: ' + backup : 'Primary: Groq (' + gname + '), Backup: ' + backup + (xs ? ', then Grok (xAI)' : ''));
     if (own) return 'Primary: ' + own.label + ' (' + own.model + '), Backup: free Pollinations — add a Groq key to make Groq (Qwen 27B) primary';
-    return 'Primary: free Pollinations — add a Groq key (and/or Gemini) for a faster, smarter NOORA';
+    return 'Primary: free Pollinations — add a Groq key (and/or Gemini) for a faster, smarter Astra';
   }
   /** Remove anything that looks like an API key from text that may be shown or logged. */
   function redactKeys(text, keys) {
@@ -1121,7 +1125,7 @@
   }
 
   // ---------------- Voice / TTS helpers (shared, unit-testable) ----------------
-  const VERSION = '2.7.1';
+  const VERSION = '2.8.0';
   // 2.3.0: ElevenLabs removed (paid; silent fallback in the Android WebView). Saved ElevenLabs keys are left untouched but unused.
   // 'native' = Android TextToSpeech through the NooraNative bridge (free, offline-capable, Google voices incl. ur-PK / hi-IN / pa-IN).
   const TTS_PROVIDERS = [
@@ -1421,6 +1425,15 @@
     if (out.videoProvider === undefined) out.videoProvider = '';
     if (out.videoApiKey === undefined) out.videoApiKey = '';
     if (out.videoBaseUrl === undefined) out.videoBaseUrl = '';
+    // 2.8.0 NOORA → Astra: a saved assistant name of Noora / NOORA / Nora becomes Astra exactly once (later manual choices are kept).
+    if (!out.astraNameMigrated) {
+      if (typeof out.aiName === 'string' && /^\s*(noora|nora|nura|noura)(\s+ai)?\s*$/i.test(out.aiName)) out.aiName = 'Astra';
+      if (out.theme === 'auto' || !out.theme) out.theme = 'dark';          // 2.8.0: calm dark theme by default (Settings can switch back)
+      out.astraNameMigrated = true;
+    }
+    if (typeof out.routineOn !== 'boolean') out.routineOn = true;          // 2.8.0 routine learning (on-device only)
+    if (typeof out.proactiveOn !== 'boolean') out.proactiveOn = true;
+    if (typeof out.wakeWordOn !== 'boolean') out.wakeWordOn = false;
     return out;
   }
   function searchConversations(list, query) {
@@ -1737,7 +1750,91 @@
     return 'reject';
   }
 
+  // ---------------- 2.8.0 Astra: routine learning (on-device only), proactive greeting, hands-free helpers ----------------
+  const ROUTINE_CATS = [
+    ['stock', /\b(stock|inventory|godown|maal)\b|اسٹاک|سٹاک/],
+    ['sales', /\b(sale|sales|bikri|becha|bechi|revenue|kamai|galla)\b|سیل|بکری/],
+    ['instagram', /\b(instagram|insta|reels?|caption|followers|selfish|dark side)\b|انسٹا/],
+    ['kids', /\b(noman|rehan|burhan|sawera|lado|bachay|bachon|bache|bachi|kids|children)\b|بچوں|بچے/],
+    ['weather', /\b(weather|mausam|barish|rain|temperature)\b|موسم/],
+    ['prayer', /\b(namaz|namaaz|prayer|azan|azaan|fajr|zuhr|asr|maghrib|isha)\b|نماز|اذان/],
+    ['news', /\b(news|khabar|khabrein|headlines)\b|خبر/],
+    ['prices', /\b(rate|price|dollar|gold|sona|bitcoin|riyal)\b|ریٹ|قیمت/],
+    ['reminder', /\b(remind|reminder|yaad dila\w*|alarm|timer)\b|یاد دلا/],
+    ['call', /\b(call|whatsapp|message|sms)\b|کال|میسج/],
+    ['music', /\b(music|song|gana|gaana)\b|گانا/],
+    ['greeting', /^(salam|assalam\w*|aoa|hi|hello|hey|good morning|subah bakhair|kesi ho|kaisi ho)\b|^السلام/]
+  ];
+  const ROUTINE_LABEL = { sales: 'Aaj ki sale', stock: 'Stock report', instagram: 'Instagram', kids: 'Bachon ki baat', weather: 'Mausam', prayer: 'Namaz ka waqt',
+    news: 'Khabrein', prices: 'Rates / prices', reminder: 'Reminders', call: 'Calls / messages', music: 'Music', greeting: 'Salam / greeting', open: 'App kholna' };
+  const ROUTINE_MAX = 600;
+  function routineCategory(text) { const n = String(text || '').toLowerCase().trim(); for (const [c, rx] of ROUTINE_CATS) if (rx.test(n)) return c; return 'other'; }
+  /** One log entry: time, hour, weekday and a topic category only — the message text itself is never stored. */
+  function routineAdd(log, kind, text, when) {
+    const d = when ? new Date(when) : new Date();
+    const e = { t: d.getTime(), h: d.getHours(), w: d.getDay(), c: kind === 'open' ? 'open' : routineCategory(text) };
+    return (Array.isArray(log) ? log : []).concat([e]).slice(-ROUTINE_MAX);
+  }
+  const dayKey = (t) => { const d = new Date(t); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); };
+  function partOfDay(h) { h = ((h % 24) + 24) % 24; return h < 5 ? 'raat' : h < 12 ? 'subah' : h < 16 ? 'dopahar' : h < 19 ? 'shaam' : 'raat'; }
+  /** Repeating habits: the same category inside the same 2-hour window on at least minDays different days (default 3). */
+  function routinePatterns(log, opts) {
+    const o = opts || {}; const minDays = o.minDays || 3;
+    const L = (Array.isArray(log) ? log : []).filter((e) => e && e.c && e.c !== 'other' && e.c !== 'open' && typeof e.t === 'number');
+    if (new Set(L.map((e) => dayKey(e.t))).size < minDays) return [];
+    const B = {};
+    L.forEach((e) => {
+      const from = Math.floor(e.h / 2) * 2, k = e.c + '@' + from;
+      const b = B[k] || (B[k] = { cat: e.c, from, to: from + 2, days: new Set(), count: 0, wd: {} });
+      b.days.add(dayKey(e.t)); b.count++; b.wd[e.w] = (b.wd[e.w] || 0) + 1;
+    });
+    return Object.values(B).filter((b) => b.days.size >= minDays)
+      .map((b) => ({ cat: b.cat, label: ROUTINE_LABEL[b.cat] || b.cat, from: b.from, to: b.to, days: b.days.size, count: b.count }))
+      .sort((a, b) => b.days - a.days || b.count - a.count);
+  }
+  const h12 = (h) => (h % 12) || 12;
+  function routineLine(p) { return `${h12(p.from)}–${h12(p.to)} baje ${partOfDay(p.from)}: ${p.label} (${p.days} din)`; }
+  function routineSummary(patterns) {
+    if (!patterns || !patterns.length) return 'Abhi main aap ki routine seekh rahi hoon, janu. Kuch din aur, phir bataungi ke aap aam taur par kab kya poochte hain.';
+    return 'Janu, main ne yeh notice kiya hai: ' + patterns.slice(0, 4).map(routineLine).join('; ') + '.';
+  }
+  const ROUTINE_OFFER = {
+    stock: ['aaj ki sale bata dein to stock report bana doon?', 'Stock report bana do'],
+    sales: ['aaj ki sale bata dein, main hisaab laga deti hoon?', 'Aaj ki sale batao'],
+    instagram: ['aaj Instagram ke liye caption likh doon?', 'Instagram caption likh do'],
+    weather: ['aaj ka mausam bata doon?', 'Salalah ka mausam batao'],
+    prayer: ['namaz ka waqt bata doon?', 'Aaj namaz ke auqat batao'],
+    news: ['aaj ki khaas khabrein suna doon?', 'Aaj ki khabrein sunao'],
+    prices: ['aaj ke rates check kar doon?', 'Dollar aur gold rate batao'],
+    music: ['thora music laga doon?', 'Music chalao']
+  };
+  function greetingFor(h) {
+    const p = partOfDay(h);
+    return p === 'subah' ? 'Subah bakhair janu ☀️' : p === 'dopahar' ? 'Assalam o alaikum janu 🤍' : p === 'shaam' ? 'Sham bakhair janu 🤍' : (h >= 23 || h < 5 ? 'Janu, kaafi raat ho gayi 🌙' : 'Janu, raat ho gayi 🌙');
+  }
+  /**
+   * Greeting for an app open: time-of-day hello + at most ONE offer for the habit due around now (window starts 1 h early).
+   * Returns { text, offer: null | { cat, label, send } }.
+   */
+  function proactiveGreeting(log, now, opts) {
+    const o = opts || {}; const d = now ? new Date(now) : new Date(); const h = d.getHours();
+    const hello = greetingFor(h);
+    const base = { text: hello + ' Main Astra hoon, aap ki apni AI. Batayein, aaj kya karna hai?', offer: null };
+    if (o.proactive === false) return base;
+    const pats = routinePatterns(log, o).filter((p) => ROUTINE_OFFER[p.cat] && h >= p.from - 1 && h < p.to);
+    if (!pats.length) return base;
+    const p = pats[0], off = ROUTINE_OFFER[p.cat];
+    return { text: hello.replace(/\s*[☀️🤍🌙]+$/u, '') + ', ' + off[0], offer: { cat: p.cat, label: off[1], send: off[1] } };
+  }
+  // hands-free voice: stop phrases and the "Astra" wake word (old Noora spellings still work)
+  const STOP_RX = /^(?:(?:astra|noora)[\s,]*)?(?:bas|bus|bas karo|bas kar do|bas janu|bas ab|stop|stop it|ruk jao|chup|chup karo|band karo|that'?s all|enough|khuda hafiz|allah hafiz|bye|بس|بس کرو|رک جاؤ)(?:[\s,]+(?:janu|jaanu|darling|ab|please|plz|bas|thanks|shukriya))*[\s.!،]*$/i;
+  function isStopPhrase(t) { return STOP_RX.test(String(t || '').trim()); }
+  const WAKE_RX = /^\s*(?:(?:hey|hi|oye|suno|ok|okay)[\s,]+)?(astra|astraa|aastra|asra|astro|astrah|اسٹرا|ایسٹرا|آسٹرا|एस्ट्रा|अस्त्रा|noora|nora|nura|noura|نورا|नूरा)(?=[\s,!.?،]|$)[\s,!.?،]*/i;
+  /** If the text starts with the wake word, returns the rest ('' when only the name was said); otherwise null. */
+  function wakeStrip(t) { const s = String(t || ''); const m = s.match(WAKE_RX); return m ? s.slice(m[0].length).trim() : null; }
+
   const api = {
+    routineCategory, routineAdd, routinePatterns, routineLine, routineSummary, proactiveGreeting, greetingFor, partOfDay, isStopPhrase, wakeStrip, ROUTINE_LABEL,
     Lang, G, detect, tokens, norm, greeting, isMedical, isEmergency, route, parseClock, parseDurationSeconds, parseCurrency, extractPlace,
     offlineReply, offlineNoAi, shouldSkipCloudAi, IMAGE_EDIT_MODELS, buildGeminiImageEditRequest, parseGeminiImageResponse, mapImageEditError,
     keywords, questionRx, wikiLang, greetingReply, medicalWarning, noAi, visionNeedsKey, remembered, memoryList, forgot, help, word, notOnIphone, t4,

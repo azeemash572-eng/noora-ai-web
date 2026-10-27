@@ -1,4 +1,4 @@
-/* NOORA AI 2.3.0 — shared tool / action engine (pure JS, no DOM). Runs in Safari, Android WebView and Node (tests).
+/* Astra AI (formerly NOORA; internal ids keep the noora prefix) — shared tool / action engine (pure JS, no DOM). Runs in Safari, Android WebView and Node (tests).
    - Whitelisted tool registry: name, group, description, JSON-schema params, permissions, confirmation flag, prepare() -> action
    - URL builders (tel / sms iOS+Android / mailto / wa.me / maps / shortcuts / ics)
    - Safe calculator (recursive descent, no eval / Function)
@@ -138,9 +138,9 @@
   const icsEsc = (s) => String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
   function buildIcs(ev) {
     const start = new Date(ev.start); const end = ev.end ? new Date(ev.end) : new Date(start.getTime() + 30 * 60000);
-    const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//NOORA AI//EN', 'BEGIN:VEVENT',
+    const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Astra AI//EN', 'BEGIN:VEVENT',
       'UID:' + (ev.uid || ('noora-' + start.getTime() + '@noora')), 'DTSTAMP:' + icsDate(ev.now ? new Date(ev.now) : new Date()),
-      'DTSTART:' + icsDate(start), 'DTEND:' + icsDate(end), 'SUMMARY:' + icsEsc(ev.title || 'NOORA')];
+      'DTSTART:' + icsDate(start), 'DTEND:' + icsDate(end), 'SUMMARY:' + icsEsc(ev.title || 'Astra')];
     if (ev.location) lines.push('LOCATION:' + icsEsc(ev.location));
     if (ev.notes) lines.push('DESCRIPTION:' + icsEsc(ev.notes));
     if (ev.alarm) lines.push('BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEsc(ev.title || 'Reminder'), 'TRIGGER:PT0M', 'END:VALARM');
@@ -318,7 +318,7 @@
   const MEDIA_ACTIONS = ['play', 'pause', 'play_pause', 'next', 'previous', 'volume_up', 'volume_down', 'mute'];
   const contactProps = { number: str('Phone number exactly as the user said it (never invent one)', 32), contact: str('Contact name / nickname as the user said it, e.g. "Zarvish"', 80) };
   const isAndroid = (ctx) => !!ctx && ctx.platform === 'android';
-  const notOnWeb = (what, siri) => 'an iPhone / web app cannot ' + what + ' (Apple/browsers do not allow it)' + (siri ? '. Use Siri: "' + siri + '"' : '') + '. The Android NOORA app can.';
+  const notOnWeb = (what, siri) => 'an iPhone / web app cannot ' + what + ' (Apple/browsers do not allow it)' + (siri ? '. Use Siri: "' + siri + '"' : '') + '. The Android Astra app can.';
   const who = (a, num) => (a.contactName ? a.contactName + ' (' + num + ')' : num);
 
   const TOOLS = [
@@ -353,7 +353,7 @@
         return { summary: 'WhatsApp to ' + who(a, '+' + digits), details: [['To', '+' + digits], ['Message', a.message || '(empty)']], what: 'WhatsApp',
           action: isAndroid(ctx) ? { kind: 'native', payload: { type: 'whatsapp', digits, text: a.message || '' }, fallbackUrl: url, fallbackOn: 'not_installed' } : { kind: 'url', url, external: true } };
       } },
-    { name: 'send_message', group: 'Messaging', label: 'Message', description: 'Send a message to a contact when the user did not say which app ("<name> ko likho …", "send a message to <name>"). app = whatsapp or sms if the user said it; otherwise leave it out and NOORA asks. The user presses Send.',
+    { name: 'send_message', group: 'Messaging', label: 'Message', description: 'Send a message to a contact when the user did not say which app ("<name> ko likho …", "send a message to <name>"). app = whatsapp or sms if the user said it; otherwise leave it out and Astra asks. The user presses Send.',
       params: S(Object.assign({}, contactProps, { message: str('Message text in the user\'s words', 1000), app: { type: 'string', enum: MESSENGERS } }), [], [['number'], ['contact']]), confirm: true, risk: 'contact',
       prepare(a, ctx) {
         const pref = a.app || (ctx && ctx.settings && MESSENGERS.includes(ctx.settings.defaultMessenger) ? ctx.settings.defaultMessenger : '');
@@ -405,7 +405,7 @@
         const details = [['Title', a.title], ['Start', fmtWhen(start)], ['End', fmtWhen(end)]].concat(a.location ? [['Location', a.location]] : []);
         const summary = 'Calendar: ' + a.title + ' · ' + fmtWhen(start);
         if (isAndroid(ctx)) return { summary, details, what: 'Calendar', action: { kind: 'native', payload: { type: 'calendar', title: a.title, begin: start.getTime(), end: end.getTime(), location: a.location || '', notes: a.notes || '' } } };
-        return { summary, details, what: 'Calendar', action: { kind: 'ics', filename: 'noora-event.ics', content: buildIcs({ title: a.title, start, end, location: a.location, notes: a.notes }), needsTap: true, tapLabel: '📅 Add to Calendar' } };
+        return { summary, details, what: 'Calendar', action: { kind: 'ics', filename: 'astra-event.ics', content: buildIcs({ title: a.title, start, end, location: a.location, notes: a.notes }), needsTap: true, tapLabel: '📅 Add to Calendar' } };
       } },
     { name: 'set_reminder', group: 'Reminder', label: 'Reminder', description: 'Remind the user at a time (Android: local notification; iPhone/web: calendar .ics with an alert).',
       params: S({ text: str('What to remind', 300), at: str('When: ISO 8601 or natural ("5 baje", "in 10 minutes", "kal 7 baje")', 60) }, ['text', 'at']), permissions: ['POST_NOTIFICATIONS (Android 13+)'],
@@ -416,15 +416,15 @@
         const details = [['Reminder', a.text], ['When', fmtWhen(at)]];
         const summary = 'Reminder: ' + a.text + ' · ' + fmtWhen(at);
         if (isAndroid(ctx)) return { summary, details, what: 'Reminder', action: { kind: 'native', payload: { type: 'reminder', at: at.getTime(), text: a.text } } };
-        return { summary, details, what: 'Calendar reminder', action: { kind: 'ics', filename: 'noora-reminder.ics', content: buildIcs({ title: a.text, start: at, end: new Date(at.getTime() + 15 * 60000), alarm: true }), needsTap: true, tapLabel: '⏰ Add reminder to Calendar' } };
+        return { summary, details, what: 'Calendar reminder', action: { kind: 'ics', filename: 'astra-reminder.ics', content: buildIcs({ title: a.text, start: at, end: new Date(at.getTime() + 15 * 60000), alarm: true }), needsTap: true, tapLabel: '⏰ Add reminder to Calendar' } };
       } },
     { name: 'set_alarm', group: 'Alarm', label: 'Alarm', description: 'Set an alarm in the Clock app (Android).',
       params: S({ hour: { type: 'integer', minimum: 0, maximum: 23 }, minute: { type: 'integer', minimum: 0, maximum: 59 }, label: str('Label', 80), day: { type: 'string', enum: ['today', 'tomorrow', 'next'] } }, ['hour']),
       platforms: ['android'], unavailable: notOnWeb('set alarms', 'Hey Siri, set an alarm for 7 AM'),
-      prepare(a) { const m = a.minute || 0; const hm = pad(a.hour) + ':' + pad(m); return { summary: 'Alarm ' + hm + (a.day === 'tomorrow' ? ' (Clock sets the next ' + hm + ')' : ''), what: 'Clock', action: { kind: 'native', payload: { type: 'alarm', hour: a.hour, minute: m, label: a.label || 'NOORA' } } }; } },
+      prepare(a) { const m = a.minute || 0; const hm = pad(a.hour) + ':' + pad(m); return { summary: 'Alarm ' + hm + (a.day === 'tomorrow' ? ' (Clock sets the next ' + hm + ')' : ''), what: 'Clock', action: { kind: 'native', payload: { type: 'alarm', hour: a.hour, minute: m, label: a.label || 'Astra' } } }; } },
     { name: 'set_timer', group: 'Timer', label: 'Timer', description: 'Start a countdown timer in the Clock app (Android).',
       params: S({ seconds: { type: 'integer', minimum: 1, maximum: 86400 }, label: str('Label', 80) }, ['seconds']), platforms: ['android'], unavailable: notOnWeb('set timers', 'Hey Siri, set a timer for 10 minutes'),
-      prepare(a) { const mins = Math.floor(a.seconds / 60), secs = a.seconds % 60; return { summary: 'Timer ' + ((mins ? mins + ' min ' : '') + (secs ? secs + ' s' : '')).trim(), what: 'Clock', action: { kind: 'native', payload: { type: 'timer', seconds: a.seconds, label: a.label || 'NOORA' } } }; } },
+      prepare(a) { const mins = Math.floor(a.seconds / 60), secs = a.seconds % 60; return { summary: 'Timer ' + ((mins ? mins + ' min ' : '') + (secs ? secs + ' s' : '')).trim(), what: 'Clock', action: { kind: 'native', payload: { type: 'timer', seconds: a.seconds, label: a.label || 'Astra' } } }; } },
     { name: 'open_files', group: 'Files', label: 'Files', description: 'Open Downloads (Android) or the file picker.', params: S({ where: { type: 'string', enum: ['downloads', 'picker'] } }),
       prepare(a, ctx) {
         if (isAndroid(ctx) && a.where !== 'picker') return { summary: 'Open Downloads', what: 'Downloads', action: { kind: 'native', payload: { type: 'downloads' } } };
@@ -449,20 +449,20 @@
     { name: 'torch', group: 'SystemSettings', label: 'Torch', description: 'Turn the flashlight on/off (Android).', params: S({ on: { type: 'boolean' } }), platforms: ['android'], unavailable: notOnWeb('switch the torch', 'Hey Siri, turn on the torch'),
       prepare(a) { const on = a.on !== false; return { summary: 'Torch ' + (on ? 'on' : 'off'), action: { kind: 'native', payload: { type: 'torch', on } } }; } },
     { name: 'notify', group: 'Notification', label: 'Notification', description: 'Show a local notification now.', params: S({ title: str('Title', 100), text: str('Text', 500) }, ['text']), permissions: ['POST_NOTIFICATIONS'],
-      prepare(a, ctx) { return { summary: 'Notification: ' + a.text, action: isAndroid(ctx) ? { kind: 'native', payload: { type: 'notify', title: a.title || 'NOORA', text: a.text } } : { kind: 'local', op: 'notify', title: a.title || 'NOORA', text: a.text, needsTap: true, tapLabel: '🔔 Show notification' } }; } },
+      prepare(a, ctx) { return { summary: 'Notification: ' + a.text, action: isAndroid(ctx) ? { kind: 'native', payload: { type: 'notify', title: a.title || 'Astra', text: a.text } } : { kind: 'local', op: 'notify', title: a.title || 'Astra', text: a.text, needsTap: true, tapLabel: '🔔 Show notification' } }; } },
     { name: 'open_app', group: 'AppLauncher', label: 'Open app', description: 'Open an installed app by name (Android). On iPhone/web only well-known apps with web links can be opened.',
       params: S({ name: str('App name, e.g. WhatsApp, YouTube, Camera', 80) }, ['name']),
       prepare(a, ctx) {
         const name = a.name.toLowerCase().replace(/\b(the|app)\b/g, '').replace(/\s+/g, ' ').trim();
         if (isAndroid(ctx)) return { summary: 'Open ' + a.name, what: a.name, action: { kind: 'native', payload: { type: 'openApp', name } } };
         const link = WEB_APP_LINKS[name];
-        if (!link) fail('unavailable', 'an iPhone / web app cannot open other apps by name. Say "Hey Siri, open ' + a.name + '" — the Android NOORA app can do it.');
+        if (!link) fail('unavailable', 'an iPhone / web app cannot open other apps by name. Say "Hey Siri, open ' + a.name + '" — the Android Astra app can do it.');
         return { summary: 'Open ' + a.name + ' (web link — opens the app if installed)', what: a.name, action: { kind: 'url', url: link, external: true } };
       } },
     { name: 'run_shortcut', group: 'Shortcut', label: 'iOS Shortcut', description: 'Run an iOS Shortcut by name, optionally passing text. iOS asks the user to allow it.',
       params: S({ name: str('Shortcut name exactly as in the Shortcuts app', 120), input: str('Text to pass (optional)', 1000) }, ['name']), platforms: ['ios-web', 'web'], confirm: true, risk: 'automation',
-      unavailable: 'iOS Shortcuts exist only on iPhone / iPad — on Android NOORA uses intents instead.',
-      prepare(a) { return { summary: 'Run Shortcut "' + a.name + '"' + (a.input ? ' with text' : ''), details: [['Shortcut', a.name]].concat(a.input ? [['Text', a.input]] : []), what: 'Shortcuts', note: 'iOS will ask you to allow NOORA to run this shortcut.', action: { kind: 'url', url: shortcutUrl(a.name, a.input), external: true } }; } },
+      unavailable: 'iOS Shortcuts exist only on iPhone / iPad — on Android Astra uses intents instead.',
+      prepare(a) { return { summary: 'Run Shortcut "' + a.name + '"' + (a.input ? ' with text' : ''), details: [['Shortcut', a.name]].concat(a.input ? [['Text', a.input]] : []), what: 'Shortcuts', note: 'iOS will ask you to allow Astra to run this shortcut.', action: { kind: 'url', url: shortcutUrl(a.name, a.input), external: true } }; } },
     { name: 'web_search', group: 'Web', label: 'Web search', description: 'Look up live news headlines. Never fabricate results.', params: S({ query: str('Search query', 300) }, ['query']), info: true,
       prepare(a) { return { summary: 'Search: ' + a.query, action: { kind: 'local', op: 'web_search', query: a.query } }; } },
     { name: 'calculator', group: 'Utility', label: 'Calculator', description: 'Evaluate arithmetic: + - * / % ^, brackets, decimals, sqrt.', params: S({ expression: str('Math expression', 300) }, ['expression']), info: true,
@@ -479,7 +479,7 @@
         }
         return { summary: 'Remember: ' + a.fact, action: { kind: 'local', op: 'remember', fact: a.fact, category: a.category || 'facts' } };
       } },
-    { name: 'recall_memory', group: 'Memory', label: 'Recall memory', description: 'List what NOORA remembers.', params: S({}), info: true, prepare() { return { summary: 'Recall memory', action: { kind: 'local', op: 'recall' } }; } },
+    { name: 'recall_memory', group: 'Memory', label: 'Recall memory', description: 'List what Astra remembers.', params: S({}), info: true, prepare() { return { summary: 'Recall memory', action: { kind: 'local', op: 'recall' } }; } },
     { name: 'generate_image', group: 'Image', label: 'Image', description: 'Generate an image from a text prompt (Pollinations).', params: S({ prompt: str('Image prompt', 1000) }, ['prompt']),
       prepare(a) { return { summary: 'Generate image: ' + a.prompt, action: { kind: 'local', op: 'image', prompt: a.prompt } }; } },
     { name: 'generate_video', group: 'Video', label: 'Video', description: 'Generate a video (needs a configured video provider).', params: S({ prompt: str('Video prompt', 1000) }, ['prompt']),
@@ -514,7 +514,7 @@
   /** Validate + build an action descriptor → {ok, tool, args, confirm, summary, details, action} | {ok:false, code, error}. */
   function prepare(name, rawArgs, ctx) {
     const t = getTool(name);
-    if (!t) return { ok: false, code: 'unknown_tool', error: 'Unknown tool "' + String(name).slice(0, 40) + '" — only built-in NOORA tools can run.' };
+    if (!t) return { ok: false, code: 'unknown_tool', error: 'Unknown tool "' + String(name).slice(0, 40) + '" — only built-in Astra tools can run.' };
     const platform = (ctx && ctx.platform) || 'web';
     const av = availability(t, platform);
     if (!av.ok) return { ok: false, code: 'unavailable', tool: t.name, label: t.label, error: av.reason };
@@ -585,7 +585,7 @@
     return { text: stripped, calls };
   }
   function toolPromptNative() {
-    return 'ACTIONS: you can call NOORA functions for phone/app actions (call, SMS, WhatsApp, email, maps, alarms, timers, reminders, calendar, camera, apps, settings, media, shortcuts, web search, calculator, memory, images). Call a function ONLY when the user clearly asks for an action; several functions in order for multi-step requests. Use the contact name exactly as spoken (include relation words / honorifics as said, e.g. contact:"<name> bhai") — NEVER invent phone numbers or email addresses, and never ask the user for a number when they gave a name: the app looks the name up in the phone\'s own contacts privately (names/numbers are never sent to you). To message someone use send_whatsapp (WhatsApp mentioned), send_sms (SMS mentioned) or send_message (app not said); to call use call_phone; find_contact is ONLY for "show me X\'s number". If the message text is missing, call the function without "message" — the app asks. Speech-to-text often mishears the wake word (any sound-alike of "Noora" at the start) — ignore it. If the user asks to edit / change / remove something in an attached photo, call edit_image — never say you have no image editing tools. Never answer "I can\'t do that" for anything these functions cover — call the function instead. Write message text in the user\'s own language/style. Never say an action is already done — the app confirms with the user and reports the real result. Keep your text reply to one warm short sentence when calling functions.';
+    return 'ACTIONS: you can call Astra app functions for phone/app actions (call, SMS, WhatsApp, email, maps, alarms, timers, reminders, calendar, camera, apps, settings, media, shortcuts, web search, calculator, memory, images). Call a function ONLY when the user clearly asks for an action; several functions in order for multi-step requests. Use the contact name exactly as spoken (include relation words / honorifics as said, e.g. contact:"<name> bhai") — NEVER invent phone numbers or email addresses, and never ask the user for a number when they gave a name: the app looks the name up in the phone\'s own contacts privately (names/numbers are never sent to you). To message someone use send_whatsapp (WhatsApp mentioned), send_sms (SMS mentioned) or send_message (app not said); to call use call_phone; find_contact is ONLY for "show me X\'s number". If the message text is missing, call the function without "message" — the app asks. Speech-to-text often mishears the wake word (any sound-alike of "Noora" at the start) — ignore it. If the user asks to edit / change / remove something in an attached photo, call edit_image — never say you have no image editing tools. Never answer "I can\'t do that" for anything these functions cover — call the function instead. Write message text in the user\'s own language/style. Never say an action is already done — the app confirms with the user and reports the real result. Keep your text reply to one warm short sentence when calling functions.';
   }
   function toolPromptFallback(platform) {
     const lines = TOOLS.filter((t) => availability(t, platform).ok && t.name !== 'generate_video').map((t) => '- ' + t.name + '(' + Object.keys(t.params.properties || {}).join(', ') + '): ' + t.description);
@@ -596,7 +596,7 @@
   // ---------------- natural-language command parser ----------------
   // Speech-to-text often mishears the wake word. Known spellings are listed; any other n-vowel(s)-r-vowel sound-alike at the very
   // start is also treated as the wake word (WAKE_LIKE), unless it is clearly the object of the sentence ("<name> ko …").
-  const WAKE_WORDS = 'noora|nora|nura|noura|norah|noorah|nooraa|nuura|nurah|نورا|نورہ|नूरा|नोरा';
+  const WAKE_WORDS = 'astra|astraa|aastra|asra|astrah|اسٹرا|ایسٹرا|آسٹرا|एस्ट्रा|अस्त्रा|noora|nora|nura|noura|norah|noorah|nooraa|nuura|nurah|نورا|نورہ|नूरा|नोरा';
   const WAKE_LIKE = /^n[aeiou]{1,3}[vw]?r[aeiou]{1,2}h?[\s,!.]+(?!(?:ko|kou|ka|ki|ke|se|to|and|aur|ne)\b)/i;
   const ADDR_WORDS = 'janu|jaanu|jaan|jan|janoo|jani|darling|baby|babu|sweetheart|love|' + WAKE_WORDS + '|meri jaan|yaar|yar|ji|jee|hey|hi|oye|suno|sunno|please|plz|pls|zara|acha|achha|ok|okay';
   const ADDRESS_RX = new RegExp('^(?:(?:' + ADDR_WORDS + ')[\\s,!.]+)+', 'i');
@@ -931,7 +931,7 @@
     if (base.includes('generativelanguage.googleapis.com')) return { ok: true, route: 'input_audio' };
     if (base.includes('api.openai.com')) return { ok: true, route: 'transcriptions', model: 'whisper-1' };
     if (base.includes('api.groq.com')) return { ok: true, route: 'transcriptions', model: 'whisper-large-v3-turbo' };
-    return { ok: false, reason: 'Your provider (' + s.provider + ') has no known transcription endpoint in NOORA — Gemini, OpenAI or Groq keys can transcribe.' };
+    return { ok: false, reason: 'Your provider (' + s.provider + ') has no known transcription endpoint in Astra — Gemini, OpenAI or Groq keys can transcribe.' };
   }
   function visionReady(settings) {
     const s = settings || {};

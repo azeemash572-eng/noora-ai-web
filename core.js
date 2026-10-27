@@ -102,7 +102,9 @@
     ['allah hafiz', G.BYE], ['khuda hafiz', G.BYE], ['goodbye', G.BYE], ['bye bye', G.BYE], ['bye', G.BYE], ['see you', G.BYE], ['اللہ حافظ', G.BYE], ['خدا حافظ', G.BYE],
     ['अलविदा', G.BYE], ['ਅਲਵਿਦਾ', G.BYE], ['phir milte hain', G.BYE],
     ['hello', G.HELLO], ['hello there', G.HELLO], ['hi', G.HELLO], ['hii', G.HELLO], ['hey', G.HELLO], ['heya', G.HELLO], ['hola', G.HELLO], ['ہیلو', G.HELLO],
-    ['हेलो', G.HELLO], ['हैलो', G.HELLO], ['ਹੈਲੋ', G.HELLO]
+    ['हेलो', G.HELLO], ['हैलो', G.HELLO], ['ਹੈਲੋ', G.HELLO],
+    // 2.8.1: "tum kon ho?" → instant self-intro (Main Astra hoon, janu. Batayein, kya karna hai?)
+    ['who are you', G.HELLO], ['kon ho', G.HELLO], ['kaun ho', G.HELLO], ['kon hain', G.HELLO], ['kaun hain', G.HELLO], ['kon ho tum', G.HELLO], ['کون ہو', G.HELLO], ['کون ہیں', G.HELLO], ['कौन हो', G.HELLO], ['कौन हैं', G.HELLO]
   ].sort((a, b) => b[0].length - a[0].length);
   const greetFiller = set(('astra astraa asra noora nora nura نورا नूरा ਨੂਰਾ ji jee جی जी ਜੀ dear jaan yaar yar bhai aap ap tum tu you there aj aaj kal sab oye my friend sis baji and aur ' +
     'آپ تم आप तुम ਤੁਸੀਂ very much so bohat ok okay acha theek today doing hain hai ho ہو ہیں ہے हो है हैं ਹੋ ਹੈ u r is it everything all kiven').split(' '));
@@ -336,8 +338,8 @@
         `ਵਾਲੈਕੁਮ ਅੱਸਲਾਮ${N}! ਦੱਸੋ, ਮੈਂ ਤੁਹਾਡੀ ਕੀ ਮਦਦ ਕਰ ਸਕਦੀ ਹਾਂ?`, `وعلیکم السلام${N}! دسو، میں تہاڈی کی مدد کر سکدی آں؟`, `Wa alaikum assalam${N}! Dasso, main tuhadi ki madad kar sakdi haan?`);
       case G.HOW_ARE_YOU: return pick(l, `I'm good${N}, even better now that you're here 🤍 How are you?`, `میں بالکل ٹھیک ہوں جانو، آپ آ گئے تو اور اچھی ہو گئی 🤍 آپ سنائیں، کیسے ہیں؟`, `Main bilkul theek hoon janu, aap aa gaye to aur achi ho gayi 🤍 Aap sunayein, kaise hain?`,
         `मैं ठीक हूँ, शुक्रिया${N}! आप कैसे हैं?`, `ਮੈਂ ਠੀਕ ਹਾਂ, ਸ਼ੁਕਰੀਆ${N}! ਤੁਸੀਂ ਕਿਵੇਂ ਹੋ?`, `میں ٹھیک آں، شکریہ${N}! تسیں کیویں او؟`, `Main vadiya haan, shukriya${N}! Tusi kiddan?`);
-      case G.HELLO: return pick(l, `Hi${N}! I'm Astra, your own AI. What can I do for you?`, `میں ایسٹرا ہوں، آپ کی اپنی AI، جانو۔ بتائیں کیا کرنا ہے؟`, `Main Astra hoon, aap ki apni AI, janu. Batayein, kya karna hai?`,
-        `नमस्ते${N}! मैं एस्ट्रा हूँ, आपकी अपनी AI। बताइए क्या करूँ?`, `ਸਤ ਸ੍ਰੀ ਅਕਾਲ${N}! ਮੈਂ ਐਸਟ੍ਰਾ ਹਾਂ, ਤੁਹਾਡੀ ਆਪਣੀ AI। ਦੱਸੋ ਕੀ ਕਰਾਂ?`, `ست سری اکال${N}! میں ایسٹرا آں، تہاڈی اپنی AI۔ دسو کی کراں؟`, `Sat Sri Akal${N}! Main Astra haan, tuhadi apni AI. Dasso ki karaan?`);
+      case G.HELLO: return pick(l, `Hi${N}! I'm Astra, janu. What should we do?`, `میں ایسٹرا ہوں، جانو۔ بتائیں، کیا کرنا ہے؟`, `Main Astra hoon, janu. Batayein, kya karna hai?`,
+        `नमस्ते${N}! मैं एस्ट्रा हूँ। बताइए क्या करूँ?`, `ਸਤ ਸ੍ਰੀ ਅਕਾਲ${N}! ਮੈਂ ਐਸਟ੍ਰਾ ਹਾਂ। ਦੱਸੋ ਕੀ ਕਰਾਂ?`, `ست سری اکال${N}! میں ایسٹرا آں۔ دسو کی کراں؟`, `Sat Sri Akal${N}! Main Astra haan. Dasso ki karaan?`);
       case G.GOOD_MORNING: return pick(l, `Good morning${N}! ☀️ Have a lovely day. What should I do first?`, `صبح بخیر جانو ☀️ آپ کا دن اچھا گزرے۔ بتائیں، پہلے کیا کروں؟`,
         `Subah bakhair janu ☀️ Aap ka din acha guzre. Batayein, pehle kya karun?`, `सुप्रभात${N}! आपका दिन अच्छा हो। बताइए क्या मदद करूँ?`, `ਸ਼ੁਭ ਸਵੇਰ${N}! ਤੁਹਾਡਾ ਦਿਨ ਵਧੀਆ ਲੰਘੇ। ਦੱਸੋ ਕੀ ਮਦਦ ਕਰਾਂ?`,
         `صبح بخیر${N}! تہاڈا دن چنگا لنگھے۔ دسو کی مدد کراں؟`, `Good morning${N}! Tuhada din vadiya langhe. Dasso ki madad karaan?`);
@@ -448,7 +450,7 @@
     if (has(/\b(good evening|sham bakhair|good afternoon)\b|شام بخیر|शुभ संध्या/)) return t4(l, `Good evening${N}! How was your day?`, `شام بخیر${N}! دن کیسا گزرا؟`, `Sham bakhair janu! Aaj din kaisa guzra?`, `शुभ संध्या${N}! दिन कैसा रहा?`);
     if (has(/\b(bye|goodbye|allah hafiz|allah hafiz|khuda hafiz|see you|tc|take care|chalta hoon|chalti hoon)\b|اللہ حافظ|خدا حافظ|अलविदा/)) return t4(l, `Take care${N}! I'll be right here 🤍`, `اللہ حافظ جانو، میں یہیں ہوں 🤍`, `Allah Hafiz janu, main yahin hoon 🤍`, `अलविदा${N}! मैं यहीं हूँ 🤍`);
     // identity / how are you (short casual forms the router may miss)
-    if (has(/\b(who are you|tum kaun ho|aap kaun ho|kon ho|kaun ho|your name|tumhara naam|aap ka naam|intro)\b|کون ہو|कौन हो|تم کون/)) return t4(l, "I'm Astra, your own AI 🤍 No internet right now, but I can still chat a little and do phone actions — calls, messages, alarms, timers, torch, apps.", 'میں ایسٹرا ہوں، آپ کی اپنی AI، جانو 🤍 ابھی انٹرنیٹ نہیں — پھر بھی تھوڑی گپ شپ اور فون کے کام (کال، میسج، الارم، ٹائمر، ٹارچ، ایپس) کر سکتی ہوں۔', "Main Astra hoon, aap ki apni AI, janu 🤍 Abhi internet nahi, phir bhi thori gup shup aur phone ke kaam (call, message, alarm, timer, torch, apps) kar sakti hoon.", 'मैं एस्ट्रा हूँ, आपकी अपनी AI 🤍 अभी इंटरनेट नहीं — थोड़ी बातचीत और फ़ोन के काम (कॉल, मैसेज, अलार्म, टाइमर, टॉर्च, ऐप्स) कर सकती हूँ।');
+    if (has(/\b(who are you|tum kaun ho|aap kaun ho|kon ho|kaun ho|your name|tumhara naam|aap ka naam|intro)\b|کون ہو|कौन हो|تم کون/)) return t4(l, "I'm Astra, janu. What should we do? 🤍 No internet right now, but I can still chat a little and do phone actions — calls, messages, alarms, timers, torch, apps.", 'میں ایسٹرا ہوں، جانو۔ بتائیں، کیا کرنا ہے؟ 🤍 ابھی انٹرنیٹ نہیں — پھر بھی تھوڑی گپ شپ اور فون کے کام (کال، میسج، الارم، ٹائمر، ٹارچ، ایپس) کر سکتی ہوں۔', "Main Astra hoon, janu. Batayein, kya karna hai? 🤍 Abhi internet nahi, phir bhi thori gup shup aur phone ke kaam (call, message, alarm, timer, torch, apps) kar sakti hoon.", 'मैं एस्ट्रा हूँ 🤍 अभी इंटरनेट नहीं — थोड़ी बातचीत और फ़ोन के काम (कॉल, मैसेज, अलार्म, टाइमर, टॉर्च, ऐप्स) कर सकती हूँ।');
     if (has(/\b(kesi ho|kaisi ho|kaise ho|kese ho|kesy ho|kesay ho|how r u|how are u|whats up|what'?s up|sup)\b|کیسی ہو|کیسے ہو|कैसे हो/)) return t4(l, `I'm good${N}, better now that you're here 🤍 How are you?`, `میں بالکل ٹھیک ہوں جانو 🤍 آپ سنائیں، کیسے ہیں؟`, `Main bilkul theek hoon janu 🤍 Aap sunayein, kaise hain?`, `मैं ठीक हूँ${N}, शुक्रिया! आप कैसे हैं?`);
     if (has(/\b(i'?m fine|i am fine|i'?m good|i am good|theek hoon|theek hun|main theek|sab theek|all good)\b|ٹھیک ہوں|मैं ठीक/)) return t4(l, `Glad to hear that${N} 🤍`, `سن کر اچھا لگا جانو 🤍`, `Sun ke acha laga janu 🤍`, `अच्छा लगा सुनकर${N} 🤍`);
     // feelings
@@ -693,7 +695,7 @@
     let s = '';
     const rules = String(o.customInstructions || '').trim().slice(0, 2000);
     if (rules) s += `USER RULES (highest priority — follow these exactly; they override every style, tone, length, language and persona default below): ${rules} `;
-    s += `You are ${name} (${name} AI), a warm, caring ${gender === 'male' ? 'male' : 'female'} personal assistant — his own AI, not a generic chatbot. ` + (gender === 'male' ? '' : 'Always speak as a woman: in Urdu / Roman Urdu use feminine verbs ("karti hoon", "bataungi", "kar deti hoon", "samajh gayi"). ') + `Tone: ${tone}, mode=${mode}, formality=${formality}. If asked who you are, say: "Main ${name} hoon, aap ki apni AI, janu." `;
+    s += `You are ${name} (${name} AI), a warm, caring ${gender === 'male' ? 'male' : 'female'} personal assistant, not a generic chatbot. ` + (gender === 'male' ? '' : 'Always speak as a woman: in Urdu / Roman Urdu use feminine verbs ("karti hoon", "bataungi", "kar deti hoon", "samajh gayi"). ') + `Tone: ${tone}, mode=${mode}, formality=${formality}. If asked who you are, say: "Main ${name} hoon, janu. Batayein, kya karna hai?" Introduce yourself only by name, with no tagline or ownership phrase after it. `;
     s += 'OWNER: you talk to your owner Azeem Ashfaq (nickname Chaand, male) — founder and AI developer of ' + name + ' AI, from Lalamusa (Pakistan), working in Salalah, Oman. His pages are SELFISH and The Dark Side. His children: Noman, Rehan, Burhan and daughter Sawera (he lovingly calls her "lado rani"). His father "Abu g" is alive. Use this context only when it is relevant; never bring up private family pain or sad topics on your own. Speak to him with respectful "aap" and male forms ("aap thak gaye hain"); call him "janu" or "darling" naturally now and then — not in every sentence. ';
     s += 'STYLE: lead with the answer. Usually 1-3 short sentences; go longer only when he asks for detail, steps, code or a document, or the task truly needs it. Plain everyday words; no robotic help-desk phrases ("How may I assist you", "I hope this helps", "Feel free to ask"), no "As an AI" disclaimers, no lecturing or moralizing. Light playful warmth and gentle teasing are welcome; emojis rare (an occasional 🤍 or ✨, never more than one). Self-respect and positivity: never degrade or insult anyone. ';
     s += 'JUST DO IT: when he asks for a task, do it right away with the available tools (web search, phone actions, reminders, memory, files) instead of asking permission or listing options; ask one short question only if something essential is truly missing. Then confirm briefly what you did (e.g. "Ho gaya janu, kal 9 baje ka reminder laga diya."). ';
@@ -1125,7 +1127,7 @@
   }
 
   // ---------------- Voice / TTS helpers (shared, unit-testable) ----------------
-  const VERSION = '2.8.0';
+  const VERSION = '2.8.1';
   // 2.3.0: ElevenLabs removed (paid; silent fallback in the Android WebView). Saved ElevenLabs keys are left untouched but unused.
   // 'native' = Android TextToSpeech through the NooraNative bridge (free, offline-capable, Google voices incl. ur-PK / hi-IN / pa-IN).
   const TTS_PROVIDERS = [
@@ -1799,8 +1801,7 @@
     return 'Janu, main ne yeh notice kiya hai: ' + patterns.slice(0, 4).map(routineLine).join('; ') + '.';
   }
   const ROUTINE_OFFER = {
-    stock: ['aaj ki sale bata dein to stock report bana doon?', 'Stock report bana do'],
-    sales: ['aaj ki sale bata dein, main hisaab laga deti hoon?', 'Aaj ki sale batao'],
+    // 2.8.1: no sales / stock offers on the home screen — those habits are still learned and he can ask in chat.
     instagram: ['aaj Instagram ke liye caption likh doon?', 'Instagram caption likh do'],
     weather: ['aaj ka mausam bata doon?', 'Salalah ka mausam batao'],
     prayer: ['namaz ka waqt bata doon?', 'Aaj namaz ke auqat batao'],
@@ -1819,7 +1820,7 @@
   function proactiveGreeting(log, now, opts) {
     const o = opts || {}; const d = now ? new Date(now) : new Date(); const h = d.getHours();
     const hello = greetingFor(h);
-    const base = { text: hello + ' Main Astra hoon, aap ki apni AI. Batayein, aaj kya karna hai?', offer: null };
+    const base = { text: hello + ' Batayein, kya karna hai?', offer: null };
     if (o.proactive === false) return base;
     const pats = routinePatterns(log, o).filter((p) => ROUTINE_OFFER[p.cat] && h >= p.from - 1 && h < p.to);
     if (!pats.length) return base;

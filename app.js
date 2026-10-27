@@ -1,4 +1,4 @@
-/* Astra AI 2.8.0 (formerly Astra AI) command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
+/* Astra AI 2.8.1 (formerly NOORA AI) command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
 (function () {
   'use strict';
   const C = window.NooraCore, L = C.Lang;
@@ -2962,9 +2962,10 @@
       toast(id ? `Language: ${L[id].label}` : 'Language: auto'); };
     $('langRow').appendChild(b);
   });
-  [['Aaj ki sale', 'Aaj ki sale ka hisaab karna hai'], ['Stock report', 'Stock report bana do'], ['Kuch bolo', 'Kuch bolo janu'], ['Yaad dilana', null]]
-    .forEach(([label, q]) => { const b = document.createElement('button'); b.className = 'sugg'; b.textContent = label;
-      b.onclick = () => { if (q) return send(q); input.value = 'Yaad dilana '; autoGrow(); updateMicIcon(); input.focus(); toast('Kab aur kya? Jaise: kal 9 baje yaad dilana dawai leni hai'); };
+  [['Kuch bolo', 'Kuch bolo janu'], ['Yaad dilana', null, 'Yaad dilana ', 'Kab aur kya? Jaise: kal 9 baje yaad dilana dawai leni hai'],
+    ['Photo banao', null, 'Photo banao: ', 'Kis cheez ki photo? Jaise: Salalah beach sunset'], ['Search karo', null, 'Search karo: ', 'Kya search karun? Likh dein janu']]
+    .forEach(([label, q, pre, tip]) => { const b = document.createElement('button'); b.className = 'sugg'; b.textContent = label;
+      b.onclick = () => { if (q) return send(q); input.value = pre; autoGrow(); updateMicIcon(); input.focus(); toast(tip); };
       $('suggestions').appendChild(b); });
 
   if (IS_IOS && !STANDALONE && !localStorage.getItem('noora.hint')) $('installHint').hidden = false;
@@ -3792,7 +3793,7 @@
   // profile
   async function openProfile() {
     $('profName').textContent = aiName();
-    $('profSub').textContent = 'Aap ki apni AI' + (S.userName ? ' · ' + S.userName + ' ke liye' : '') + ' 🤍';
+    $('profSub').textContent = 'Hamesha aap ke saath' + (S.userName ? ', ' + S.userName : '') + ' 🤍';
     renderRoutineCard();
     try { const n = (await Store.memoryRows()).length; $('profMemCount').textContent = n ? String(n) : ''; } catch (e) {}
     try { const n = (await Store.conversations()).length; $('profChatCount').textContent = n ? String(n) : ''; } catch (e) {}
@@ -3816,7 +3817,7 @@
     $('sHaptics').checked = S.haptics !== false;
     $('sWakeWord').checked = !!S.wakeWordOn; $('sWakeWord').disabled = !wakeSupported();
     $('wakeSub').textContent = IS_IOS ? 'iPhone web app par mumkin nahi — Siri Shortcut use karein' : PLATFORM === 'android' ? 'Sirf jab app khuli ho (screen on)' : 'Sirf jab yeh tab khula ho';
-    $('footVer').textContent = C.VERSION + ' (' + (PLATFORM === 'android' ? 'Android' : 'web') + ' · 77)';
+    $('footVer').textContent = C.VERSION + ' (' + (PLATFORM === 'android' ? 'Android' : 'web') + ' · 78)';
     const perms = [];
     try { if (navigator.permissions) { const m = await navigator.permissions.query({ name: 'microphone' }); perms.push('Mic: ' + (m.state === 'granted' ? 'on' : m.state === 'denied' ? 'off' : 'pucho')); } } catch (e) {}
     try { if ('Notification' in window) perms.push('Notifications: ' + (Notification.permission === 'granted' ? 'on' : Notification.permission === 'denied' ? 'off' : 'pucho')); } catch (e) {}
@@ -3845,7 +3846,7 @@
     'Location — sirf jab aap mausam/raasta poochein.'].join('\n'), [{ label: 'Phone actions kholo', go: true, fn: () => go('phone') }, { label: 'OK' }]);
   $('rowHelp').onclick = () => modal('Help', C.help ? (typeof C.help === 'function' ? C.help(L.ROMAN_URDU) : String(C.help)) : 'Mujh se Roman Urdu, Urdu, English ya Arabic mein baat karein.', [{ label: 'OK' }]);
   $('rowPrivacy').onclick = () => modal('Privacy', 'Sab kuch isi phone par: chats, memory, routine log aur API keys (localStorage / IndexedDB). Routine log mein sirf waqt aur topic ki category hoti hai, messages nahi. AI jawab ke liye sirf aap ka sawal aap ke chune hue AI provider ko jaata hai.', [{ label: 'OK' }]);
-  $('rowWhatsNew').onclick = () => modal('Astra 2.8.0', 'NOORA ab Astra hai 🤍\n• Nayi chat-first design\n• Hands-free voice: waveform button ya “Astra” bolein; “bas” se band\n• Aap ki routine seekhti hai (sirf is phone par)\n• App kholne par ek chhota sa suggestion\n• Aap ki saari chats, memory, settings aur keys waisi hi hain', [{ label: 'OK' }]);
+  $('rowWhatsNew').onclick = () => modal('Astra 2.8.1', 'NOORA ab Astra hai 🤍\n• Nayi chat-first design\n• Hands-free voice: waveform button ya “Astra” bolein; “bas” se band\n• Aap ki routine seekhti hai (sirf is phone par)\n• App kholne par ek chhota sa suggestion\n• Aap ki saari chats, memory, settings aur keys waisi hi hain', [{ label: 'OK' }]);
   $('rowReset').onclick = () => { if ($('sDeleteAll')) $('sDeleteAll').click(); };
   // connect tools list
   function connItems() {
@@ -3900,7 +3901,7 @@
     const h = new Date().getHours();
     if ($('welcome')) $('welcome').textContent = C.greetingFor(h);
     const hello = C.greetingFor(h).replace(/\s*[☀️🤍🌙]+$/u, '');
-    const sub = g.offer ? (g.text.startsWith(hello + ', ') ? g.text.slice(hello.length + 2) : g.text) : ('Main ' + aiName() + ' hoon, aap ki apni AI. Batayein, aaj kya karna hai?');
+    const sub = g.offer ? (g.text.startsWith(hello + ', ') ? g.text.slice(hello.length + 2) : g.text) : 'Batayein, kya karna hai?';
     if ($('welcomeSub')) $('welcomeSub').textContent = sub.charAt(0).toUpperCase() + sub.slice(1);
     const box = $('proactiveOffer'); if (!box) return;
     box.innerHTML = ''; box.hidden = !g.offer;

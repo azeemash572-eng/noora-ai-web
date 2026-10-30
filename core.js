@@ -787,8 +787,11 @@
   // (low…max only) and Sol's Chat Completions has no tool calling; prices per 1M tokens in / out.
   const OPENAI_MODELS = [
     { id: 'gpt-6-luna', label: 'GPT-6 Luna — default, cheapest', cost: '≈ $0.10 in / $0.50 out per 1M tokens', noNone: false, chatTools: true },
+    // 3.0.2: GPT-6.1 Terra (developers.openai.com/api/docs/models/gpt-6.1-terra + openai.com/index/introducing-gpt-6-1-terra, checked 2026-10-30):
+    // reasoning none…max, $1 in / $5 out per 1M; tool calling only on Responses. GPT-6 Astra: Chat Completions has no function calling either.
+    { id: 'gpt-6.1-terra', label: 'GPT-6.1 Terra — fast, strong writing & photos', cost: '≈ $1 in / $5 out per 1M tokens (≈ 10× Luna)', noNone: false, chatTools: false },
     { id: 'gpt-6.1-sol', label: 'GPT-6.1 Sol — near-Astra quality', cost: '≈ $2 in / $10 out per 1M tokens (≈ 20× Luna)', noNone: true, chatTools: false },
-    { id: 'gpt-6-astra', label: 'GPT-6 Astra — most capable', cost: '≈ $10 in / $50 out per 1M tokens (≈ 100× Luna\'s cost)', noNone: true, chatTools: true }
+    { id: 'gpt-6-astra', label: 'GPT-6 Astra — most capable', cost: '≈ $10 in / $50 out per 1M tokens (≈ 100× Luna\'s cost)', noNone: true, chatTools: false }
   ];
   const openaiModelInfo = (model) => OPENAI_MODELS.find((m) => m.id === String(model || '').trim().toLowerCase()) || null;
   /** reasoning.effort actually sent for a model: never 'none' to Astra / Sol (they support low…max only) → 'low'. */
@@ -807,8 +810,13 @@
   }
   const openaiKeyOf = (S) => String((S && S.openaiApiKey) || '').trim();
   /** Clear, key-free message for an OpenAI error (status + error.code / message from the JSON body). */
-  function openaiErrorText(status, code, message) {
+  function openaiErrorText(status, code, message, model) {
     const c = String(code || ''); const msg = String(message || '');
+    const mname = String(model || '').replace(/[^\w.\-:/]/g, '').slice(0, 60);
+    // 3.0.2: model-not-found also arrives as 400 "The model `x` does not exist" — say so plainly instead of a raw 400
+    if (c === 'model_not_found' || status === 404 || /model[^.]{0,60}(does not exist|not found|do not have access)/i.test(msg))
+      return 'OpenAI: model ' + (mname ? '"' + mname + '" ' : '') + 'not found or not available to this key — pick another model in Settings → AI → OpenAI (default gpt-6-luna), or check the exact id at platform.openai.com/docs/models.';
+    if (c === 'unsupported_value' && /reasoning/i.test(msg)) return 'OpenAI: this model does not accept that reasoning effort — choose Low or higher in Settings → AI → OpenAI.';
     if (c === 'invalid_api_key' || status === 401) return 'OpenAI: invalid API key (401) — check the key in Settings → AI → OpenAI (platform.openai.com/api-keys).';
     if (c === 'insufficient_quota' || /quota|billing|credit/i.test(msg)) return 'OpenAI: no credits / quota exceeded (429 insufficient_quota) — add billing credit at platform.openai.com/settings/organization/billing.';
     if (status === 429) return 'OpenAI: rate limit reached (429) — wait a moment and try again.';
@@ -1127,8 +1135,8 @@
   }
 
   // ---------------- Voice / TTS helpers (shared, unit-testable) ----------------
-  const VERSION = '3.0.1';
-  const BUILD = 80;   // Android versionCode for this release (shown subtly in About)
+  const VERSION = '3.0.2';
+  const BUILD = 81;   // Android versionCode for this release (shown subtly in About)
   // 2.3.0: ElevenLabs removed (paid; silent fallback in the Android WebView). Saved ElevenLabs keys are left untouched but unused.
   // 'native' = Android TextToSpeech through the NooraNative bridge (free, offline-capable, Google voices incl. ur-PK / hi-IN / pa-IN).
   const TTS_PROVIDERS = [

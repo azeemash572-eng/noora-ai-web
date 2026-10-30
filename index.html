@@ -12,12 +12,12 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Astra AI">
 <meta name="format-detection" content="telephone=no">
-<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=3.0.1">
-<link rel="icon" type="image/png" sizes="64x64" href="icons/icon-64.png?v=3.0.1">
-<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png?v=3.0.1">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=3.0.2">
+<link rel="icon" type="image/png" sizes="64x64" href="icons/icon-64.png?v=3.0.2">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png?v=3.0.2">
 <link rel="manifest" href="manifest.webmanifest" data-pwa>
-<link rel="stylesheet" href="app.css?v=3.0.1">
-<link rel="stylesheet" href="astra.css?v=3.0.1">
+<link rel="stylesheet" href="app.css?v=3.0.2">
+<link rel="stylesheet" href="astra.css?v=3.0.2">
 </head>
 <body>
 <div id="lockGate" hidden>
@@ -353,7 +353,7 @@
       <div id="setHome">
         <button type="button" class="setProfile" id="setProfileCard"><span class="uAv" id="setUserAv">A</span><span class="gt"><b id="setUserName">Aap</b><small id="setUserSub">Astra account · is phone par</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
         <div class="group">
-        <button type="button" class="gRow" id="rowUpdate"><span class="blueDot" id="updDot" hidden></span><span class="gt"><span id="updTitle">Astra is up to date</span><small id="updSub">3.0.1</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16L16 8M9 8h7v7"/></svg></span></button>
+        <button type="button" class="gRow" id="rowUpdate"><span class="blueDot" id="updDot" hidden></span><span class="gt"><span id="updTitle">Astra is up to date</span><small id="updSub">3.0.2</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16L16 8M9 8h7v7"/></svg></span></button>
       </div>
         <div class="group catGroup">
           <button type="button" class="gRow catRow" data-sec="account"><span class="gi catIco i1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20c1.2-3.8 4-5.6 7.5-5.6s6.3 1.8 7.5 5.6"/></svg></span><span class="gt">Account & profile<small>Naam, time zone</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
@@ -517,14 +517,14 @@
       </div>
       <h3>OpenAI</h3>
       <div class="card" id="openaiChatCard">
-        <label>OpenAI chat (GPT-6 Luna) — optional, paid by you<select id="sOpenaiMode"><option value="primary">Primary — ask OpenAI first</option><option value="backup">Backup — after Groq / Gemini, before free Pollinations</option><option value="off">Off (key kept, not used)</option></select></label>
+        <label>Use OpenAI as — optional, paid by you<select id="sOpenaiMode"><option value="primary">Main provider — ask OpenAI first</option><option value="backup">Fallback — after Groq / Gemini, before free Pollinations</option><option value="off">Off (key kept, not used)</option></select></label>
         <label>OpenAI API key<input id="sOpenaiKey" type="password" placeholder="sk-… (stored only on this phone)" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false"></label>
-        <label>OpenAI model<select id="sOpenaiModelPick"><option value="gpt-6-luna">GPT-6 Luna — default, cheapest (gpt-6-luna)</option><option value="gpt-6.1-sol">GPT-6.1 Sol — near-Astra quality (gpt-6.1-sol)</option><option value="gpt-6-astra">GPT-6 Astra — most capable, ≈ 100× Luna's cost (gpt-6-astra)</option><option value="custom">Custom model id…</option></select></label>
-        <label>Custom OpenAI model id<input id="sOpenaiModel" list="openaiModels" placeholder="gpt-6-luna" autocapitalize="off" autocorrect="off" spellcheck="false"><datalist id="openaiModels"><option value="gpt-6-luna"><option value="gpt-6.1-sol"><option value="gpt-6-astra"></datalist></label>
+        <label>OpenAI model<select id="sOpenaiModelPick"><option value="gpt-6-luna">GPT-6 Luna — default, cheapest (gpt-6-luna)</option><option value="gpt-6.1-terra">GPT-6.1 Terra — fast, strong writing &amp; photos (gpt-6.1-terra)</option><option value="gpt-6.1-sol">GPT-6.1 Sol — near-Astra quality (gpt-6.1-sol)</option><option value="gpt-6-astra">GPT-6 Astra — most capable, ≈ 100× Luna's cost (gpt-6-astra)</option><option value="custom">Custom model id…</option></select></label>
+        <label>Custom OpenAI model id<input id="sOpenaiModel" list="openaiModels" placeholder="gpt-6-luna" autocapitalize="off" autocorrect="off" spellcheck="false"><datalist id="openaiModels"><option value="gpt-6-luna"><option value="gpt-6.1-terra"><option value="gpt-6.1-sol"><option value="gpt-6-astra"></datalist></label>
         <p class="note" id="sOpenaiModelNote"></p>
         <label class="row">Luna web search — answer live questions (news, prices, scores, today's facts) with OpenAI's web search and show the links it used<input type="checkbox" id="sOpenaiWeb" class="switch" checked></label>
-        <label>Luna reasoning effort<select id="sOpenaiReasoning"><option value="low">Low — fast (default)</option><option value="medium">Medium — more careful</option><option value="high">High — slowest, most thorough</option><option value="none">None — fastest</option></select></label>
-        <button type="button" class="outline" id="sOpenaiTest">🔌 Save &amp; test OpenAI</button>
+        <label>Reasoning effort<select id="sOpenaiReasoning"><option value="low">Low — fast (default)</option><option value="medium">Medium — more careful</option><option value="high">High — slowest, most thorough</option><option value="none">None — fastest (Sol / Astra use Low)</option></select></label>
+        <button type="button" class="outline" id="sOpenaiTest">🔌 Test key</button>
         <p class="note" id="sOpenaiTestResult"></p>
         <p class="note">api.openai.com/v1/responses (OpenAI's Responses API, as in their "Build a Personal AI Assistant" guide) with streaming, photos (image input), Astra tools and Luna web search; if /v1/responses is unavailable (404) or blocked, the same message is re-sent to /v1/chat/completions automatically (no web search there). Web search calls are billed per search by OpenAI. GPT-6 Luna: text + image in, text out, ≈ $0.10 in / $0.50 out per 1M tokens (developers.openai.com). Only used when a key is saved here; you can type any other OpenAI model id. If OpenAI rejects the key, has no credits (429 insufficient_quota) or is busy, Astra moves on to the next provider automatically. Billed by OpenAI to your account.</p>
       </div>
@@ -634,11 +634,11 @@
       </div>
       <div class="sSec" data-sec="about" hidden>
         <h2 class="secTitle">About</h2>
-      <div class="aboutHero"><img src="icons/astra-mark.svg" alt=""><div class="fn">Astra</div><div class="fv" id="aboutVer">Version 3.0.1</div><div class="fb" id="aboutBuild">Build 80</div></div>
+      <div class="aboutHero"><img src="icons/astra-mark.svg" alt=""><div class="fn">Astra</div><div class="fv" id="aboutVer">Version 3.0.2</div><div class="fb" id="aboutBuild">Build 81</div></div>
       <div class="group">
         <button type="button" class="gRow" id="rowHelp"><span class="gt">Help Center</span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16L16 8M9 8h7v7"/></svg></span></button>
         <button type="button" class="gRow" id="rowPrivacy"><span class="gt">Privacy Policy</span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16L16 8M9 8h7v7"/></svg></span></button>
-        <button type="button" class="gRow" id="rowWhatsNew"><span class="gt">What's new in 3.0.1</span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16L16 8M9 8h7v7"/></svg></span></button>
+        <button type="button" class="gRow" id="rowWhatsNew"><span class="gt">What's new in 3.0.2</span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16L16 8M9 8h7v7"/></svg></span></button>
       </div>
       <h3>On this device</h3>
       <div class="card"><p class="note" id="sIphone"></p></div>

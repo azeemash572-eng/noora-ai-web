@@ -399,3 +399,7 @@ input[type=checkbox].switch:disabled{opacity:.4}
 /* 3.0.1: per-reply speaker toggle + subtle build number in About */
 .mAct.speaking{color:var(--accent,#5fd4ff);background:var(--surface2)}
 .aboutHero .fb{color:var(--muted);font-size:var(--f-xs);margin-top:2px;opacity:.8}
+/* 3.0.2: OpenAI "Test key" result */
+#sOpenaiTestResult[data-state="ok"]{color:#34D399;font-weight:600}
+#sOpenaiTestResult[data-state="err"]{color:#F87171;font-weight:600}
+#sOpenaiTestResult[data-state="busy"]{color:var(--text2)}

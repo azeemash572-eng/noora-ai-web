@@ -5,7 +5,7 @@ const C = require('../core.js'); const T = require('../tools.js'); const L = C.L
 const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
 
 test('branding: title, manifest, version 2.8.0; storage keys unchanged', () => {
-  assert.equal(C.VERSION, '3.0.1');
+  assert.equal(C.VERSION, '3.0.2');
   assert.match(read('index.html'), /<title>Astra AI<\/title>/);
   const m = JSON.parse(read('manifest.webmanifest')); assert.equal(m.name, 'Astra AI'); assert.equal(m.short_name, 'Astra AI');
   const app = read('app.js'); assert.match(app, /localStorage\.getItem\('noora\.settings'\)/); assert.match(app, /indexedDB\.open\('noora-ai', 2\)/);
@@ -94,7 +94,7 @@ test('3.0.1: English default, auto-speak off, migration keeps explicit language 
   for (const h of [0, 3, 9, 14, 17, 21, 23]) assert.doesNotMatch(C.homeGreeting(h, 'ENGLISH').title + C.homeGreeting(h, 'ENGLISH').sub, /janu/i);
   const html = read('index.html'), app = read('app.js');
   assert.doesNotMatch(html, /Made for|Lalamusa|Salalah/i); assert.doesNotMatch(app, /footSub|· 79\)/);
-  assert.match(html, /id="aboutVer">Version 3\.0\.1</); assert.match(html, /id="welcome">Hello</);
+  assert.match(html, /id="aboutVer">Version 3\.0\.2</); assert.match(html, /id="welcome">Hello</);
   assert.doesNotMatch(html, /id="langRow"/); assert.doesNotMatch(app, /\$\('langRow'\)/);
   assert.match(app, /function autoSpeakOn\(\) \{ return !S\.muted && \(continuous \|\| S\.ttsOn === true\); \}/);
   assert.match(app, /msgSpeakBtn === sp/);

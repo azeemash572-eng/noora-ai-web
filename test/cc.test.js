@@ -3,9 +3,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const C = require('../core.js');
 
-test('version is 3.0.1', () => {
-  assert.equal(C.VERSION, '3.0.1');
-  assert.equal(fs.readFileSync(__dirname + '/../VERSION', 'utf8').trim(), '3.0.1');
+test('version is 3.0.2', () => {
+  assert.equal(C.VERSION, '3.0.2');
+  assert.equal(fs.readFileSync(__dirname + '/../VERSION', 'utf8').trim(), '3.0.2');
 });
 
 test('tool registry lists expected tools', async () => {

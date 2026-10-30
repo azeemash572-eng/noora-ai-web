@@ -1,4 +1,4 @@
-/* Astra AI 3.0.1 (formerly NOORA AI) command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
+/* Astra AI 3.0.2 (formerly NOORA AI) command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
 (function () {
   'use strict';
   const C = window.NooraCore, L = C.Lang;
@@ -319,8 +319,8 @@
       if (!p.ok && p.status > 0) { st = p.status; code = p.code; }
       else if (p.ok) return Object.assign({}, r, { failure: 'OpenAI accepted the key and the model exists, but the chat request was refused — most often no credits (insufficient_quota) or a rate limit. Check platform.openai.com/settings/organization/billing.', code: 'insufficient_quota' });
     }
-    if (st && st !== -1 || code) return Object.assign({}, r, { status: st, code, failure: C.openaiErrorText(st, code, msg) });
-    return Object.assign({}, r, { failure: C.openaiErrorText(-1, '', msg) + (msg ? ' (' + msg + ')' : '') });
+    if (st && st !== -1 || code) return Object.assign({}, r, { status: st, code, failure: C.openaiErrorText(st, code, msg, model) });
+    return Object.assign({}, r, { failure: C.openaiErrorText(-1, '', msg, model) + (msg ? ' (' + msg + ')' : '') });
   }
 
   const AI = {
@@ -3096,7 +3096,7 @@
     syncOpenaiModelPick();
     if ($('sOpenaiWeb')) $('sOpenaiWeb').checked = C.openaiWebSearchOn(S);
     if ($('sOpenaiReasoning')) $('sOpenaiReasoning').value = C.openaiReasoningOf(S);
-    if ($('sOpenaiTestResult')) $('sOpenaiTestResult').textContent = '';
+    if ($('sOpenaiTestResult')) { $('sOpenaiTestResult').textContent = ''; delete $('sOpenaiTestResult').dataset.state; }
     if ($('sKeepAlive')) $('sKeepAlive').checked = !!S.keepAlive;
     renderRouteLine();
     $('sWeb').checked = S.webSearchOn !== false;
@@ -3251,17 +3251,17 @@
   // 2.6.0: Settings → AI → OpenAI → Test: checks key + model (GET /v1/models/<id>), then a tiny request (no provider fallback).
   // 2.7.0: the tiny request goes to /v1/responses (no web search, to keep it cheap); Chat Completions only if Responses is 404 / blocked.
   if ($('sOpenaiTest')) $('sOpenaiTest').onclick = async () => {
-    saveAiFields(); const out = $('sOpenaiTestResult'); const key = C.openaiKeyOf(S); const model = S.openaiModel || C.OPENAI_MODEL;
-    if (!key) { out.textContent = '❌ Paste your OpenAI API key first (platform.openai.com/api-keys).'; return; }
-    if (!navigator.onLine) { out.textContent = '❌ No internet.'; return; }
-    out.textContent = 'Testing OpenAI · ' + model + '…';
+    saveAiFields(); const out = $('sOpenaiTestResult'); const res = (st, t) => { out.dataset.state = st; out.textContent = t; }; const key = C.openaiKeyOf(S); const model = S.openaiModel || C.OPENAI_MODEL;
+    if (!key) { res('err', '❌ Paste your OpenAI API key first (platform.openai.com/api-keys).'); return; }
+    if (!navigator.onLine) { res('err', '❌ No internet.'); return; }
+    res('busy', 'Testing key with ' + model + '…');
     const p = await openaiProbe(key, model);
-    if (!p.ok) { out.textContent = '❌ ' + (p.status > 0 ? C.openaiErrorText(p.status, p.code, p.message) : C.openaiErrorText(-1, '', p.error)); return; }
+    if (!p.ok) { res('err', '❌ ' + (p.status > 0 ? C.openaiErrorText(p.status, p.code, p.message, model) : C.openaiErrorText(-1, '', p.error))); return; }
     const att = C.aiRoute(Object.assign({}, S, { openaiChatMode: 'primary' }), { webSearch: false }).find((x) => x.id === 'openai');
     let r = await AI.openaiResponses(Object.assign({}, att, { webSearch: false }), model, [{ role: 'user', content: 'Reply with exactly: Astra OK' }], { stream: false, timeout: 30000, firstMs: 30000 });
-    if (r.text) { out.textContent = '✅ OpenAI · ' + model + (r.api === 'chat' ? ' (chat/completions fallback — /v1/responses was not reachable)' : ' (Responses API)') + ': ' + C.cleanAi(r.text).slice(0, 80) + (C.openaiWebSearchOn(S) ? ' · Luna web search on' : ''); return; }
+    if (r.text) { res('ok', '✅ Key works — OpenAI · ' + model + (r.api === 'chat' ? ' (chat/completions fallback — /v1/responses was not reachable)' : ' (Responses API)') + ': ' + C.cleanAi(r.text).slice(0, 80) + (C.openaiWebSearchOn(S) ? ' · web search on' : '')); return; }
     r = await openaiExplain(r, key, model);
-    out.textContent = '❌ ' + C.redactKeys(r.failure || 'failed', [key]);
+    res('err', '❌ ' + C.redactKeys(r.failure || 'failed', [key]));
   };
 
   async function openFiles() {
@@ -3886,7 +3886,7 @@
     'Location — sirf jab aap mausam/raasta poochein.'].join('\n'), [{ label: 'Phone actions kholo', go: true, fn: () => go('phone') }, { label: 'OK' }]);
   $('rowHelp').onclick = () => modal('Help', C.help ? (typeof C.help === 'function' ? C.help(L.ROMAN_URDU) : String(C.help)) : 'Mujh se Roman Urdu, Urdu, English ya Arabic mein baat karein.', [{ label: 'OK' }]);
   $('rowPrivacy').onclick = () => modal('Privacy', 'Sab kuch isi phone par: chats, memory, routine log aur API keys (localStorage / IndexedDB). Routine log mein sirf waqt aur topic ki category hoti hai, messages nahi. AI jawab ke liye sirf aap ka sawal aap ke chune hue AI provider ko jaata hai.', [{ label: 'OK' }]);
-  $('rowWhatsNew').onclick = () => modal('What\'s new in Astra ' + C.VERSION, '• English is now the default language (change it any time in Settings → Persona)\n• Replies are no longer read aloud automatically — tap the speaker under any reply to listen, tap again to stop\n• Astra Live (hands-free voice) still talks back as before\n• Cleaner About screen\n• Your chats, memory, settings and keys are unchanged', [{ label: 'OK' }]);
+  $('rowWhatsNew').onclick = () => modal('What\'s new in Astra ' + C.VERSION, '• OpenAI: use your own OpenAI key (Settings → AI → OpenAI) as the main provider or as a fallback — GPT-6 Luna (default), GPT-6.1 Terra, GPT-6.1 Sol, GPT-6 Astra or a custom model id\n• "Test key" shows clearly if the key works, is invalid, has no credit, or the model isn\'t available\n• Without an OpenAI key Astra keeps using the free Gemini / Groq setup\n• English by default; tap the speaker under a reply to hear it', [{ label: 'OK' }]);
   $('rowReset').onclick = () => { if ($('sDeleteAll')) $('sDeleteAll').click(); };
   // connect tools list
   function connItems() {

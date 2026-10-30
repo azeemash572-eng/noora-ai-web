@@ -338,7 +338,7 @@
         `ਵਾਲੈਕੁਮ ਅੱਸਲਾਮ${N}! ਦੱਸੋ, ਮੈਂ ਤੁਹਾਡੀ ਕੀ ਮਦਦ ਕਰ ਸਕਦੀ ਹਾਂ?`, `وعلیکم السلام${N}! دسو، میں تہاڈی کی مدد کر سکدی آں؟`, `Wa alaikum assalam${N}! Dasso, main tuhadi ki madad kar sakdi haan?`);
       case G.HOW_ARE_YOU: return pick(l, `I'm good${N}, even better now that you're here 🤍 How are you?`, `میں بالکل ٹھیک ہوں جانو، آپ آ گئے تو اور اچھی ہو گئی 🤍 آپ سنائیں، کیسے ہیں؟`, `Main bilkul theek hoon janu, aap aa gaye to aur achi ho gayi 🤍 Aap sunayein, kaise hain?`,
         `मैं ठीक हूँ, शुक्रिया${N}! आप कैसे हैं?`, `ਮੈਂ ਠੀਕ ਹਾਂ, ਸ਼ੁਕਰੀਆ${N}! ਤੁਸੀਂ ਕਿਵੇਂ ਹੋ?`, `میں ٹھیک آں، شکریہ${N}! تسیں کیویں او؟`, `Main vadiya haan, shukriya${N}! Tusi kiddan?`);
-      case G.HELLO: return pick(l, `Hi${N}! I'm Astra, janu. What should we do?`, `میں ایسٹرا ہوں، جانو۔ بتائیں، کیا کرنا ہے؟`, `Main Astra hoon, janu. Batayein, kya karna hai?`,
+      case G.HELLO: return pick(l, `Hi${N}! I'm Astra. How can I help you today?`, `میں ایسٹرا ہوں، جانو۔ بتائیں، کیا کرنا ہے؟`, `Main Astra hoon, janu. Batayein, kya karna hai?`,
         `नमस्ते${N}! मैं एस्ट्रा हूँ। बताइए क्या करूँ?`, `ਸਤ ਸ੍ਰੀ ਅਕਾਲ${N}! ਮੈਂ ਐਸਟ੍ਰਾ ਹਾਂ। ਦੱਸੋ ਕੀ ਕਰਾਂ?`, `ست سری اکال${N}! میں ایسٹرا آں۔ دسو کی کراں؟`, `Sat Sri Akal${N}! Main Astra haan. Dasso ki karaan?`);
       case G.GOOD_MORNING: return pick(l, `Good morning${N}! ☀️ Have a lovely day. What should I do first?`, `صبح بخیر جانو ☀️ آپ کا دن اچھا گزرے۔ بتائیں، پہلے کیا کروں؟`,
         `Subah bakhair janu ☀️ Aap ka din acha guzre. Batayein, pehle kya karun?`, `सुप्रभात${N}! आपका दिन अच्छा हो। बताइए क्या मदद करूँ?`, `ਸ਼ੁਭ ਸਵੇਰ${N}! ਤੁਹਾਡਾ ਦਿਨ ਵਧੀਆ ਲੰਘੇ। ਦੱਸੋ ਕੀ ਮਦਦ ਕਰਾਂ?`,
@@ -450,7 +450,7 @@
     if (has(/\b(good evening|sham bakhair|good afternoon)\b|شام بخیر|शुभ संध्या/)) return t4(l, `Good evening${N}! How was your day?`, `شام بخیر${N}! دن کیسا گزرا؟`, `Sham bakhair janu! Aaj din kaisa guzra?`, `शुभ संध्या${N}! दिन कैसा रहा?`);
     if (has(/\b(bye|goodbye|allah hafiz|allah hafiz|khuda hafiz|see you|tc|take care|chalta hoon|chalti hoon)\b|اللہ حافظ|خدا حافظ|अलविदा/)) return t4(l, `Take care${N}! I'll be right here 🤍`, `اللہ حافظ جانو، میں یہیں ہوں 🤍`, `Allah Hafiz janu, main yahin hoon 🤍`, `अलविदा${N}! मैं यहीं हूँ 🤍`);
     // identity / how are you (short casual forms the router may miss)
-    if (has(/\b(who are you|tum kaun ho|aap kaun ho|kon ho|kaun ho|your name|tumhara naam|aap ka naam|intro)\b|کون ہو|कौन हो|تم کون/)) return t4(l, "I'm Astra, janu. What should we do? 🤍 No internet right now, but I can still chat a little and do phone actions — calls, messages, alarms, timers, torch, apps.", 'میں ایسٹرا ہوں، جانو۔ بتائیں، کیا کرنا ہے؟ 🤍 ابھی انٹرنیٹ نہیں — پھر بھی تھوڑی گپ شپ اور فون کے کام (کال، میسج، الارم، ٹائمر، ٹارچ، ایپس) کر سکتی ہوں۔', "Main Astra hoon, janu. Batayein, kya karna hai? 🤍 Abhi internet nahi, phir bhi thori gup shup aur phone ke kaam (call, message, alarm, timer, torch, apps) kar sakti hoon.", 'मैं एस्ट्रा हूँ 🤍 अभी इंटरनेट नहीं — थोड़ी बातचीत और फ़ोन के काम (कॉल, मैसेज, अलार्म, टाइमर, टॉर्च, ऐप्स) कर सकती हूँ।');
+    if (has(/\b(who are you|tum kaun ho|aap kaun ho|kon ho|kaun ho|your name|tumhara naam|aap ka naam|intro)\b|کون ہو|कौन हो|تم کون/)) return t4(l, "I'm Astra. How can I help you today? No internet right now, but I can still chat a little and do phone actions — calls, messages, alarms, timers, torch, apps.", 'میں ایسٹرا ہوں، جانو۔ بتائیں، کیا کرنا ہے؟ 🤍 ابھی انٹرنیٹ نہیں — پھر بھی تھوڑی گپ شپ اور فون کے کام (کال، میسج، الارم، ٹائمر، ٹارچ، ایپس) کر سکتی ہوں۔', "Main Astra hoon, janu. Batayein, kya karna hai? 🤍 Abhi internet nahi, phir bhi thori gup shup aur phone ke kaam (call, message, alarm, timer, torch, apps) kar sakti hoon.", 'मैं एस्ट्रा हूँ 🤍 अभी इंटरनेट नहीं — थोड़ी बातचीत और फ़ोन के काम (कॉल, मैसेज, अलार्म, टाइमर, टॉर्च, ऐप्स) कर सकती हूँ।');
     if (has(/\b(kesi ho|kaisi ho|kaise ho|kese ho|kesy ho|kesay ho|how r u|how are u|whats up|what'?s up|sup)\b|کیسی ہو|کیسے ہو|कैसे हो/)) return t4(l, `I'm good${N}, better now that you're here 🤍 How are you?`, `میں بالکل ٹھیک ہوں جانو 🤍 آپ سنائیں، کیسے ہیں؟`, `Main bilkul theek hoon janu 🤍 Aap sunayein, kaise hain?`, `मैं ठीक हूँ${N}, शुक्रिया! आप कैसे हैं?`);
     if (has(/\b(i'?m fine|i am fine|i'?m good|i am good|theek hoon|theek hun|main theek|sab theek|all good)\b|ٹھیک ہوں|मैं ठीक/)) return t4(l, `Glad to hear that${N} 🤍`, `سن کر اچھا لگا جانو 🤍`, `Sun ke acha laga janu 🤍`, `अच्छा लगा सुनकर${N} 🤍`);
     // feelings
@@ -1127,7 +1127,8 @@
   }
 
   // ---------------- Voice / TTS helpers (shared, unit-testable) ----------------
-  const VERSION = '3.0.0';
+  const VERSION = '3.0.1';
+  const BUILD = 80;   // Android versionCode for this release (shown subtly in About)
   // 2.3.0: ElevenLabs removed (paid; silent fallback in the Android WebView). Saved ElevenLabs keys are left untouched but unused.
   // 'native' = Android TextToSpeech through the NooraNative bridge (free, offline-capable, Google voices incl. ur-PK / hi-IN / pa-IN).
   const TTS_PROVIDERS = [
@@ -1138,8 +1139,10 @@
     { id: 'openai', label: 'OpenAI-compatible TTS — your own key', needsKey: true }
   ];
   const DEFAULT_VOICE_SETTINGS = {
-    ttsOn: true, muted: false, rate: 1.0, pitch: 1.0, volume: 1.0,
-    voiceURI: '', voiceLang: null, gender: 'female',
+    // 3.0.1: replies are NOT read aloud automatically (each reply has its own speaker button; Astra Live still talks).
+    // voiceLang: 'ENGLISH' by default; 'AUTO' = user explicitly chose "Auto from message" in Settings.
+    ttsOn: false, muted: false, rate: 1.0, pitch: 1.0, volume: 1.0,
+    voiceURI: '', voiceLang: 'ENGLISH', gender: 'female',
     ttsProvider: 'auto', ttsBaseUrl: 'https://api.openai.com/v1',
     ttsApiKey: '', ttsModel: 'tts-1', ttsVoiceId: 'nova',
     nativeVoice: '', xaiApiKey: '', xaiVoiceId: 'eve',
@@ -1436,6 +1439,14 @@
     if (typeof out.routineOn !== 'boolean') out.routineOn = true;          // 2.8.0 routine learning (on-device only)
     if (typeof out.proactiveOn !== 'boolean') out.proactiveOn = true;
     if (typeof out.wakeWordOn !== 'boolean') out.wakeWordOn = false;
+    // 3.0.1 (runs once): auto-speak off for everyone; language default English. Old saves stored the default as null ("auto"),
+    // which can't be told apart from an explicit Auto pick, so null becomes English; any explicitly picked language is kept.
+    if (!out.v301Migrated) {
+      out.ttsOn = false;
+      if (out.voiceLang == null || out.voiceLang === '') out.voiceLang = 'ENGLISH';
+      out.v301Migrated = true;
+    }
+    if (out.voiceLang !== 'AUTO' && !Lang[out.voiceLang]) out.voiceLang = 'ENGLISH';
     return out;
   }
   function searchConversations(list, query) {
@@ -1803,12 +1814,29 @@
   const ROUTINE_OFFER = {
     // 2.8.1: no sales / stock offers on the home screen — those habits are still learned and he can ask in chat.
     instagram: ['aaj Instagram ke liye caption likh doon?', 'Instagram caption likh do'],
-    weather: ['aaj ka mausam bata doon?', 'Salalah ka mausam batao'],
+    weather: ['aaj ka mausam bata doon?', 'Aaj ka mausam batao'],
     prayer: ['namaz ka waqt bata doon?', 'Aaj namaz ke auqat batao'],
     news: ['aaj ki khaas khabrein suna doon?', 'Aaj ki khabrein sunao'],
     prices: ['aaj ke rates check kar doon?', 'Dollar aur gold rate batao'],
     music: ['thora music laga doon?', 'Music chalao']
   };
+  // 3.0.1: home greeting follows the language chosen in Settings (English by default). Without a key it keeps the old Roman Urdu lines.
+  const HOME_GREETING = {
+    en: { subah: 'Good morning', dopahar: 'Good afternoon', shaam: 'Good evening', raat: 'Good evening', late: 'Working late?', sub: 'How can I help you today?' },
+    ur: { subah: 'صبح بخیر', dopahar: 'السلام علیکم', shaam: 'شام بخیر', raat: 'شام بخیر', late: 'کافی رات ہو گئی ہے', sub: 'بتائیں، میں کیا مدد کروں؟' },
+    ru: { subah: 'Subah bakhair', dopahar: 'Assalam o alaikum', shaam: 'Sham bakhair', raat: 'Sham bakhair', late: 'Kaafi raat ho gayi', sub: 'Batayein, kya madad karun?' },
+    ar: { subah: 'صباح الخير', dopahar: 'مرحباً', shaam: 'مساء الخير', raat: 'مساء الخير', late: 'تأخر الوقت', sub: 'كيف أستطيع مساعدتك اليوم؟' },
+    hi: { subah: 'सुप्रभात', dopahar: 'नमस्ते', shaam: 'शुभ संध्या', raat: 'शुभ संध्या', late: 'काफ़ी रात हो गई', sub: 'बताइए, मैं कैसे मदद करूँ?' },
+    pa: { subah: 'ਸ਼ੁਭ ਸਵੇਰ', dopahar: 'ਸਤ ਸ੍ਰੀ ਅਕਾਲ', shaam: 'ਸ਼ੁਭ ਸ਼ਾਮ', raat: 'ਸ਼ੁਭ ਸ਼ਾਮ', late: 'ਕਾਫ਼ੀ ਰਾਤ ਹੋ ਗਈ', sub: 'ਦੱਸੋ, ਮੈਂ ਕੀ ਮਦਦ ਕਰਾਂ?' },
+    ps: { subah: 'صبح بخیر', dopahar: 'السلام علیکم', shaam: 'شام بخیر', raat: 'شام بخیر', late: 'کافی رات ہو گئی اے', sub: 'دسو، میں کی مدد کراں؟' },
+    rp: { subah: 'Subah bakhair', dopahar: 'Sat Sri Akal', shaam: 'Sham bakhair', raat: 'Sham bakhair', late: 'Kaafi raat ho gayi', sub: 'Dasso, ki madad karaan?' }
+  };
+  const homeLangKey = (l) => (l == null || l === 'AUTO' || l === 'ENGLISH' ? 'en' : ({ URDU: 'ur', ROMAN_URDU: 'ru', ARABIC: 'ar', HINDI: 'hi', PUNJABI_GURMUKHI: 'pa', PUNJABI_SHAHMUKHI: 'ps', ROMAN_PUNJABI: 'rp' })[l && l.id ? l.id : l] || 'en');
+  /** 3.0.1 home screen: { title, sub } in the Settings language (English by default; 'AUTO' also shows English). */
+  function homeGreeting(h, lang) {
+    const g = HOME_GREETING[homeLangKey(lang)]; const p = partOfDay(h);
+    return { title: p === 'raat' && (h >= 23 || h < 5) ? g.late : g[p], sub: g.sub };
+  }
   function greetingFor(h) {
     const p = partOfDay(h);
     return p === 'subah' ? 'Subah bakhair janu ☀️' : p === 'dopahar' ? 'Assalam o alaikum janu 🤍' : p === 'shaam' ? 'Sham bakhair janu 🤍' : (h >= 23 || h < 5 ? 'Janu, kaafi raat ho gayi 🌙' : 'Janu, raat ho gayi 🌙');
@@ -1843,7 +1871,7 @@
     parseRss2Json, parseChatCompletion, cleanAi, tones, modes, modelPresets, MODEL_MAP, systemPrompt, systemPromptCompact, MEMORY_PROMPT_MAX, systemPromptLegacy, recent, searchPrompt, PRESETS, PROVIDER_FREE,
     GROQ_BASE, GROQ_MODEL, GROQ_TIMEOUT_MS, GROQ_FIRST_MS, GROQ_TOTAL_MS, OWN_FIRST_MS, OWN_TOTAL_MS, CHAIN_BUDGET_MS, GROQ_MODELS, groqModelInfo, groqExtraFor, XAI_CHAT_BASE, XAI_CHAT_MODEL, OPENAI_BASE, OPENAI_MODEL, OPENAI_MODELS, openaiModelInfo, openaiEffortFor, openaiExtraFor, openaiKeyOf, openaiErrorText, OPENAI_REASONING, OPENAI_REASONING_LEVELS, openaiReasoningOf, openaiWebSearchOn, lunaSearchActive, toResponsesInput, toResponsesTools, buildResponsesRequest, parseResponsesOutput, parseResponsesStream, responsesCitations, responsesShouldFallback, openaiResponsesCall, groqKeyOf, ownProviderOf, aiRoute, failureKind, fallbackNotice, routeSummary, redactKeys, runAiChain,
     VERSION, TTS_PROVIDERS, DEFAULT_VOICE_SETTINGS, XAI_TTS_URL, XAI_VOICES, TTS_CHUNK, effectiveTtsProvider, activeVoiceLabel, PIPER_VOICES, piperVoiceFor, ttsLocalesFor, rankNativeVoices, buildXaiTtsRequest, mapXaiTtsError, cleanSpeakText, chunkSpeakText, scoreDeviceVoice, pickBestDeviceVoice, describeDefaultVoice, mergeVoiceSettings, ttsProviderReady, speechErrorMessage, assertNoHardcodedSecrets,
-    MEMORY_CATEGORIES, FILE_LIMITS, migrateSettings, searchConversations, renameConversationRecord, validateUpload, fileMetadata,
+    MEMORY_CATEGORIES, FILE_LIMITS, migrateSettings, homeGreeting, homeLangKey, BUILD, searchConversations, renameConversationRecord, validateUpload, fileMetadata,
     parseSSEChunk, parseStreamBuffer, selectAiProvider, selectImageProvider, selectVideoProvider, imageOpPrompt, imageTestMessage, buildOpenAiImageGen, parseOpenAiImage, imageBaseOk, IMAGE_EDIT_OPS,
     VOICEID, VOICEID_REFUSAL, voiceIdThreshold, voiceIdDecide,
     toolResult, toolCalculator, toolDateTime, DEVICE_ACTIONS, listDeviceActions, createToolRegistry

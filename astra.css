@@ -396,3 +396,6 @@ input[type=checkbox].switch:disabled{opacity:.4}
 .glassCard label.row,.card label.row{display:flex!important;align-items:center;justify-content:space-between;gap:12px;font-size:var(--f-md);color:var(--text);margin:10px 0;font-weight:500}
 #suggestions[hidden]{display:none!important}
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+/* 3.0.1: per-reply speaker toggle + subtle build number in About */
+.mAct.speaking{color:var(--accent,#5fd4ff);background:var(--surface2)}
+.aboutHero .fb{color:var(--muted);font-size:var(--f-xs);margin-top:2px;opacity:.8}

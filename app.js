@@ -1,4 +1,4 @@
-/* Astra AI 3.0.0 (formerly NOORA AI) command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
+/* Astra AI 3.0.1 (formerly NOORA AI) command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
 (function () {
   'use strict';
   const C = window.NooraCore, L = C.Lang;
@@ -60,7 +60,10 @@
   const hasOwnKey = () => S.provider !== C.PROVIDER_FREE && S.apiKey && S.baseUrl && S.chatModel;
   const openaiOn = () => !!(C.openaiKeyOf(S) && S.openaiChatMode !== 'off');
   const hasAnyKey = () => !!(hasOwnKey() || C.groqKeyOf(S) || openaiOn());
-  const prefLang = () => (S.voiceLang ? L[S.voiceLang] : null);
+  const prefLang = () => (S.voiceLang && L[S.voiceLang] ? L[S.voiceLang] : null);   // 'AUTO' (explicit) → follow each message
+  // 3.0.1: small UI strings follow the Settings language: English by default, Roman Urdu wording for Urdu / Punjabi users.
+  const uiUrdu = () => ['ru', 'ur', 'rp', 'ps'].includes(C.homeLangKey(S.voiceLang));
+  const ui = (en, ru) => (uiUrdu() && ru ? ru : en);
   const aiName = () => (S.aiName && S.aiName.trim()) || 'Astra';
 
   async function sha256(text) {
@@ -1926,17 +1929,31 @@
         const acts = document.createElement('span'); acts.className = 'msgActs';
         const cp = document.createElement('button'); cp.type = 'button'; cp.className = 'mAct'; cp.setAttribute('aria-label', 'Copy');
         cp.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8.5" y="8.5" width="11" height="11" rx="2.5"/><path d="M15.5 8.5V6a1.5 1.5 0 0 0-1.5-1.5H6A1.5 1.5 0 0 0 4.5 6v8A1.5 1.5 0 0 0 6 15.5h2.5"/></svg>';
-        cp.onclick = async () => { try { await navigator.clipboard.writeText(m.text); toast('Copy ho gaya 🤍', 1400); } catch (e) { toast('Copy nahi ho saka'); } };
-        const sp = document.createElement('button'); sp.type = 'button'; sp.className = 'mAct'; sp.setAttribute('aria-label', 'Listen');
-        sp.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg>';
-        sp.onclick = () => { unlockSpeech(); if (voiceState === 'SPEAKING') { stopSpeaking(); setVoiceState('IDLE'); return; } speak(m.text, C.detect(m.text, prefLang()), null, { force: true }); };
+        cp.onclick = async () => { try { await navigator.clipboard.writeText(m.text); toast(ui('Copied', 'Copy ho gaya'), 1400); } catch (e) { toast(ui('Could not copy', 'Copy nahi ho saka')); } };
+        // 3.0.1: replies are not read aloud automatically; this speaker button reads THIS reply, tap again to stop.
+        const sp = document.createElement('button'); sp.type = 'button'; sp.className = 'mAct mSpeak'; sp.setAttribute('aria-label', 'Listen'); sp.setAttribute('aria-pressed', 'false'); sp.title = 'Listen';
+        sp.innerHTML = SPEAK_SVG;
+        sp.onclick = () => {
+          unlockSpeech();
+          if (msgSpeakBtn === sp) { stopSpeaking(); setVoiceState('IDLE'); return; }   // stopSpeaking() resets the button
+          stopSpeaking(); ssAbort();
+          msgSpeakBtn = sp; sp.classList.add('speaking'); sp.setAttribute('aria-pressed', 'true'); sp.setAttribute('aria-label', 'Stop'); sp.title = 'Stop'; sp.innerHTML = STOP_SVG;
+          speak(m.text, C.detect(m.text, prefLang()), () => { if (msgSpeakBtn === sp) msgSpeakReset(); }, { force: true, msgBtn: true });
+        };
         acts.append(cp, sp); mt.prepend(acts);
       }
       row.appendChild(mt);
     }
     return row;
   }
-  function renderAll() { list.innerHTML = ''; msgs.forEach((m) => list.appendChild(renderMsg(m))); updateEmpty(); scrollEnd(); }
+  const SPEAK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg>';
+  const STOP_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>';
+  let msgSpeakBtn = null;
+  function msgSpeakReset() {
+    const b = msgSpeakBtn; msgSpeakBtn = null; if (!b) return;
+    b.classList.remove('speaking'); b.setAttribute('aria-pressed', 'false'); b.setAttribute('aria-label', 'Listen'); b.title = 'Listen'; b.innerHTML = SPEAK_SVG;
+  }
+  function renderAll() { msgSpeakReset(); list.innerHTML = ''; msgs.forEach((m) => list.appendChild(renderMsg(m))); updateEmpty(); scrollEnd(); }
   function append(m) { msgs.push(m); list.appendChild(renderMsg(m)); updateEmpty(); scrollEnd(); }
   const scrollEnd = () => requestAnimationFrame(() => { list.scrollTop = list.scrollHeight; });
   function updateEmpty() {
@@ -2498,7 +2515,7 @@
   function ssAbort() { SS.on = false; SS.dead = false; SS.idx = 0; SS.last = ''; SS.q = []; SS.playing = false; SS.finishing = false; SS.after = null; }
   function ssBegin(lang, allowed) {
     ssAbort();
-    let ok = allowed !== false && S.ttsOn && !S.muted;
+    let ok = allowed !== false && autoSpeakOn();
     try { const p = activeTtsProvider(); ok = ok && (p === 'native' || p === 'piper' || p === 'browser'); } catch (e) { ok = false; }
     if (ok) { SS.on = true; SS.lang = lang; }
   }
@@ -2529,7 +2546,10 @@
     SS.finishing = true; SS.after = after;
     if (!SS.playing && !SS.q.length) ssDone(); else ssPump();
   }
+  // 3.0.1: auto-speak only in Astra Live (hands-free) or when the user turned "Read replies aloud" on in Settings.
+  function autoSpeakOn() { return !S.muted && (continuous || S.ttsOn === true); }
   function stopSpeaking() {
+    msgSpeakReset();
     if (SS.on || SS.q.length) { SS.q = []; SS.playing = false; SS.finishing = false; SS.after = null; }
     speakToken++;
     if ('speechSynthesis' in window) speechSynthesis.cancel();
@@ -2733,7 +2753,8 @@
     const clean = C.cleanSpeakText(text);
     if (!clean) { if (onend) onend(); return; }
     lastSpeakPayload = { text: clean, lang: lang || null };
-    if (!o.force && (S.muted || !S.ttsOn)) { if (voiceState === 'THINKING' || voiceState === 'EXECUTING') setVoiceState('IDLE'); if (onend) onend(); return; }
+    if (!o.msgBtn) msgSpeakReset();
+    if (!o.force && !autoSpeakOn()) { if (voiceState === 'THINKING' || voiceState === 'EXECUTING') setVoiceState('IDLE'); if (onend) onend(); return; }
     setVoiceState('SPEAKING');
     const userEnd = onend;
     onend = () => { if (voiceState === 'SPEAKING') setVoiceState('IDLE'); if (userEnd) userEnd(); };
@@ -2790,8 +2811,8 @@
     if (nativeListening) { try { window.NooraNative.sttStop(); } catch (e) {} nativeListening = false; }
     setListening(false); setVoiceState('IDLE');
     updateVoiceBar(); refreshStatus();
-    if (why === 'bas') { const m = 'Theek hai janu, main yahin hoon 🤍'; toast(m); speak(m, L.ROMAN_URDU); }
-    else if (why === 'silence') toast('Aap chup ho gaye, to hands-free band kar diya janu 🤍', 4500);
+    if (why === 'bas') { const m = ui('Okay, I\'m here whenever you need me.', 'Theek hai, main yahin hoon.'); toast(m); if (!S.muted) speak(m, uiUrdu() ? L.ROMAN_URDU : L.ENGLISH, null, { force: true }); }
+    else if (why === 'silence') toast(ui('No speech detected, so hands-free mode was turned off.', 'Aap chup ho gaye, to hands-free band kar diya.'), 4500);
     else toast('Hands-free band');
     try { hfRender(); } catch (e) {}
   }
@@ -2944,7 +2965,7 @@
     S.ttsOn = !S.ttsOn; saveS();
     if (!S.ttsOn) stopSpeaking(); else unlockSpeech();
     setIcon($('btnTts'), S.ttsOn ? 'volOn' : 'volOff');
-    toast(S.ttsOn ? 'Voice replies ON' : 'Voice replies OFF');
+    toast(S.ttsOn ? 'Replies will be read aloud' : 'Replies stay silent — tap 🔈 on a reply to hear it');
   };
   $('btnVoiceMode').onclick = () => {
     if (continuous) { stopVoiceMode(); return; }
@@ -2973,18 +2994,19 @@
   $('btnNew').onclick = newChat;
   window.addEventListener('online', refreshStatus); window.addEventListener('offline', refreshStatus);
 
-  const chips = [['Auto', null], ['English', 'ENGLISH'], ['العربية', 'ARABIC'], ['اردو', 'URDU'], ['Roman Urdu', 'ROMAN_URDU'], ['हिन्दी', 'HINDI'], ['ਪੰਜਾਬੀ', 'PUNJABI_GURMUKHI'], ['پنجابی', 'PUNJABI_SHAHMUKHI']];
-  chips.forEach(([label, id]) => {
-    const b = document.createElement('button'); b.className = 'chip' + (S.voiceLang === id ? ' sel' : ''); b.textContent = label;
-    b.onclick = () => { S.voiceLang = id; saveS(); document.querySelectorAll('#langRow .chip').forEach((c) => c.classList.remove('sel')); b.classList.add('sel');
-      toast(id ? `Language: ${L[id].label}` : 'Language: auto'); };
-    $('langRow').appendChild(b);
-  });
-  [['Kuch bolo', 'Kuch bolo janu'], ['Yaad dilana', null, 'Yaad dilana ', 'Kab aur kya? Jaise: kal 9 baje yaad dilana dawai leni hai'],
-    ['Photo banao', null, 'Photo banao: ', 'Kis cheez ki photo? Jaise: Salalah beach sunset'], ['Search karo', null, 'Search karo: ', 'Kya search karun? Likh dein janu']]
-    .forEach(([label, q, pre, tip]) => { const b = document.createElement('button'); b.className = 'sugg'; b.textContent = label;
+  // 3.0.1: no language picker on the home screen — language is changed only in Settings → Persona.
+  // 3.0.1: quick chips in the Settings language (English by default)
+  const SUGG_RU = [['Kuch bolo', 'Kuch bolo'], ['Yaad dilana', null, 'Yaad dilana ', 'Kab aur kya? Jaise: kal 9 baje yaad dilana dawai leni hai'],
+    ['Photo banao', null, 'Create an image: ', 'Kis cheez ki photo? Jaise: beach sunset'], ['Search karo', null, 'Search karo: ', 'Kya search karun?']];
+  const SUGG_EN = [['Say something', 'Say something nice'], ['Remind me', null, 'Remind me ', 'When and what? e.g. remind me tomorrow at 9 to take medicine'],
+    ['Create image', null, 'Create an image: ', 'What should I create? e.g. a beach at sunset'], ['Search', null, 'Search: ', 'What should I search for?']];
+  function renderSuggestions() {
+    const box = $('suggestions'); if (!box) return; box.innerHTML = '';
+    (uiUrdu() ? SUGG_RU : SUGG_EN).forEach(([label, q, pre, tip]) => { const b = document.createElement('button'); b.className = 'sugg'; b.textContent = label;
       b.onclick = () => { if (q) return send(q); input.value = pre; autoGrow(); updateMicIcon(); input.focus(); toast(tip); };
-      $('suggestions').appendChild(b); });
+      box.appendChild(b); });
+  }
+  renderSuggestions();
 
   if (IS_IOS && !STANDALONE && !localStorage.getItem('noora.hint')) $('installHint').hidden = false;
   $('hintClose').onclick = () => { $('installHint').hidden = true; localStorage.setItem('noora.hint', '1'); };
@@ -3087,12 +3109,12 @@
     $('sMode').innerHTML = C.modes.map((t) => `<option${t === S.mode ? ' selected' : ''}>${t}</option>`).join('');
     $('sFormality').value = S.formality || 'balanced';
     $('sGender').value = S.gender || 'female';
-    $('sPrefLang').innerHTML = '<option value="">Auto from message</option>' + Object.values(L).map((l) => `<option value="${l.id}"${S.voiceLang === l.id ? ' selected' : ''}>${l.label}</option>`).join('');
+    $('sPrefLang').innerHTML = Object.values(L).map((l) => `<option value="${l.id}"${S.voiceLang === l.id ? ' selected' : ''}>${l.label}</option>`).join('') + `<option value="AUTO"${S.voiceLang === 'AUTO' ? ' selected' : ''}>Auto (match each message)</option>`;
     $('sTestResult').textContent = '';
     $('presetNote').textContent = S.modelPreset === 'Local/private'
       ? 'Local/private: enter your own OpenAI-compatible base URL.'
       : 'Presets map to real model IDs. Free Pollinations anonymous tier currently lists only openai-fast (alias openai).';
-    $('aiAbout').textContent = `Astra AI ${C.VERSION}`;
+    if ($('aiAbout')) $('aiAbout').textContent = '';
     renderAssistants();
   }
   async function renderAssistants() {
@@ -3186,9 +3208,9 @@
     S.chatModel = $('sModel').value.trim(); S.visionModel = $('sVision').value.trim();
     S.webSearchOn = $('sWeb').checked; S.aiName = $('sAiName').value.trim() || 'Astra';
     S.tone = $('sTone').value; S.mode = $('sMode').value; S.formality = $('sFormality').value;
-    S.gender = $('sGender').value; S.voiceLang = $('sPrefLang').value || null;
+    S.gender = $('sGender').value; S.voiceLang = $('sPrefLang').value || 'ENGLISH';
     if ($('sServerUrl')) S.serverUrl = ($('sServerUrl').value || '').trim().replace(/\/+$/, '');
-    saveS(); updateEmpty(); refreshStatus(); renderRouteLine();
+    saveS(); updateEmpty(); renderSuggestions(); refreshStatus(); renderRouteLine();
   }
   ['sGroqKey', 'sGroqModel', 'sGroqAlt', 'sCustomInstr', 'sOpenaiMode', 'sOpenaiKey', 'sOpenaiModel', 'sOpenaiWeb', 'sOpenaiReasoning', 'sXaiChatMode', 'sXaiChatKey', 'sXaiChatModel', 'sBase', 'sKey', 'sModel', 'sVision', 'sWeb', 'sAiName', 'sTone', 'sMode', 'sFormality', 'sGender', 'sPrefLang', 'sServerUrl'].forEach((id) => {
     const el = $(id); if (el) el.addEventListener('change', saveAiFields);
@@ -3323,7 +3345,7 @@
       `Voice input: ${SR ? 'available (may be refused by OS — then use keyboard 🎤)' : 'NOT available — use keyboard 🎤'}.\n` +
       `TTS: ${PROV_LABEL[activeTtsProvider()]} (Auto = phone voice on Android). Optional Grok / OpenAI-compatible keys stay in Voice settings only.\n` +
       `Storage: ${Store.kind}. Installed: ${STANDALONE || IS_ANDROID_WV ? 'yes' : 'no'}.`;
-    $('about').textContent = `Astra AI ${C.VERSION}\nLive: rss2json (news), open.er-api.com, gold-api.com, Coinbase, Open-Meteo, Pollinations`;
+    if ($('about')) $('about').textContent = '';
   }
   function saveSettings() {
     S.userName = $('sName').value.trim();
@@ -3778,8 +3800,8 @@
   if ($('btnProfile')) $('btnProfile').onclick = () => { haptic(); showTab('profile'); };
   if ($('btnMore')) $('btnMore').onclick = (e) => { e.stopPropagation(); togglePop('moreMenu'); };
   ['btnNew', 'btnChatsList', 'btnVoiceMode', 'btnNewProject'].forEach((id) => { if ($(id)) $(id).addEventListener('click', closePops); });
-  if ($('btnTts')) $('btnTts').addEventListener('click', () => { closePops(); astraTtsLabel(); toast(S.ttsOn ? 'Ab main bol kar jawab dungi 🤍' : 'Theek hai, sirf likh kar jawab dungi'); });
-  function astraTtsLabel() { if ($('ttsLabel')) $('ttsLabel').textContent = S.ttsOn ? 'Awaaz mein jawab: On' : 'Awaaz mein jawab: Off'; }
+  if ($('btnTts')) $('btnTts').addEventListener('click', () => { closePops(); astraTtsLabel(); if ($('sTts')) $('sTts').checked = S.ttsOn; });
+  function astraTtsLabel() { if ($('ttsLabel')) $('ttsLabel').textContent = S.ttsOn ? 'Read replies aloud: On' : 'Read replies aloud: Off'; }
   astraTtsLabel();
   // composer: + popover → Photo or Video / Take Photo / Choose File
   $('btnAttach').onclick = (e) => { e.stopPropagation(); togglePop('attachMenu'); };
@@ -3799,7 +3821,7 @@
     $('hfOrb').dataset.state = st.toLowerCase();
     $('hfLabel').textContent = HF_LABEL[st] || HF_LABEL.IDLE;
     const tr = $('vsTranscript') ? $('vsTranscript').textContent : '';
-    $('hfText').textContent = tr || (st === 'LISTENING' ? 'Boliye janu…' : '');
+    $('hfText').textContent = tr || (st === 'LISTENING' ? ui('Listening…', 'Boliye…') : '');
     if ($('hfMute')) $('hfMute').classList.toggle('on', !!S.muted);
   }
   if ($('hfStop')) $('hfStop').onclick = () => { haptic(12); stopVoiceMode(); hfRender(); };
@@ -3834,7 +3856,8 @@
     $('sHaptics').checked = S.haptics !== false;
     $('sWakeWord').checked = !!S.wakeWordOn; $('sWakeWord').disabled = !wakeSupported();
     $('wakeSub').textContent = IS_IOS ? 'iPhone web app par mumkin nahi — Siri Shortcut use karein' : PLATFORM === 'android' ? 'Sirf jab app khuli ho (screen on)' : 'Sirf jab yeh tab khula ho';
-    $('footVer').textContent = C.VERSION + ' (' + (PLATFORM === 'android' ? 'Android' : 'web') + ' · 79)';
+    if ($('aboutVer')) $('aboutVer').textContent = 'Version ' + C.VERSION;
+    if ($('aboutBuild')) $('aboutBuild').textContent = 'Build ' + C.BUILD;
     const perms = [];
     try { if (navigator.permissions) { const m = await navigator.permissions.query({ name: 'microphone' }); perms.push('Mic: ' + (m.state === 'granted' ? 'on' : m.state === 'denied' ? 'off' : 'pucho')); } } catch (e) {}
     try { if ('Notification' in window) perms.push('Notifications: ' + (Notification.permission === 'granted' ? 'on' : Notification.permission === 'denied' ? 'off' : 'pucho')); } catch (e) {}
@@ -3863,7 +3886,7 @@
     'Location — sirf jab aap mausam/raasta poochein.'].join('\n'), [{ label: 'Phone actions kholo', go: true, fn: () => go('phone') }, { label: 'OK' }]);
   $('rowHelp').onclick = () => modal('Help', C.help ? (typeof C.help === 'function' ? C.help(L.ROMAN_URDU) : String(C.help)) : 'Mujh se Roman Urdu, Urdu, English ya Arabic mein baat karein.', [{ label: 'OK' }]);
   $('rowPrivacy').onclick = () => modal('Privacy', 'Sab kuch isi phone par: chats, memory, routine log aur API keys (localStorage / IndexedDB). Routine log mein sirf waqt aur topic ki category hoti hai, messages nahi. AI jawab ke liye sirf aap ka sawal aap ke chune hue AI provider ko jaata hai.', [{ label: 'OK' }]);
-  $('rowWhatsNew').onclick = () => modal('Astra ' + C.VERSION, 'Astra ab naye roop mein 🤍\n• Saaf, premium design — dark aur light dono\n• Side menu mein saari chats, search ke saath\n• Mode picker: Auto, Thinking, Creative, Coding + Web search\n• Pulse: ek tap mein taaza khabrein, rates, mausam\n• Astra Live: naya voice orb — beech mein tok sakte hain\n• Settings ab saaf groups mein\n• Aap ki saari chats, memory, settings aur keys waisi hi hain', [{ label: 'Theek hai' }]);
+  $('rowWhatsNew').onclick = () => modal('What\'s new in Astra ' + C.VERSION, '• English is now the default language (change it any time in Settings → Persona)\n• Replies are no longer read aloud automatically — tap the speaker under any reply to listen, tap again to stop\n• Astra Live (hands-free voice) still talks back as before\n• Cleaner About screen\n• Your chats, memory, settings and keys are unchanged', [{ label: 'OK' }]);
   $('rowReset').onclick = () => { if ($('sDeleteAll')) $('sDeleteAll').click(); };
   // connect tools list
   function connItems() {
@@ -3916,16 +3939,20 @@
   function astraRenderGreeting() {
     const g = astraOpen || C.proactiveGreeting([], new Date(), { proactive: false });
     const h = new Date().getHours();
-    if ($('welcome')) $('welcome').textContent = C.greetingFor(h);
+    // 3.0.1: professional greeting in the Settings language (English by default)
+    const hg = C.homeGreeting(h, S.voiceLang);
+    const nm = (S.userName || '').trim().split(/\s+/)[0];
+    if ($('welcome')) $('welcome').textContent = hg.title + (nm && !/^(working late|kaafi raat|کافی رات|تأخر|काफ़ी|ਕਾਫ਼ੀ)/i.test(hg.title) ? ', ' + nm : '');
+    const urduOffer = C.homeLangKey(S.voiceLang) === 'ru';
     const hello = C.greetingFor(h).replace(/\s*[☀️🤍🌙]+$/u, '');
-    const sub = g.offer ? (g.text.startsWith(hello + ', ') ? g.text.slice(hello.length + 2) : g.text) : 'Batayein, kya karna hai?';
+    const sub = g.offer && urduOffer ? (g.text.startsWith(hello + ', ') ? g.text.slice(hello.length + 2) : g.text) : hg.sub;
     if ($('welcomeSub')) $('welcomeSub').textContent = sub.charAt(0).toUpperCase() + sub.slice(1);
     const box = $('proactiveOffer'); if (!box) return;
     box.innerHTML = ''; box.hidden = !g.offer;
     if (g.offer) {
       const b = document.createElement('button'); b.className = 'sugg offer'; b.textContent = '✨ ' + g.offer.label;
       b.onclick = () => { astraOpen = { text: g.text, offer: null }; box.hidden = true; send(g.offer.send); };
-      const x = document.createElement('button'); x.className = 'sugg ghost'; x.textContent = 'Abhi nahi';
+      const x = document.createElement('button'); x.className = 'sugg ghost'; x.textContent = 'Not now';
       x.onclick = () => { astraOpen = { text: g.text, offer: null }; box.hidden = true; };
       box.append(b, x);
     }
@@ -3980,7 +4007,7 @@
     if (rest === null) return;                                                   // not for us — keep waiting quietly
     showTab('chat'); continuous = true; silentCount = 0; updateVoiceBar(); refreshStatus(); try { hfRender(); } catch (e) {}
     if (rest && !C.isStopPhrase(rest)) send(rest);
-    else speak('Ji janu?', L.ROMAN_URDU, () => { if (continuous && !busy && !listening) startListening(); });
+    else speak(ui('Yes?', 'Ji?'), uiUrdu() ? L.ROMAN_URDU : L.ENGLISH, () => { if (continuous && !busy && !listening) startListening(); });
   }
 
   // ======== 3.0.0 Astra UI: drawer with chat history, mode picker, Pulse chips, capability card, grouped settings, Live voice orb, onboarding ========
@@ -4021,7 +4048,7 @@
     cs = cs.filter((c) => c.count || c.id === convId).sort((a, b) => (b.updated || 0) - (a.updated || 0));
     if (q) cs = C.searchConversations(cs.filter((c) => (c.title || '').toLowerCase().includes(q)), q);
     box.innerHTML = '';
-    if (!cs.length) { box.innerHTML = '<p class="dEmpty">' + (q ? 'Koi chat nahi mili' : 'Abhi koi chat nahi — kuch poochein janu 🤍') + '</p>'; return; }
+    if (!cs.length) { box.innerHTML = '<p class="dEmpty">' + (q ? ui('No chats found', 'Koi chat nahi mili') : ui('No chats yet — ask me anything.', 'Abhi koi chat nahi — kuch poochein.')) + '</p>'; return; }
     const now = Date.now(), day = 864e5; let lastGrp = '';
     cs.slice(0, 40).forEach((c) => {
       const age = now - (c.updated || now);
@@ -4060,12 +4087,12 @@
   document.querySelectorAll('[data-pulse]').forEach((b) => { b.onclick = () => { haptic(); send(b.dataset.pulse); }; });
   document.querySelectorAll('[data-cap]').forEach((b) => { b.onclick = () => {
     haptic(); const k = b.dataset.cap;
-    if (k === 'web') { input.value = 'Search karo: '; autoGrow(); updateMicIcon(); input.focus(); toast('Kya search karun, janu?'); }
+    if (k === 'web') { input.value = 'Search: '; autoGrow(); updateMicIcon(); input.focus(); toast(ui('What should I search for?', 'Kya search karun?')); }
     else if (k === 'voice') { if ($('btnHandsFree')) $('btnHandsFree').click(); }
     else if (k === 'memory') go('memory');
     else if (k === 'phone') go('tools');
   }; });
-  if ($('amImage')) $('amImage').onclick = () => { closePops(); input.value = 'Photo banao: '; autoGrow(); updateMicIcon(); input.focus(); toast('Kis cheez ki photo banaun? 🎨'); };
+  if ($('amImage')) $('amImage').onclick = () => { closePops(); input.value = 'Create an image: '; autoGrow(); updateMicIcon(); input.focus(); toast(ui('What should I create? 🎨', 'Kis cheez ki photo banaun? 🎨')); };
   if ($('amScan')) $('amScan').onclick = () => { closePops(); if ($('btnScanOpen')) $('btnScanOpen').click(); };
 
   // settings: home list → one section at a time (all original controls and ids kept)

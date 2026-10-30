@@ -5,7 +5,7 @@ const C = require('../core.js'); const T = require('../tools.js'); const L = C.L
 const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
 
 test('branding: title, manifest, version 2.8.0; storage keys unchanged', () => {
-  assert.equal(C.VERSION, '3.0.0');
+  assert.equal(C.VERSION, '3.0.1');
   assert.match(read('index.html'), /<title>Astra AI<\/title>/);
   const m = JSON.parse(read('manifest.webmanifest')); assert.equal(m.name, 'Astra AI'); assert.equal(m.short_name, 'Astra AI');
   const app = read('app.js'); assert.match(app, /localStorage\.getItem\('noora\.settings'\)/); assert.match(app, /indexedDB\.open\('noora-ai', 2\)/);
@@ -76,6 +76,26 @@ test('2.8.1: no sales/stock on the home screen, no "apni AI" self-intro anywhere
   assert.equal(g.offer, null); assert.doesNotMatch(g.text, /sale|stock/i);
   assert.ok(C.routinePatterns(log).some((p) => p.cat === 'stock'));          // still learned in the background
   assert.equal(C.offlineReply('tum kon ho?', L.ROMAN_URDU, '').split(' 🤍')[0], 'Main Astra hoon, janu. Batayein, kya karna hai?');
-  assert.match(html, /id="welcomeSub">Batayein, kya karna hai\?</);
+  assert.match(html, /id="welcomeSub">How can I help you today\?</);   // 3.0.1: English home by default
   assert.equal(C.greetingReply(C.greeting('tum kon ho?'), L.ROMAN_URDU, ''), 'Main Astra hoon, janu. Batayein, kya karna hai?');
+});
+
+test('3.0.1: English default, auto-speak off, migration keeps explicit language picks, clean About, no home language chips', () => {
+  assert.equal(C.DEFAULT_VOICE_SETTINGS.ttsOn, false); assert.equal(C.DEFAULT_VOICE_SETTINGS.voiceLang, 'ENGLISH');
+  const fresh = C.migrateSettings({}, {}); assert.equal(fresh.voiceLang, 'ENGLISH'); assert.equal(fresh.ttsOn, false);
+  const old = C.migrateSettings({ ttsOn: true, voiceLang: null, userName: 'A' }, {}); assert.equal(old.voiceLang, 'ENGLISH'); assert.equal(old.ttsOn, false);
+  assert.equal(C.migrateSettings({ ttsOn: true, voiceLang: 'ROMAN_URDU' }, {}).voiceLang, 'ROMAN_URDU');
+  assert.equal(C.migrateSettings({ v301Migrated: true, voiceLang: 'AUTO' }, {}).voiceLang, 'AUTO');
+  assert.equal(C.migrateSettings({ v301Migrated: true, voiceLang: 'BOGUS' }, {}).voiceLang, 'ENGLISH');
+  assert.deepEqual(C.homeGreeting(9, 'ENGLISH'), { title: 'Good morning', sub: 'How can I help you today?' });
+  assert.equal(C.homeGreeting(14, null).title, 'Good afternoon');
+  assert.equal(C.homeGreeting(14, 'ROMAN_URDU').title, 'Assalam o alaikum');
+  assert.match(C.homeGreeting(9, 'URDU').title, /صبح بخیر/);
+  for (const h of [0, 3, 9, 14, 17, 21, 23]) assert.doesNotMatch(C.homeGreeting(h, 'ENGLISH').title + C.homeGreeting(h, 'ENGLISH').sub, /janu/i);
+  const html = read('index.html'), app = read('app.js');
+  assert.doesNotMatch(html, /Made for|Lalamusa|Salalah/i); assert.doesNotMatch(app, /footSub|· 79\)/);
+  assert.match(html, /id="aboutVer">Version 3\.0\.1</); assert.match(html, /id="welcome">Hello</);
+  assert.doesNotMatch(html, /id="langRow"/); assert.doesNotMatch(app, /\$\('langRow'\)/);
+  assert.match(app, /function autoSpeakOn\(\) \{ return !S\.muted && \(continuous \|\| S\.ttsOn === true\); \}/);
+  assert.match(app, /msgSpeakBtn === sp/);
 });

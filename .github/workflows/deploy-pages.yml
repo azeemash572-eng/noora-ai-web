@@ -1,4 +1,4 @@
-name: Deploy NOORA static site
+name: Deploy Astra static site
 on:
   push:
     branches: [main]

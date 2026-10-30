@@ -1,4 +1,4 @@
-/* Astra AI 2.8.1 (formerly NOORA AI) command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
+/* Astra AI 3.0.0 (formerly NOORA AI) command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
 (function () {
   'use strict';
   const C = window.NooraCore, L = C.Lang;
@@ -53,7 +53,7 @@
     const t = S.theme === 'light' || S.theme === 'dark' ? S.theme : 'auto';
     const el = document.documentElement; if (t === 'auto') el.removeAttribute('data-theme'); else el.setAttribute('data-theme', t);
     const light = t === 'light' || (t === 'auto' && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches);
-    const m = document.querySelector('meta[name=theme-color]'); if (m) m.setAttribute('content', light ? '#F4F4FA' : '#141414');
+    const m = document.querySelector('meta[name=theme-color]'); if (m) m.setAttribute('content', light ? '#F7F7F9' : '#07080C');
   }
   try { if (window.matchMedia) window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => applyTheme()); } catch (e) {}
   const saveS = () => { try { localStorage.setItem('noora.settings', JSON.stringify(S)); } catch (e) {} };
@@ -1886,11 +1886,15 @@
     const meta = m.meta || {};
     if (!m.pending && Array.isArray(meta.lunaLinks) && meta.lunaLinks.length) {
       const box = document.createElement('div'); box.className = 'lunaLinks';
-      const h = document.createElement('div'); h.className = 'lunaLinksHead'; h.textContent = '🔎 Luna web search'; box.appendChild(h);
-      meta.lunaLinks.forEach((c) => {
+      const h = document.createElement('div'); h.className = 'lunaLinksHead'; h.textContent = 'Web links'; box.appendChild(h);
+      const row = document.createElement('div'); row.className = 'srcRow'; box.appendChild(row);
+      meta.lunaLinks.forEach((c, i) => {
         if (!c || !/^https?:\/\//i.test(String(c.url || ''))) return;
-        const a = document.createElement('a'); a.href = c.url; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = String(c.title || c.url).slice(0, 90); a.dir = 'auto';
-        box.appendChild(a);
+        let host = ''; try { host = new URL(c.url).hostname.replace(/^www\./, ''); } catch (e) {}
+        const a = document.createElement('a'); a.href = c.url; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.className = 'srcChip'; a.dir = 'auto'; a.title = String(c.title || c.url);
+        const n = document.createElement('span'); n.className = 'srcN'; n.textContent = String(i + 1);
+        const t = document.createElement('span'); t.className = 'srcT'; t.textContent = host || String(c.title || c.url).slice(0, 40);
+        a.append(n, t); row.appendChild(a);
       });
       b.appendChild(box);
     }
@@ -1916,7 +1920,20 @@
     }
     row.appendChild(b);
     if (!m.pending && m.role !== 'user' && meta.notice) { const nt = document.createElement('div'); nt.className = 'meta aiNotice'; nt.textContent = meta.notice; row.appendChild(nt); }
-    if (!m.pending) { const mt = document.createElement('div'); mt.className = 'meta'; mt.textContent = fmtTime(m.ts) + (m.role !== 'user' && meta.via ? ' · ' + meta.via : ''); row.appendChild(mt); }
+    if (!m.pending) {
+      const mt = document.createElement('div'); mt.className = 'meta'; mt.textContent = fmtTime(m.ts) + (m.role !== 'user' && meta.via ? ' · ' + meta.via : '');
+      if (m.role !== 'user' && m.text) {   // 3.0.0: copy / listen actions under Astra's replies
+        const acts = document.createElement('span'); acts.className = 'msgActs';
+        const cp = document.createElement('button'); cp.type = 'button'; cp.className = 'mAct'; cp.setAttribute('aria-label', 'Copy');
+        cp.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8.5" y="8.5" width="11" height="11" rx="2.5"/><path d="M15.5 8.5V6a1.5 1.5 0 0 0-1.5-1.5H6A1.5 1.5 0 0 0 4.5 6v8A1.5 1.5 0 0 0 6 15.5h2.5"/></svg>';
+        cp.onclick = async () => { try { await navigator.clipboard.writeText(m.text); toast('Copy ho gaya 🤍', 1400); } catch (e) { toast('Copy nahi ho saka'); } };
+        const sp = document.createElement('button'); sp.type = 'button'; sp.className = 'mAct'; sp.setAttribute('aria-label', 'Listen');
+        sp.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg>';
+        sp.onclick = () => { unlockSpeech(); if (voiceState === 'SPEAKING') { stopSpeaking(); setVoiceState('IDLE'); return; } speak(m.text, C.detect(m.text, prefLang()), null, { force: true }); };
+        acts.append(cp, sp); mt.prepend(acts);
+      }
+      row.appendChild(mt);
+    }
     return row;
   }
   function renderAll() { list.innerHTML = ''; msgs.forEach((m) => list.appendChild(renderMsg(m))); updateEmpty(); scrollEnd(); }
@@ -2899,6 +2916,7 @@
     b.style.backgroundImage = listening ? i : i + ', var(--micGrad)';
     b.style.backgroundSize = listening ? '22px' : '26px, cover';
     b.setAttribute('aria-label', listening ? 'Stop listening' : hasSend ? 'Send' : 'Speak');
+    const bar = $('bar'); if (bar) { bar.classList.toggle('hasText', hasSend && !listening); bar.classList.toggle('isListening', !!listening); }
   }
   function autoGrow() { input.style.height = 'auto'; input.style.height = Math.min(120, input.scrollHeight) + 'px'; }
   setIcon($('btnTts'), S.ttsOn ? 'volOn' : 'volOff'); setIcon($('btnNew'), 'add'); setIcon($('btnAttach'), 'attach'); setIcon($('btnVoiceMode'), 'voice'); setIcon($('btnUploadFile'), 'attach');
@@ -2986,7 +3004,7 @@
     if (name === 'files') openFiles();
     if (name === 'tools') openTools();
     if (name === 'memory') openMemoryTab();
-    if (name === 'settings') { openSettings(); openAiTab(); try { openSettingsSheet(); } catch (e) {} }
+    if (name === 'settings') { openSettings(); openAiTab(); try { openSettingsSheet(); openSetSec(''); } catch (e) {} }
     if (name === 'profile') openProfile();
     if (name === 'connect') renderConnect();
   }
@@ -3757,7 +3775,6 @@
     b.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>';
     b.onclick = () => { haptic(); showTab(t === 'chats' ? 'chat' : 'profile'); }; h.prepend(b);
   });
-  if ($('btnMenu')) $('btnMenu').onclick = () => { haptic(); showTab('chats'); };
   if ($('btnProfile')) $('btnProfile').onclick = () => { haptic(); showTab('profile'); };
   if ($('btnMore')) $('btnMore').onclick = (e) => { e.stopPropagation(); togglePop('moreMenu'); };
   ['btnNew', 'btnChatsList', 'btnVoiceMode', 'btnNewProject'].forEach((id) => { if ($(id)) $(id).addEventListener('click', closePops); });
@@ -3802,7 +3819,7 @@
     if ($('sNotify')) $('sNotify').checked = !!S.notifyOn && notifGranted();
   }
   function notifGranted() { if (PLATFORM === 'android') return true; try { return 'Notification' in window && Notification.permission === 'granted'; } catch (e) { return false; } }
-  if ($('btnEditProfile')) $('btnEditProfile').onclick = () => { showTab('settings'); setTimeout(() => { const i = $('sAiName'); if (i) { i.scrollIntoView({ block: 'center' }); i.focus(); } }, 80); };
+  if ($('btnEditProfile')) $('btnEditProfile').onclick = () => { showTab('settings'); setTimeout(() => { const i = $('sAiName'); if (i) { astraReveal(i); i.scrollIntoView({ block: 'center' }); i.focus(); } }, 80); };
   if ($('sNotify')) $('sNotify').onchange = async () => {
     S.notifyOn = $('sNotify').checked; saveS();
     if (S.notifyOn && PLATFORM !== 'android') {
@@ -3817,7 +3834,7 @@
     $('sHaptics').checked = S.haptics !== false;
     $('sWakeWord').checked = !!S.wakeWordOn; $('sWakeWord').disabled = !wakeSupported();
     $('wakeSub').textContent = IS_IOS ? 'iPhone web app par mumkin nahi — Siri Shortcut use karein' : PLATFORM === 'android' ? 'Sirf jab app khuli ho (screen on)' : 'Sirf jab yeh tab khula ho';
-    $('footVer').textContent = C.VERSION + ' (' + (PLATFORM === 'android' ? 'Android' : 'web') + ' · 78)';
+    $('footVer').textContent = C.VERSION + ' (' + (PLATFORM === 'android' ? 'Android' : 'web') + ' · 79)';
     const perms = [];
     try { if (navigator.permissions) { const m = await navigator.permissions.query({ name: 'microphone' }); perms.push('Mic: ' + (m.state === 'granted' ? 'on' : m.state === 'denied' ? 'off' : 'pucho')); } } catch (e) {}
     try { if ('Notification' in window) perms.push('Notifications: ' + (Notification.permission === 'granted' ? 'on' : Notification.permission === 'denied' ? 'off' : 'pucho')); } catch (e) {}
@@ -3846,12 +3863,12 @@
     'Location — sirf jab aap mausam/raasta poochein.'].join('\n'), [{ label: 'Phone actions kholo', go: true, fn: () => go('phone') }, { label: 'OK' }]);
   $('rowHelp').onclick = () => modal('Help', C.help ? (typeof C.help === 'function' ? C.help(L.ROMAN_URDU) : String(C.help)) : 'Mujh se Roman Urdu, Urdu, English ya Arabic mein baat karein.', [{ label: 'OK' }]);
   $('rowPrivacy').onclick = () => modal('Privacy', 'Sab kuch isi phone par: chats, memory, routine log aur API keys (localStorage / IndexedDB). Routine log mein sirf waqt aur topic ki category hoti hai, messages nahi. AI jawab ke liye sirf aap ka sawal aap ke chune hue AI provider ko jaata hai.', [{ label: 'OK' }]);
-  $('rowWhatsNew').onclick = () => modal('Astra 2.8.1', 'NOORA ab Astra hai 🤍\n• Nayi chat-first design\n• Hands-free voice: waveform button ya “Astra” bolein; “bas” se band\n• Aap ki routine seekhti hai (sirf is phone par)\n• App kholne par ek chhota sa suggestion\n• Aap ki saari chats, memory, settings aur keys waisi hi hain', [{ label: 'OK' }]);
+  $('rowWhatsNew').onclick = () => modal('Astra ' + C.VERSION, 'Astra ab naye roop mein 🤍\n• Saaf, premium design — dark aur light dono\n• Side menu mein saari chats, search ke saath\n• Mode picker: Auto, Thinking, Creative, Coding + Web search\n• Pulse: ek tap mein taaza khabrein, rates, mausam\n• Astra Live: naya voice orb — beech mein tok sakte hain\n• Settings ab saaf groups mein\n• Aap ki saari chats, memory, settings aur keys waisi hi hain', [{ label: 'Theek hai' }]);
   $('rowReset').onclick = () => { if ($('sDeleteAll')) $('sDeleteAll').click(); };
   // connect tools list
   function connItems() {
     const and = PLATFORM === 'android';
-    const gotoS = (id) => () => { showTab('settings'); setTimeout(() => { const el = $(id); if (el) { el.scrollIntoView({ block: 'center' }); try { el.focus(); } catch (e) {} } }, 80); };
+    const gotoS = (id) => () => { showTab('settings'); setTimeout(() => { const el = $(id); if (el) { astraReveal(el); el.scrollIntoView({ block: 'center' }); try { el.focus(); } catch (e) {} } }, 80); };
     return [
       { id: 'groq', cat: 'ai', t: 'Groq (fast AI)', s: 'Free key — tez aur smart jawab', state: () => (C.groqKeyOf(S) ? 'on' : 'off'), go: gotoS('sGroqKey') },
       { id: 'openai', cat: 'ai', t: 'OpenAI / GPT', s: 'Apni key se GPT models, web search', state: () => (C.openaiKeyOf(S) ? 'on' : 'off'), go: gotoS('sOpenaiKey') },
@@ -3966,6 +3983,140 @@
     else speak('Ji janu?', L.ROMAN_URDU, () => { if (continuous && !busy && !listening) startListening(); });
   }
 
+  // ======== 3.0.0 Astra UI: drawer with chat history, mode picker, Pulse chips, capability card, grouped settings, Live voice orb, onboarding ========
+  const MODE_NAME = { 'Fast': 'Auto', 'Advanced reasoning': 'Thinking', 'Creative': 'Creative', 'Coding': 'Coding', 'Local/private': 'Private' };
+  function astraModeUi() {
+    const nm = MODE_NAME[S.modelPreset] || 'Auto';
+    if ($('modeTag')) $('modeTag').textContent = nm;
+    if ($('modeChipLabel')) $('modeChipLabel').textContent = nm;
+    document.querySelectorAll('#modeMenu [data-mode]').forEach((b) => { const on = b.dataset.mode === (S.modelPreset || 'Fast'); b.classList.toggle('sel', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); });
+    if ($('mmWeb')) $('mmWeb').checked = S.webSearchOn !== false;
+    if ($('mmOffline')) $('mmOffline').checked = S.netMode === 'offline';
+    if ($('btnWebChip')) $('btnWebChip').classList.toggle('on', S.webSearchOn !== false && S.netMode !== 'offline');
+    if ($('mmRoute')) $('mmRoute').textContent = ($('statusText') ? $('statusText').textContent : '') || 'AI route';
+  }
+  function openModeMenu(e) { if (e) e.stopPropagation(); refreshStatus(); astraModeUi(); togglePop('modeMenu'); }
+  if ($('btnModePick')) $('btnModePick').onclick = openModeMenu;
+  if ($('btnModeChip')) $('btnModeChip').onclick = openModeMenu;
+  document.addEventListener('click', (e) => { if (!e.target.closest('#modeMenu') && !e.target.closest('#btnModePick') && !e.target.closest('#btnModeChip') && $('modeMenu')) $('modeMenu').hidden = true; });
+  document.querySelectorAll('#modeMenu [data-mode]').forEach((b) => { b.onclick = () => {
+    S.modelPreset = b.dataset.mode; applyModelPreset(); saveS(); refreshStatus(); astraModeUi(); closePops(); haptic();
+    toast((MODE_NAME[S.modelPreset] || 'Auto') + ' mode on 🤍');
+  }; });
+  if ($('mmWeb')) $('mmWeb').onchange = () => { S.webSearchOn = $('mmWeb').checked; saveS(); if ($('sWeb')) $('sWeb').checked = S.webSearchOn; astraModeUi(); toast(S.webSearchOn ? 'Web search on — taaza maloomat laaungi' : 'Web search off'); };
+  if ($('mmOffline')) $('mmOffline').onchange = () => { S.netMode = $('mmOffline').checked ? 'offline' : 'auto'; saveS(); if ($('sNetMode')) $('sNetMode').value = S.netMode; refreshStatus(); astraModeUi(); toast(S.netMode === 'offline' ? 'Offline mode — phone actions bina internet' : 'Online wapas 🤍'); };
+  if ($('btnWebChip')) $('btnWebChip').onclick = (e) => { e.stopPropagation(); S.webSearchOn = S.webSearchOn === false; saveS(); if ($('sWeb')) $('sWeb').checked = S.webSearchOn; astraModeUi(); haptic(); toast(S.webSearchOn ? 'Web search on 🌐' : 'Web search off'); };
+  if ($('btnNewTop')) $('btnNewTop').onclick = () => { haptic(); newChat(); };
+  astraModeUi();
+
+  // drawer (sidebar) with chat history
+  function userInitial() { const n = (S.userName || '').trim(); return n ? n.charAt(0).toUpperCase() : 'A'; }
+  async function renderDrawer() {
+    if ($('dUserAv')) $('dUserAv').textContent = userInitial();
+    if ($('dUserName')) $('dUserName').textContent = (S.userName || '').trim() || 'Aap';
+    if ($('dVer')) $('dVer').textContent = C.VERSION;
+    const box = $('dList'); if (!box) return;
+    const q = (($('dSearch') && $('dSearch').value) || '').toLowerCase().trim();
+    let cs = []; try { cs = await Store.conversations(); } catch (e) {}
+    cs = cs.filter((c) => c.count || c.id === convId).sort((a, b) => (b.updated || 0) - (a.updated || 0));
+    if (q) cs = C.searchConversations(cs.filter((c) => (c.title || '').toLowerCase().includes(q)), q);
+    box.innerHTML = '';
+    if (!cs.length) { box.innerHTML = '<p class="dEmpty">' + (q ? 'Koi chat nahi mili' : 'Abhi koi chat nahi — kuch poochein janu 🤍') + '</p>'; return; }
+    const now = Date.now(), day = 864e5; let lastGrp = '';
+    cs.slice(0, 40).forEach((c) => {
+      const age = now - (c.updated || now);
+      const grp = age < day ? 'Aaj' : age < 2 * day ? 'Kal' : age < 7 * day ? 'Is hafte' : 'Pehle';
+      if (grp !== lastGrp) { const h = document.createElement('div'); h.className = 'dGrp'; h.textContent = grp; box.appendChild(h); lastGrp = grp; }
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'dItem' + (c.id === convId ? ' on' : ''); b.dir = 'auto';
+      b.textContent = c.title || 'Nayi chat';
+      b.onclick = async () => { haptic(); await loadConversation(c.id); closeDrawer(); showTab('chat'); };
+      box.appendChild(b);
+    });
+  }
+  function openDrawer() { const d = $('drawer'); if (!d) return; closePops(); renderDrawer(); $('drawerScrim').hidden = false; requestAnimationFrame(() => { d.classList.add('open'); $('drawerScrim').classList.add('on'); }); d.setAttribute('aria-hidden', 'false'); haptic(); }
+  function closeDrawer() { const d = $('drawer'); if (!d || !d.classList.contains('open')) return; d.classList.remove('open'); $('drawerScrim').classList.remove('on'); d.setAttribute('aria-hidden', 'true'); setTimeout(() => { $('drawerScrim').hidden = true; }, 260); }
+  if ($('btnMenu')) $('btnMenu').onclick = openDrawer;
+  if ($('drawerScrim')) $('drawerScrim').onclick = closeDrawer;
+  if ($('drawerClose')) $('drawerClose').onclick = closeDrawer;
+  if ($('dSearch')) $('dSearch').oninput = renderDrawer;
+  if ($('dNewChat')) $('dNewChat').onclick = async () => { closeDrawer(); showTab('chat'); if (msgs.length) await newChat(); input.focus(); };
+  if ($('dAllChats')) $('dAllChats').onclick = () => { closeDrawer(); showTab('chats'); };
+  if ($('dUser')) $('dUser').onclick = () => { closeDrawer(); showTab('settings'); };
+  document.querySelectorAll('[data-dgo]').forEach((b) => { b.onclick = () => {
+    const w = b.dataset.dgo; closeDrawer(); haptic();
+    if (w === 'voice') { showTab('chat'); if ($('btnHandsFree')) $('btnHandsFree').click(); return; }
+    go(w);
+  }; });
+  // swipe from the left edge opens the drawer, swipe left closes it
+  (() => { let x0 = null, y0 = 0, fromEdge = false;
+    document.addEventListener('touchstart', (e) => { const t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; fromEdge = x0 < 24; }, { passive: true });
+    document.addEventListener('touchend', (e) => { if (x0 == null) return; const t = e.changedTouches[0]; const dx = t.clientX - x0, dy = Math.abs(t.clientY - y0);
+      const open = $('drawer') && $('drawer').classList.contains('open');
+      if (!open && fromEdge && dx > 60 && dy < 50 && !$('tab-chat').hidden) openDrawer();
+      if (open && dx < -60 && dy < 50) closeDrawer(); x0 = null; }, { passive: true });
+  })();
+
+  // empty state: Pulse chips + capability card + extra attach items
+  document.querySelectorAll('[data-pulse]').forEach((b) => { b.onclick = () => { haptic(); send(b.dataset.pulse); }; });
+  document.querySelectorAll('[data-cap]').forEach((b) => { b.onclick = () => {
+    haptic(); const k = b.dataset.cap;
+    if (k === 'web') { input.value = 'Search karo: '; autoGrow(); updateMicIcon(); input.focus(); toast('Kya search karun, janu?'); }
+    else if (k === 'voice') { if ($('btnHandsFree')) $('btnHandsFree').click(); }
+    else if (k === 'memory') go('memory');
+    else if (k === 'phone') go('tools');
+  }; });
+  if ($('amImage')) $('amImage').onclick = () => { closePops(); input.value = 'Photo banao: '; autoGrow(); updateMicIcon(); input.focus(); toast('Kis cheez ki photo banaun? 🎨'); };
+  if ($('amScan')) $('amScan').onclick = () => { closePops(); if ($('btnScanOpen')) $('btnScanOpen').click(); };
+
+  // settings: home list → one section at a time (all original controls and ids kept)
+  let setSec = '';
+  const SEC_TITLE = { account: 'Account & profile', persona: 'Personalization', voice: 'Voice', memory: 'Memory', models: 'Models & API keys', phone: 'Phone & permissions', privacy: 'Data & privacy', about: 'About' };
+  function openSetSec(k) {
+    setSec = k || '';
+    if ($('setHome')) $('setHome').hidden = !!setSec;
+    document.querySelectorAll('#tab-settings .sSec').forEach((s) => { s.hidden = s.dataset.sec !== setSec; });
+    if ($('setTitle')) $('setTitle').textContent = setSec ? (SEC_TITLE[setSec] || 'Settings') : 'Settings';
+    const cb = $('btnSettingsClose');
+    if (cb) { cb.classList.toggle('isBack', !!setSec); cb.setAttribute('aria-label', setSec ? 'Back' : 'Close');
+      cb.innerHTML = setSec ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>'
+        : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>'; }
+    const sc = $('setScroll'); if (sc) sc.scrollTop = 0;
+    if (!setSec) renderSetHome();
+  }
+  function renderSetHome() {
+    if ($('setUserAv')) $('setUserAv').textContent = userInitial();
+    if ($('setUserName')) $('setUserName').textContent = (S.userName || '').trim() || 'Aap';
+    if ($('setUserSub')) $('setUserSub').textContent = 'Astra ' + C.VERSION + ' · sab kuch isi phone par';
+    if ($('aboutVer')) $('aboutVer').textContent = 'Version ' + C.VERSION;
+  }
+  function astraReveal(el) { const s = el && el.closest && el.closest('#tab-settings .sSec'); if (s && s.hidden) openSetSec(s.dataset.sec); }
+  window.__astraReveal = astraReveal;
+  document.querySelectorAll('#tab-settings [data-sec].catRow').forEach((b) => { b.onclick = () => { haptic(); openSetSec(b.dataset.sec); }; });
+  if ($('setProfileCard')) $('setProfileCard').onclick = () => { haptic(); openSetSec('account'); };
+  if ($('btnSettingsClose')) $('btnSettingsClose').onclick = () => { haptic(); if (setSec) openSetSec(''); else go('back'); };
+  document.querySelectorAll('#tab-settings .sSec [data-go]').forEach((b) => b.addEventListener('click', () => openSetSec('')));
+
+  // Live voice: tap the orb to interrupt (barge-in) or to start talking
+  if ($('hfOrb')) $('hfOrb').onclick = () => {
+    haptic(10); unlockSpeech();
+    if (voiceState === 'SPEAKING') { stopSpeaking(); setVoiceState('IDLE'); if (continuous && !busy && !listening) startListening(); }
+    else if (!listening && continuous && !busy) startListening();
+    hfRender();
+  };
+
+  // onboarding (once), warm Roman Urdu
+  function astraOnboard() {
+    const ob = $('onboard'); if (!ob || localStorage.getItem('astra.onboarded')) return;
+    let i = 0; const slides = ob.querySelectorAll('.obSlide'), dots = ob.querySelectorAll('#obDots span');
+    const show = () => { $('obTrack').style.transform = 'translateX(' + (-100 * i) + '%)'; dots.forEach((d, k) => d.classList.toggle('on', k === i)); $('obNext').textContent = i === slides.length - 1 ? 'Shuru karein 🤍' : 'Aage'; };
+    const done = () => { const n = ($('obName').value || '').trim(); if (n) { S.userName = n; saveS(); if ($('sName')) $('sName').value = n; }
+      localStorage.setItem('astra.onboarded', C.VERSION); ob.classList.add('out'); setTimeout(() => { ob.hidden = true; }, 350); updateEmpty(); renderDrawer(); };
+    if ($('obName')) $('obName').value = S.userName || '';
+    $('obNext').onclick = () => { haptic(); if (i < slides.length - 1) { i++; show(); } else done(); };
+    $('obSkip').onclick = done;
+    ob.hidden = false; show();
+  }
+
   (async () => {
     const ok = await Store.open();
     if (!ok) toast('IndexedDB unavailable — using localStorage.');
@@ -3978,6 +4129,7 @@
     setVoiceState('IDLE');
     handleLaunchParams();
     setTimeout(hideSplash, 650);
+    try { astraModeUi(); renderDrawer(); astraOnboard(); } catch (e) {}
     if ('serviceWorker' in navigator && document.querySelector('link[data-pwa]') && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
       navigator.serviceWorker.register('./sw.js').catch(() => {});
     }

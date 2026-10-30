@@ -4,20 +4,20 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>Astra AI</title>
-<meta name="description" content="Astra AI — your own personal AI assistant (English, Urdu, Arabic, Hindi, Punjabi)">
-<meta name="theme-color" content="#141414">
-<meta name="color-scheme" content="dark">
+<meta name="description" content="Astra AI — aap ki apni personal AI companion">
+<meta name="theme-color" content="#07080C">
+<meta name="color-scheme" content="dark light">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Astra AI">
 <meta name="format-detection" content="telephone=no">
-<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=2.8.1">
-<link rel="icon" type="image/png" sizes="64x64" href="icons/icon-64.png?v=2.8.1">
-<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png?v=2.8.1">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=3.0.0">
+<link rel="icon" type="image/png" sizes="64x64" href="icons/icon-64.png?v=3.0.0">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png?v=3.0.0">
 <link rel="manifest" href="manifest.webmanifest" data-pwa>
-<link rel="stylesheet" href="app.css">
-<link rel="stylesheet" href="astra.css?v=2.8.1">
+<link rel="stylesheet" href="app.css?v=3.0.0">
+<link rel="stylesheet" href="astra.css?v=3.0.0">
 </head>
 <body>
 <div id="lockGate" hidden>
@@ -31,7 +31,7 @@
   </div>
 </div>
 
-<div id="splash" aria-hidden="true"><img src="icons/astra-mascot.svg" alt=""></div>
+<div id="splash" aria-hidden="true"><img src="icons/astra-mark.svg" alt=""></div>
 <div id="app">
   <!-- HOME (command center dashboard) -->
   <section class="tab" id="tab-home" hidden>
@@ -41,7 +41,7 @@
     </header>
     <div class="scroll homeDash">
       <button type="button" class="voiceOrb bigOrb" id="homeVoiceBtn" data-state="idle" aria-label="Start voice"><span class="orbRing" aria-hidden="true"></span><span class="orbRing r2" aria-hidden="true"></span><span class="orbCore"><img src="icons/icon-192.png" alt=""></span><span class="orbMic" aria-hidden="true">🎙</span></button>
-      <p class="orbHint">Tap to talk · Urdu · Roman Urdu · English · हिन्दी · ਪੰਜਾਬੀ</p>
+      <p class="orbHint">Tap to talk</p>
       <div class="quickCmd glassCard">
         <input id="homeQuick" type="text" placeholder="Quick command…" dir="auto" enterkeyhint="go" autocomplete="off">
         <button type="button" class="primary sm" id="homeQuickGo">Go</button>
@@ -60,31 +60,64 @@
     </div>
   </section>
 
-  <!-- CHAT -->
+  <!-- CHAT (3.0.0: chat-first home) -->
   <section class="tab" id="tab-chat">
     <header id="top" class="astraTop">
-      <button type="button" class="rbtn" id="btnMenu" aria-label="Chats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
-      <button type="button" class="namePill" id="btnProfile" aria-label="Astra profile"><span class="pillAv"><img id="avatar" src="icons/astra-mascot.svg" alt="Astra"><span id="dot"></span></span><span class="name" id="aiDisplayName">Astra</span></button>
-      <button type="button" class="rbtn" id="btnMore" aria-label="More"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5.5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="18.5" cy="12" r="1.8"/></svg></button>
+      <button type="button" class="rbtn ghost" id="btnMenu" aria-label="Menu and chats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h11M4 17h16"/></svg></button>
+      <button type="button" class="modePill" id="btnModePick" aria-haspopup="menu" aria-label="Choose mode"><span class="pillAv"><img id="avatar" src="icons/astra-mark.svg" alt=""><span id="dot"></span></span><span class="name" id="aiDisplayName">Astra</span><span class="modeTag" id="modeTag">Auto</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg></button>
+      <div class="topRightBtns">
+        <button type="button" class="rbtn ghost" id="btnNewTop" aria-label="New chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h8"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+        <button type="button" class="rbtn ghost" id="btnMore" aria-label="More"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5.5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="18.5" r="1.7"/></svg></button>
+      </div>
       <span class="srOnly" id="statusText" aria-live="polite">Ready</span>
     </header>
+    <div id="modeMenu" class="popMenu topCenter" hidden role="menu">
+      <div class="pmHead">Mode</div>
+      <button type="button" role="menuitemradio" data-mode="Fast"><span class="mi mIco">⚡</span><span class="mt"><b>Auto</b><small>Tez jawab — rozmarra ke kaam</small></span><span class="mk"></span></button>
+      <button type="button" role="menuitemradio" data-mode="Advanced reasoning"><span class="mi mIco">🧠</span><span class="mt"><b>Thinking</b><small>Mushkil sawal, hisaab, planning</small></span><span class="mk"></span></button>
+      <button type="button" role="menuitemradio" data-mode="Creative"><span class="mi mIco">✨</span><span class="mt"><b>Creative</b><small>Likhai, ideas, captions</small></span><span class="mk"></span></button>
+      <button type="button" role="menuitemradio" data-mode="Coding"><span class="mi mIco">⌘</span><span class="mt"><b>Coding</b><small>Code, apps, websites</small></span><span class="mk"></span></button>
+      <div class="pmSep"></div>
+      <label class="pmTog"><span class="mi mIco">🌐</span><span class="mt"><b>Web search</b><small>Khabrein, rates, mausam — live</small></span><input type="checkbox" id="mmWeb" class="switch sm"></label>
+      <label class="pmTog"><span class="mi mIco">📴</span><span class="mt"><b>Offline mode</b><small>Bina internet: phone actions</small></span><input type="checkbox" id="mmOffline" class="switch sm"></label>
+      <div class="pmFoot" id="mmRoute">AI route</div>
+    </div>
     <div id="moreMenu" class="popMenu topRight" hidden role="menu">
       <button type="button" id="btnNew" role="menuitem"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h8M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></span>Nayi chat</button>
       <button type="button" id="btnChatsList" role="menuitem"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 18.5V7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H8z"/></svg></span>Purani chats</button>
       <button type="button" id="btnTts" role="menuitem"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/></svg></span><span id="ttsLabel">Awaaz mein jawab</span></button>
       <button type="button" id="btnVoiceMode" role="menuitem"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4"/></svg></span>Hands-free mode</button>
       <button type="button" id="btnNewProject" role="menuitem"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/><path d="M12 11v5M9.5 13.5h5"/></svg></span>Naya project / folder</button>
-      <button type="button" data-go="profile" role="menuitem"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L4 16.8V20h3.2l5.3-5.3a4 4 0 0 0 5.2-5.4l-2.4 2.4-2.6-.6-.6-2.6z"/></svg></span>Tools, routine &amp; memory</button>
+      <button type="button" data-go="profile" role="menuitem" id="btnProfile"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L4 16.8V20h3.2l5.3-5.3a4 4 0 0 0 5.2-5.4l-2.4 2.4-2.6-.6-.6-2.6z"/></svg></span>Tools, routine &amp; memory</button>
       <button type="button" data-go="settings" role="menuitem"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7 7 0 0 0-2-1.2L14.2 3h-4l-.4 2.7a7 7 0 0 0-2 1.2l-2.3-1-2 3.4 2 1.5A7 7 0 0 0 5 12a7 7 0 0 0 .1 1.2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 2 1.2l.4 2.7h4l.4-2.7a7 7 0 0 0 2-1.2l2.3 1 2-3.4-2-1.5A7 7 0 0 0 19 12z"/></svg></span>Settings</button>
     </div>
     <nav id="langRow"></nav>
     <div id="installHint" hidden>Install on iPhone: tap <b>Share</b> <span class="share"></span> → <b>Add to Home Screen</b>. <button id="hintClose" aria-label="Dismiss">✕</button></div>
     <main id="list"></main>
     <section id="empty">
-      <button type="button" class="voiceOrb chatOrb astraOrb" id="chatVoiceOrb" data-state="idle" aria-label="Hands-free voice"><img src="icons/astra-mascot.svg" alt=""></button>
-      <h1 id="welcome">Assalam o alaikum janu 🤍</h1>
-      <p class="sub" id="welcomeSub">Batayein, kya karna hai?</p>
-      <div id="proactiveOffer" class="proactiveOffer" hidden></div>
+      <div class="heroBlock">
+        <button type="button" class="voiceOrb chatOrb astraOrb" id="chatVoiceOrb" data-state="idle" aria-label="Hands-free voice"><span class="orbGlow" aria-hidden="true"></span><img src="icons/astra-mark.svg" alt=""></button>
+        <h1 id="welcome">Assalam o alaikum</h1>
+        <p class="sub" id="welcomeSub">Batayein, kya karna hai?</p>
+        <div id="proactiveOffer" class="proactiveOffer" hidden></div>
+      </div>
+      <div class="pulseWrap">
+        <div class="pulseHead"><span class="liveDot"></span>Pulse<span class="pulseSub">live</span></div>
+        <div class="pulseRow" id="pulseRow">
+          <button type="button" class="pulseChip" data-pulse="Aaj ki tech aur AI ki top khabrein batao"><span>🤖</span>Tech &amp; AI</button>
+          <button type="button" class="pulseChip" data-pulse="Aaj gold rate aur dollar rate kya hai?"><span>📈</span>Markets &amp; gold</button>
+          <button type="button" class="pulseChip" data-pulse="Aaj Salalah ka mausam kaisa hai?"><span>🌤</span>Weather</button>
+          <button type="button" class="pulseChip" data-pulse="Pakistan ki aaj ki top khabrein batao"><span>📰</span>Pakistan news</button>
+          <button type="button" class="pulseChip" data-pulse="Aaj cricket ka score kya hai?"><span>🏏</span>Cricket</button>
+        </div>
+      </div>
+      <div class="capCard" id="capCard">
+        <div class="capTitle">Aap ke liye main yeh sab kar sakti hoon 🤍</div>
+        <button type="button" class="capRow" data-cap="web"><span class="capIco c1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.6 3.6 5.4 3.6 8.5s-1.1 5.9-3.6 8.5c-2.5-2.6-3.6-5.4-3.6-8.5s1.1-5.9 3.6-8.5z"/></svg></span><span class="capTxt"><b>Live web answers</b><small>News, rates, mausam — taaza maloomat</small></span></button>
+        <button type="button" class="capRow" data-cap="voice"><span class="capIco c2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4"/></svg></span><span class="capTxt"><b>Live voice</b><small>Hands-free baat — beech mein tok bhi sakte hain</small></span></button>
+        <button type="button" class="capRow" data-cap="memory"><span class="capIco c3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4.5a3 3 0 0 0-3 3 3 3 0 0 0-1.5 5.3A3 3 0 0 0 9 19.5h.5V4.5z"/><path d="M15 4.5a3 3 0 0 1 3 3 3 3 0 0 1 1.5 5.3A3 3 0 0 1 15 19.5h-.5V4.5z"/></svg></span><span class="capTxt"><b>Memory</b><small>Jo aap batayein yaad rakhti hoon — aap control karein</small></span></button>
+        <button type="button" class="capRow" data-cap="phone"><span class="capIco c4"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="3" width="10" height="18" rx="2.5"/><path d="M11 17.5h2"/></svg></span><span class="capTxt"><b>Phone, files &amp; PDF</b><small>Call, WhatsApp, reminders, photos, documents</small></span></button>
+      </div>
       <button class="sugg" id="btnStartVoice" hidden>Start voice conversation</button>
     </section>
     <div id="voiceState" class="voiceState" hidden aria-live="polite">
@@ -109,13 +142,21 @@
       <button type="button" id="amMedia" role="menuitem"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="M20 15.5l-4.5-4.5L7 19.5"/></svg></span>Photo or Video</button>
       <button type="button" id="amCamera" role="menuitem"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8.5a2 2 0 0 1 2-2h2l1.5-2h5L16 6.5h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg></span>Take Photo</button>
       <button type="button" id="amFile" role="menuitem"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg></span>Choose File</button>
+      <button type="button" id="amImage" role="menuitem"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/></svg></span>Create image</button>
+      <button type="button" id="amScan" role="menuitem"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16M7 12h10"/></svg></span>Scan / PDF</button>
     </div>
     <footer id="bar" class="astraBar">
-      <button type="button" class="barPlus" id="btnAttach" aria-label="Add photo or file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
       <div class="field"><textarea id="input" rows="1" placeholder="Message Astra…" enterkeyhint="send" dir="auto"></textarea></div>
-      <button type="button" id="btnMic" aria-label="Dictate / send"></button>
-      <button type="button" class="hfBtn" id="btnHandsFree" aria-label="Hands-free voice mode"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4"/></svg></button>
+      <div class="barRow">
+        <button type="button" class="barPlus" id="btnAttach" aria-label="Add photo or file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+        <button type="button" class="modeChip" id="btnModeChip" aria-label="Mode"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/></svg><span id="modeChipLabel">Auto</span></button>
+        <button type="button" class="modeChip webChip" id="btnWebChip" aria-label="Web search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.6 3.6 5.4 3.6 8.5s-1.1 5.9-3.6 8.5c-2.5-2.6-3.6-5.4-3.6-8.5s1.1-5.9 3.6-8.5z"/></svg><span>Web</span></button>
+        <span class="sp"></span>
+        <button type="button" id="btnMic" aria-label="Dictate / send"></button>
+        <button type="button" class="hfBtn" id="btnHandsFree" aria-label="Live voice mode"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4"/></svg></button>
+      </div>
     </footer>
+    <p class="barNote">Astra se ghalti ho sakti hai — zaroori baat check kar lein.</p>
     <input type="file" id="fileMedia" accept="image/*,video/*" multiple hidden>
     <input type="file" id="fileCam" accept="image/*" capture="environment" hidden>
     <input type="file" id="file" multiple accept="image/*,.pdf,.csv,.xlsx,.xls,.txt,.md,.json,.docx,.doc,.mp3,.wav,.m4a,.aac,.ogg,.mp4,.mov,.webm,application/pdf,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document,audio/*,video/*" hidden>
@@ -247,7 +288,7 @@
     <header class="sheetHead"><button type="button" class="rbtn" data-go="chat" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button><span class="sp"></span><button type="button" class="rbtn" data-go="settings" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7 7 0 0 0-2-1.2L14.2 3h-4l-.4 2.7a7 7 0 0 0-2 1.2l-2.3-1-2 3.4 2 1.5A7 7 0 0 0 5 12a7 7 0 0 0 .1 1.2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 2 1.2l.4 2.7h4l.4-2.7a7 7 0 0 0 2-1.2l2.3 1 2-3.4-2-1.5A7 7 0 0 0 19 12z"/></svg></button></header>
     <div class="scroll">
       <div class="profileTop">
-        <div class="bigAv"><img src="icons/astra-mascot.svg" alt=""><span class="onDot"></span></div>
+        <div class="bigAv"><img src="icons/astra-mark.svg" alt=""><span class="onDot"></span></div>
         <h1 id="profName">Astra</h1>
         <button type="button" class="editPill" id="btnEditProfile">Edit</button>
         <p class="gray" id="profSub">Hamesha aap ke saath 🤍</p>
@@ -306,111 +347,41 @@
     </div>
   </section>
 
-  <!-- SETTINGS (includes AI provider) -->
+  <!-- SETTINGS (3.0.0: grouped like the big apps; every control and id kept) -->
   <section class="tab" id="tab-settings" hidden>
-    <header class="sheetHead"><button type="button" class="rbtn" id="btnSettingsClose" data-go="back" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button><span class="sheetTitle">Settings</span><span class="sp"></span></header>
-    <div class="scroll">
-      <div class="group">
-        <button type="button" class="gRow" id="rowUpdate"><span class="blueDot" id="updDot" hidden></span><span class="gt"><span id="updTitle">Astra is up to date</span><small id="updSub">2.8.0</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16L16 8M9 8h7v7"/></svg></span></button>
+    <header class="sheetHead"><button type="button" class="rbtn" id="btnSettingsClose" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button><span class="sheetTitle" id="setTitle">Settings</span><span class="sp"></span></header>
+    <div class="scroll" id="setScroll">
+      <div id="setHome">
+        <button type="button" class="setProfile" id="setProfileCard"><span class="uAv" id="setUserAv">A</span><span class="gt"><b id="setUserName">Aap</b><small id="setUserSub">Astra account · is phone par</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
+        <div class="group">
+        <button type="button" class="gRow" id="rowUpdate"><span class="blueDot" id="updDot" hidden></span><span class="gt"><span id="updTitle">Astra is up to date</span><small id="updSub">3.0.0</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16L16 8M9 8h7v7"/></svg></span></button>
       </div>
-      <div class="group">
-        <button type="button" class="gRow" data-go="connect"><span class="gt">Connect tools<small>AI keys, phone, create, productivity</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
+        <div class="group catGroup">
+          <button type="button" class="gRow catRow" data-sec="account"><span class="gi catIco i1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20c1.2-3.8 4-5.6 7.5-5.6s6.3 1.8 7.5 5.6"/></svg></span><span class="gt">Account & profile<small>Naam, time zone</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
+          <button type="button" class="gRow catRow" data-sec="persona"><span class="gi catIco i2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M18 15l.8 2.2L21 18l-2.2.8L18 21l-.8-2.2L15 18l2.2-.8z"/></svg></span><span class="gt">Personalization<small>Persona, zubaan, theme, instructions</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
+          <button type="button" class="gRow catRow" data-sec="voice"><span class="gi catIco i3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4"/></svg></span><span class="gt">Voice<small>Awaaz, wake word, owner voice</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
+          <button type="button" class="gRow catRow" data-sec="memory"><span class="gi catIco i4"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4.5a3 3 0 0 0-3 3 3 3 0 0 0-1.5 5.3A3 3 0 0 0 9 19.5h.5V4.5z"/><path d="M15 4.5a3 3 0 0 1 3 3 3 3 0 0 1 1.5 5.3A3 3 0 0 1 15 19.5h-.5V4.5z"/></svg></span><span class="gt">Memory<small>Yaadein aur routine</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
+          <button type="button" class="gRow catRow" data-sec="models"><span class="gi catIco i5"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="3"/><path d="M9 9h6v6H9zM9 2.5V5M15 2.5V5M9 19v2.5M15 19v2.5M2.5 9H5M2.5 15H5M19 9h2.5M19 15h2.5"/></svg></span><span class="gt">Models & API keys<small>Groq, Gemini, OpenAI, Grok, offline</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
+          <button type="button" class="gRow catRow" data-sec="phone"><span class="gi catIco i6"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="3" width="10" height="18" rx="2.5"/><path d="M11 17.5h2"/></svg></span><span class="gt">Phone & permissions<small>Mic, contacts, notifications</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
+          <button type="button" class="gRow catRow" data-sec="privacy"><span class="gi catIco i7"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l7 2.8v5.2c0 4.3-2.9 7.7-7 9-4.1-1.3-7-4.7-7-9V6.3z"/><path d="M9 12l2 2 4-4"/></svg></span><span class="gt">Data & privacy<small>PIN lock, export, delete</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
+          <button type="button" class="gRow catRow" data-sec="about"><span class="gi catIco i8"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 7.8v.2"/></svg></span><span class="gt">About Astra<small>Version, help, what's new</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
+        </div>
+        <p class="setFootNote" id="setFootNote">Astra · keys aur data sirf is phone par</p>
       </div>
-      <h3>Astra</h3>
-      <div class="group">
-        <button type="button" class="gRow" id="rowPerms"><span class="gt">Permissions<small id="permSub">Mic · Notifications · Contacts</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
-        <div class="gRow static"><span class="gt">Time Zone</span><span class="gv" id="tzVal">Asia/Muscat</span></div>
-        <label class="gRow tog"><span class="gt">Haptics</span><input type="checkbox" id="sHaptics" class="switch"></label>
-        <label class="gRow tog"><span class="gt">Wake word “Astra”<small id="wakeSub">Sirf jab app khuli ho · iPhone par nahi</small></span><input type="checkbox" id="sWakeWord" class="switch"></label>
-      </div>
+      <div class="sSec" data-sec="account" hidden>
+        <h2 class="secTitle">Account &amp; profile</h2>
       <h3>Profile</h3>
       <div class="card">
         <label>Your name<input id="sName" placeholder="e.g. Ayesha" autocomplete="given-name"></label>
       </div>
-      <h3>Appearance</h3>
-      <div class="card">
-        <label>Theme<select id="sTheme"><option value="auto">Automatic (follow phone)</option><option value="dark">Dark</option><option value="light">Light</option></select></label>
+      <h3>Region</h3>
+      <div class="group">
+          <div class="gRow static"><span class="gt">Time Zone</span><span class="gv" id="tzVal">Asia/Muscat</span></div>
       </div>
-      <h3>Contacts access</h3>
-      <div class="card" id="contactsAccessCard">
-        <p class="note" id="contactsAccessState">Checking…</p>
-        <button type="button" class="primary" id="btnContactsAccess" hidden>📇 Allow contacts access</button>
-        <button type="button" class="outline" id="btnContactsRefresh" hidden>🔄 Refresh contacts</button>
-        <button type="button" class="outline" id="btnContactsAppSettings" hidden>⚙️ Open app settings</button>
-        <p class="note">Astra reads every contact and every number on this phone so you can call or message anyone by name. Kept only on this phone (memory + on-device storage), refreshed when your contacts change — never sent to Groq, Gemini or any AI.</p>
       </div>
-      <h3>Custom instructions</h3>
-      <div class="card" id="instrCard">
-        <label>Your rules for Astra (always followed first)<textarea id="sCustomInstr" rows="4" maxlength="2000" placeholder="e.g. Always reply in Roman Urdu. Keep answers under 3 sentences. Call me Ayesha."></textarea></label>
-        <p class="note">These go at the very top of every AI request as “USER RULES” and override Astra's default style, length and language habits. Stored only on this phone. Memory facts (“remember that…”) are sent as a numbered list below them.</p>
-      </div>
-      <h3>AI model</h3>
-      <div class="card groqCard" id="groqCard">
-        <p class="routeLine" id="aiRouteLine">Primary: Groq (Qwen 27B), Backup: Gemini</p>
-        <label>Groq API key (primary · Qwen 3.8 27B)<input id="sGroqKey" type="password" placeholder="gsk_… (stored only on this phone)" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false"></label>
-        <label>Groq model<select id="sGroqModel"></select></label>
-        <label class="row">If this model is busy (429), try the other Groq model<input type="checkbox" id="sGroqAlt" class="switch"></label>
-        <p class="note" id="groqModelNote"></p>
-        <p class="note urduHint" dir="rtl" lang="ur">groq.com پر مفت اکاؤنٹ بنا کر API key یہاں ڈالیں</p>
-        <p class="note">With a Groq key Astra answers with Groq first. If Groq is busy, rejects the key, times out (~20 s) or replies empty, the same message is re-sent automatically to your Gemini key below, and if that also fails, to free Pollinations. A small line under the reply says when this happened. Photos go to Gemini first when a Gemini key is set. No Groq key = everything works exactly as before.</p>
-      </div>
-      <div class="card" id="openaiChatCard">
-        <label>OpenAI chat (GPT-6 Luna) — optional, paid by you<select id="sOpenaiMode"><option value="primary">Primary — ask OpenAI first</option><option value="backup">Backup — after Groq / Gemini, before free Pollinations</option><option value="off">Off (key kept, not used)</option></select></label>
-        <label>OpenAI API key<input id="sOpenaiKey" type="password" placeholder="sk-… (stored only on this phone)" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false"></label>
-        <label>OpenAI model<select id="sOpenaiModelPick"><option value="gpt-6-luna">GPT-6 Luna — default, cheapest (gpt-6-luna)</option><option value="gpt-6.1-sol">GPT-6.1 Sol — near-Astra quality (gpt-6.1-sol)</option><option value="gpt-6-astra">GPT-6 Astra — most capable, ≈ 100× Luna's cost (gpt-6-astra)</option><option value="custom">Custom model id…</option></select></label>
-        <label>Custom OpenAI model id<input id="sOpenaiModel" list="openaiModels" placeholder="gpt-6-luna" autocapitalize="off" autocorrect="off" spellcheck="false"><datalist id="openaiModels"><option value="gpt-6-luna"><option value="gpt-6.1-sol"><option value="gpt-6-astra"></datalist></label>
-        <p class="note" id="sOpenaiModelNote"></p>
-        <label class="row">Luna web search — answer live questions (news, prices, scores, today's facts) with OpenAI's web search and show the links it used<input type="checkbox" id="sOpenaiWeb" class="switch" checked></label>
-        <label>Luna reasoning effort<select id="sOpenaiReasoning"><option value="low">Low — fast (default)</option><option value="medium">Medium — more careful</option><option value="high">High — slowest, most thorough</option><option value="none">None — fastest</option></select></label>
-        <button type="button" class="outline" id="sOpenaiTest">🔌 Save &amp; test OpenAI</button>
-        <p class="note" id="sOpenaiTestResult"></p>
-        <p class="note">api.openai.com/v1/responses (OpenAI's Responses API, as in their "Build a Personal AI Assistant" guide) with streaming, photos (image input), Astra tools and Luna web search; if /v1/responses is unavailable (404) or blocked, the same message is re-sent to /v1/chat/completions automatically (no web search there). Web search calls are billed per search by OpenAI. GPT-6 Luna: text + image in, text out, ≈ $0.10 in / $0.50 out per 1M tokens (developers.openai.com). Only used when a key is saved here; you can type any other OpenAI model id. If OpenAI rejects the key, has no credits (429 insufficient_quota) or is busy, Astra moves on to the next provider automatically. Billed by OpenAI to your account.</p>
-      </div>
-      <div class="card" id="xaiChatCard">
-        <label>Grok (xAI) chat — optional, paid by you<select id="sXaiChatMode"><option value="off">Off (not used)</option><option value="backup">Backup — after Groq / Gemini, before free Pollinations</option><option value="primary">Primary — ask Grok first</option></select></label>
-        <label>xAI API key<input id="sXaiChatKey" type="password" placeholder="xai-… (stored only on this phone; same key as Voice → Grok voice)" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false"></label>
-        <label>Grok model<input id="sXaiChatModel" list="xaiModels" placeholder="grok-4.3" autocapitalize="off" autocorrect="off"><datalist id="xaiModels"><option value="grok-4.3"><option value="grok-4.7"><option value="grok-4.20-0309-non-reasoning"></datalist></label>
-        <p class="note">OpenAI-compatible API at api.x.ai/v1 (docs.x.ai/docs/models: grok-4.3 ≈ $1.25 in / $2.50 out per 1M tokens, grok-4.7 is their top model). Not part of Astra's default chain — it is only used if you switch it on here. Billed by xAI to your account.</p>
-      </div>
-      <div class="card">
-        <label>Preset<select id="sPreset"></select></label>
-        <p class="note" id="presetNote">Presets map to real models for the provider you choose.</p>
-        <label>Provider<select id="sProvider"></select></label>
-        <label>Base URL (OpenAI-compatible)<input id="sBase" placeholder="https://api.openai.com/v1" inputmode="url" autocapitalize="off" autocorrect="off"></label>
-        <label>API key (Gemini / backup provider)<input id="sKey" type="password" placeholder="paste your key" autocapitalize="off" autocorrect="off" autocomplete="off"></label>
-        <label>Chat model<input id="sModel" placeholder="gpt-4o-mini" autocapitalize="off" autocorrect="off"></label>
-        <label>Vision model<input id="sVision" placeholder="gpt-4o-mini" autocapitalize="off" autocorrect="off"></label>
-        <label class="row">Live answers — news, prices, weather (no source list shown)<input type="checkbox" id="sWeb" class="switch"></label>
-        <label>Optional Server URL<input id="sServerUrl" placeholder="https://your-replit.example (leave empty for direct)" inputmode="url" autocapitalize="off"></label>
-        <p class="note">When set, AI/TTS/image calls go through your Node proxy (env keys). Leave empty to use keys stored on this device.</p>
-        <button class="primary" id="sTest">Save &amp; test AI connection</button>
-        <p class="note" id="sTestResult"></p>
-      </div>
-      <h3>Create / Video</h3>
-      <div class="card" id="videoSettingsCard">
-        <label>Video provider<select id="vidProvider"><option value="">None configured</option></select></label>
-        <label>Base URL<input id="vidBase" placeholder="https://…" inputmode="url" autocapitalize="off"></label>
-        <label>API key<input id="vidKey" type="password" placeholder="stored on this device only" autocomplete="off"></label>
-        <button type="button" class="outline" id="btnVidSave">Save video provider</button>
-        <p class="note">Video generation only works with a real video API you provide (base URL + key, stored on this device only). Without one, the Generate button in Create → Video Studio stays disabled — nothing is simulated.</p>
-      </div>
-      <h3>Create / Image</h3>
-      <div class="card" id="imageSettingsCard">
-        <label>Image provider<select id="sImgProvider">
-          <option value="">Pollinations — free, text → image only</option>
-          <option value="gemini">Gemini image — uses your Gemini key: img2img, Edit, BG replace, Enhance</option>
-          <option value="openai">OpenAI-compatible — your own Base URL, key and model</option></select></label>
-        <div id="imgOpenAiFields" hidden>
-          <label>Base URL (https)<input id="sImgBase" placeholder="https://api.openai.com/v1" inputmode="url" autocapitalize="off" autocorrect="off"></label>
-          <label>API key<input id="sImgKey" type="password" placeholder="stored on this device only" autocomplete="off" autocapitalize="off"></label>
-          <label>Image model<input id="sImgModel" placeholder="gpt-image-1" autocapitalize="off" autocorrect="off"></label>
-        </div>
-        <button type="button" class="outline" id="btnImgTest">🔌 Test provider</button>
-        <p class="note" id="imgTestOut" style="white-space:pre-wrap"></p>
-        <p class="note" id="imgProviderNote"></p>
-        <p class="note">Buttons in Create → Image Studio switch on only when the chosen provider can really do them. “Enhance” is an AI clean-up/re-render, not a true resolution upscaler. Editing needs internet and may be billed by your provider. Keys stay on this device.</p>
-      </div>
-      <h3>Personality</h3>
+      <div class="sSec" data-sec="persona" hidden>
+        <h2 class="secTitle">Personalization</h2>
+      <h3>Persona</h3>
       <div class="card">
         <label>AI name<input id="sAiName" placeholder="Astra"></label>
         <label>Personality / tone<select id="sTone"></select></label>
@@ -419,12 +390,31 @@
         <label>Voice gender (TTS preference)<select id="sGender"><option value="female">Female</option><option value="male">Male</option><option value="neutral">Neutral / any</option></select></label>
         <label>Preferred reply language<select id="sPrefLang"></select></label>
       </div>
+      <h3>Custom instructions</h3>
+      <div class="card" id="instrCard">
+        <label>Your rules for Astra (always followed first)<textarea id="sCustomInstr" rows="4" maxlength="2000" placeholder="e.g. Always reply in Roman Urdu. Keep answers under 3 sentences. Call me Ayesha."></textarea></label>
+        <p class="note">These go at the very top of every AI request as “USER RULES” and override Astra's default style, length and language habits. Stored only on this phone. Memory facts (“remember that…”) are sent as a numbered list below them.</p>
+      </div>
+      <h3>Appearance</h3>
+      <div class="card">
+        <label>Theme<select id="sTheme"><option value="auto">Automatic (follow phone)</option><option value="dark">Dark</option><option value="light">Light</option></select></label>
+      </div>
+      <div class="group">
+          <label class="gRow tog"><span class="gt">Haptics</span><input type="checkbox" id="sHaptics" class="switch"></label>
+      </div>
       <h3>Custom assistants</h3>
       <div class="card">
         <div id="assistList"></div>
         <button class="outline" id="btnNewAssist">+ Create assistant</button>
       </div>
-      <h3>Voice</h3>
+      </div>
+      <div class="sSec" data-sec="voice" hidden>
+        <h2 class="secTitle">Voice</h2>
+      <h3>Hands-free</h3>
+      <div class="group">
+          <label class="gRow tog"><span class="gt">Wake word “Astra”<small id="wakeSub">Sirf jab app khuli ho · iPhone par nahi</small></span><input type="checkbox" id="sWakeWord" class="switch"></label>
+      </div>
+      <h3>Speech</h3>
       <div class="card">
         <label class="row">Speak replies aloud<input type="checkbox" id="sTts" class="switch"></label>
         <label>TTS provider<select id="sTtsProvider">
@@ -475,26 +465,6 @@
         <p class="note" id="voiceTestResult"></p>
         <p class="note">Wake word / lock-screen listening is <b>not possible</b> in an iPhone web app.</p>
       </div>
-      <h3>Online / Offline mode</h3>
-      <div class="card">
-        <label>Mode<select id="sNetMode">
-          <option value="auto">Auto — online AI when there is internet, offline otherwise</option>
-          <option value="online">Online — always use the AI service</option>
-          <option value="offline">Offline — phone actions + small talk, no internet needed</option>
-        </select></label>
-        <p class="note" id="netModeNote">Offline: phone actions (call, message, alarms, timers, reminders, torch, apps, media, settings) run on the built-in rule engine, speech recognition prefers the on-device model, replies use the phone voice. Open questions need Online — or the optional on-device model below.</p>
-      </div>
-      <h3 data-android-only>On-device AI (optional) · Android only</h3>
-      <div class="card" id="localLlmCard" data-android-only>
-        <p class="note" id="localLlmState">Checking…</p>
-        <p class="note"><strong>Qwen2.5-0.5B-Instruct</strong> · ~0.5 GB · not inside the APK. Download on Wi‑Fi only (default). Used only when offline / no internet, after small-talk rules; never replaces Groq/Gemini when online. Phone actions stay on the rule engine (this model has no tool calling in v1).</p>
-        <p class="note">Roman Urdu &amp; English work better than heavy Nastaliq Urdu script on this small model. Low-RAM phones may fail to load (~1.3 GB peak reported for this build).</p>
-        <button type="button" class="primary" id="btnLocalLlmDownload" hidden>⬇ Download on Wi‑Fi (~0.5 GB)</button>
-        <button type="button" class="outline" id="btnLocalLlmDownloadMobile" hidden>Download on mobile data…</button>
-        <button type="button" class="outline" id="btnLocalLlmCancel" hidden>Cancel download</button>
-        <button type="button" class="outline" id="btnLocalLlmDelete" hidden>🗑 Remove model</button>
-        <p class="note" id="localLlmLicense"></p>
-      </div>
       <h3 data-android-only>Owner voice (optional) · Android only</h3>
       <div class="card" id="voiceIdCard" data-android-only>
         <p class="note" id="voiceIdState">Checking…</p>
@@ -520,19 +490,137 @@
           <p class="note" id="voiceIdTestOut"></p>
         </div>
       </div>
-      <h3>Memory</h3>
+      </div>
+      <div class="sSec" data-sec="memory" hidden>
+        <h2 class="secTitle">Memory</h2>
       <div class="card">
         <label class="row">Remember things I ask<input type="checkbox" id="sMemOn" class="switch"></label>
         <p class="note">When off, nothing new is saved to memory (existing items stay until you delete them).</p>
         <button class="outline" id="btnOpenMemory">Review / edit memory…</button>
       </div>
+      <div class="group">
+        <button type="button" class="gRow" data-go="routine"><span class="gt">Aap ki routine<small>Kab kya poochte hain — sirf is phone par</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
+      </div>
+      </div>
+      <div class="sSec" data-sec="models" hidden>
+        <h2 class="secTitle">Models &amp; API keys</h2>
+      <p class="secLead">Astra pehle Groq, phir Gemini, phir free Pollinations try karti hai. Keys sirf is phone par rehti hain — kabhi code ya chat mein nahi.</p>
+      <h3>Groq — primary</h3>
+      <div class="card groqCard" id="groqCard">
+        <p class="routeLine" id="aiRouteLine">Primary: Groq (Qwen 27B), Backup: Gemini</p>
+        <label>Groq API key (primary · Qwen 3.8 27B)<input id="sGroqKey" type="password" placeholder="gsk_… (stored only on this phone)" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false"></label>
+        <label>Groq model<select id="sGroqModel"></select></label>
+        <label class="row">If this model is busy (429), try the other Groq model<input type="checkbox" id="sGroqAlt" class="switch"></label>
+        <p class="note" id="groqModelNote"></p>
+        <p class="note urduHint" dir="rtl" lang="ur">groq.com پر مفت اکاؤنٹ بنا کر API key یہاں ڈالیں</p>
+        <p class="note">With a Groq key Astra answers with Groq first. If Groq is busy, rejects the key, times out (~20 s) or replies empty, the same message is re-sent automatically to your Gemini key below, and if that also fails, to free Pollinations. A small line under the reply says when this happened. Photos go to Gemini first when a Gemini key is set. No Groq key = everything works exactly as before.</p>
+      </div>
+      <h3>OpenAI</h3>
+      <div class="card" id="openaiChatCard">
+        <label>OpenAI chat (GPT-6 Luna) — optional, paid by you<select id="sOpenaiMode"><option value="primary">Primary — ask OpenAI first</option><option value="backup">Backup — after Groq / Gemini, before free Pollinations</option><option value="off">Off (key kept, not used)</option></select></label>
+        <label>OpenAI API key<input id="sOpenaiKey" type="password" placeholder="sk-… (stored only on this phone)" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false"></label>
+        <label>OpenAI model<select id="sOpenaiModelPick"><option value="gpt-6-luna">GPT-6 Luna — default, cheapest (gpt-6-luna)</option><option value="gpt-6.1-sol">GPT-6.1 Sol — near-Astra quality (gpt-6.1-sol)</option><option value="gpt-6-astra">GPT-6 Astra — most capable, ≈ 100× Luna's cost (gpt-6-astra)</option><option value="custom">Custom model id…</option></select></label>
+        <label>Custom OpenAI model id<input id="sOpenaiModel" list="openaiModels" placeholder="gpt-6-luna" autocapitalize="off" autocorrect="off" spellcheck="false"><datalist id="openaiModels"><option value="gpt-6-luna"><option value="gpt-6.1-sol"><option value="gpt-6-astra"></datalist></label>
+        <p class="note" id="sOpenaiModelNote"></p>
+        <label class="row">Luna web search — answer live questions (news, prices, scores, today's facts) with OpenAI's web search and show the links it used<input type="checkbox" id="sOpenaiWeb" class="switch" checked></label>
+        <label>Luna reasoning effort<select id="sOpenaiReasoning"><option value="low">Low — fast (default)</option><option value="medium">Medium — more careful</option><option value="high">High — slowest, most thorough</option><option value="none">None — fastest</option></select></label>
+        <button type="button" class="outline" id="sOpenaiTest">🔌 Save &amp; test OpenAI</button>
+        <p class="note" id="sOpenaiTestResult"></p>
+        <p class="note">api.openai.com/v1/responses (OpenAI's Responses API, as in their "Build a Personal AI Assistant" guide) with streaming, photos (image input), Astra tools and Luna web search; if /v1/responses is unavailable (404) or blocked, the same message is re-sent to /v1/chat/completions automatically (no web search there). Web search calls are billed per search by OpenAI. GPT-6 Luna: text + image in, text out, ≈ $0.10 in / $0.50 out per 1M tokens (developers.openai.com). Only used when a key is saved here; you can type any other OpenAI model id. If OpenAI rejects the key, has no credits (429 insufficient_quota) or is busy, Astra moves on to the next provider automatically. Billed by OpenAI to your account.</p>
+      </div>
+      <h3>Grok (xAI)</h3>
+      <div class="card" id="xaiChatCard">
+        <label>Grok (xAI) chat — optional, paid by you<select id="sXaiChatMode"><option value="off">Off (not used)</option><option value="backup">Backup — after Groq / Gemini, before free Pollinations</option><option value="primary">Primary — ask Grok first</option></select></label>
+        <label>xAI API key<input id="sXaiChatKey" type="password" placeholder="xai-… (stored only on this phone; same key as Voice → Grok voice)" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false"></label>
+        <label>Grok model<input id="sXaiChatModel" list="xaiModels" placeholder="grok-4.3" autocapitalize="off" autocorrect="off"><datalist id="xaiModels"><option value="grok-4.3"><option value="grok-4.7"><option value="grok-4.20-0309-non-reasoning"></datalist></label>
+        <p class="note">OpenAI-compatible API at api.x.ai/v1 (docs.x.ai/docs/models: grok-4.3 ≈ $1.25 in / $2.50 out per 1M tokens, grok-4.7 is their top model). Not part of Astra's default chain — it is only used if you switch it on here. Billed by xAI to your account.</p>
+      </div>
+      <h3>Gemini / other provider</h3>
+      <div class="card">
+        <label>Preset<select id="sPreset"></select></label>
+        <p class="note" id="presetNote">Presets map to real models for the provider you choose.</p>
+        <label>Provider<select id="sProvider"></select></label>
+        <label>Base URL (OpenAI-compatible)<input id="sBase" placeholder="https://api.openai.com/v1" inputmode="url" autocapitalize="off" autocorrect="off"></label>
+        <label>API key (Gemini / backup provider)<input id="sKey" type="password" placeholder="paste your key" autocapitalize="off" autocorrect="off" autocomplete="off"></label>
+        <label>Chat model<input id="sModel" placeholder="gpt-4o-mini" autocapitalize="off" autocorrect="off"></label>
+        <label>Vision model<input id="sVision" placeholder="gpt-4o-mini" autocapitalize="off" autocorrect="off"></label>
+        <label class="row">Live answers — news, prices, weather (no source list shown)<input type="checkbox" id="sWeb" class="switch"></label>
+        <label>Optional Server URL<input id="sServerUrl" placeholder="https://your-replit.example (leave empty for direct)" inputmode="url" autocapitalize="off"></label>
+        <p class="note">When set, AI/TTS/image calls go through your Node proxy (env keys). Leave empty to use keys stored on this device.</p>
+        <button class="primary" id="sTest">Save &amp; test AI connection</button>
+        <p class="note" id="sTestResult"></p>
+      </div>
+      <h3>Online / Offline mode</h3>
+      <div class="card">
+        <label>Mode<select id="sNetMode">
+          <option value="auto">Auto — online AI when there is internet, offline otherwise</option>
+          <option value="online">Online — always use the AI service</option>
+          <option value="offline">Offline — phone actions + small talk, no internet needed</option>
+        </select></label>
+        <p class="note" id="netModeNote">Offline: phone actions (call, message, alarms, timers, reminders, torch, apps, media, settings) run on the built-in rule engine, speech recognition prefers the on-device model, replies use the phone voice. Open questions need Online — or the optional on-device model below.</p>
+      </div>
+      <h3 data-android-only>On-device AI (optional) · Android only</h3>
+      <div class="card" id="localLlmCard" data-android-only>
+        <p class="note" id="localLlmState">Checking…</p>
+        <p class="note"><strong>Qwen2.5-0.5B-Instruct</strong> · ~0.5 GB · not inside the APK. Download on Wi‑Fi only (default). Used only when offline / no internet, after small-talk rules; never replaces Groq/Gemini when online. Phone actions stay on the rule engine (this model has no tool calling in v1).</p>
+        <p class="note">Roman Urdu &amp; English work better than heavy Nastaliq Urdu script on this small model. Low-RAM phones may fail to load (~1.3 GB peak reported for this build).</p>
+        <button type="button" class="primary" id="btnLocalLlmDownload" hidden>⬇ Download on Wi‑Fi (~0.5 GB)</button>
+        <button type="button" class="outline" id="btnLocalLlmDownloadMobile" hidden>Download on mobile data…</button>
+        <button type="button" class="outline" id="btnLocalLlmCancel" hidden>Cancel download</button>
+        <button type="button" class="outline" id="btnLocalLlmDelete" hidden>🗑 Remove model</button>
+        <p class="note" id="localLlmLicense"></p>
+      </div>
+      <h3>Image provider</h3>
+      <div class="card" id="imageSettingsCard">
+        <label>Image provider<select id="sImgProvider">
+          <option value="">Pollinations — free, text → image only</option>
+          <option value="gemini">Gemini image — uses your Gemini key: img2img, Edit, BG replace, Enhance</option>
+          <option value="openai">OpenAI-compatible — your own Base URL, key and model</option></select></label>
+        <div id="imgOpenAiFields" hidden>
+          <label>Base URL (https)<input id="sImgBase" placeholder="https://api.openai.com/v1" inputmode="url" autocapitalize="off" autocorrect="off"></label>
+          <label>API key<input id="sImgKey" type="password" placeholder="stored on this device only" autocomplete="off" autocapitalize="off"></label>
+          <label>Image model<input id="sImgModel" placeholder="gpt-image-1" autocapitalize="off" autocorrect="off"></label>
+        </div>
+        <button type="button" class="outline" id="btnImgTest">🔌 Test provider</button>
+        <p class="note" id="imgTestOut" style="white-space:pre-wrap"></p>
+        <p class="note" id="imgProviderNote"></p>
+        <p class="note">Buttons in Create → Image Studio switch on only when the chosen provider can really do them. “Enhance” is an AI clean-up/re-render, not a true resolution upscaler. Editing needs internet and may be billed by your provider. Keys stay on this device.</p>
+      </div>
+      <h3>Create / Video</h3>
+      <div class="card" id="videoSettingsCard">
+        <label>Video provider<select id="vidProvider"><option value="">None configured</option></select></label>
+        <label>Base URL<input id="vidBase" placeholder="https://…" inputmode="url" autocapitalize="off"></label>
+        <label>API key<input id="vidKey" type="password" placeholder="stored on this device only" autocomplete="off"></label>
+        <button type="button" class="outline" id="btnVidSave">Save video provider</button>
+        <p class="note">Video generation only works with a real video API you provide (base URL + key, stored on this device only). Without one, the Generate button in Create → Video Studio stays disabled — nothing is simulated.</p>
+      </div>
+      <div class="group">
+        <button type="button" class="gRow" data-go="connect"><span class="gt">Connect tools<small>AI keys, phone, create, productivity</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
+      </div>
+      </div>
+      <div class="sSec" data-sec="phone" hidden>
+        <h2 class="secTitle">Phone &amp; permissions</h2>
+      <div class="group">
+          <button type="button" class="gRow" id="rowPerms"><span class="gt">Permissions<small id="permSub">Mic · Notifications · Contacts</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
+      </div>
+      <h3>Contacts access</h3>
+      <div class="card" id="contactsAccessCard">
+        <p class="note" id="contactsAccessState">Checking…</p>
+        <button type="button" class="primary" id="btnContactsAccess" hidden>📇 Allow contacts access</button>
+        <button type="button" class="outline" id="btnContactsRefresh" hidden>🔄 Refresh contacts</button>
+        <button type="button" class="outline" id="btnContactsAppSettings" hidden>⚙️ Open app settings</button>
+        <p class="note">Astra reads every contact and every number on this phone so you can call or message anyone by name. Kept only on this phone (memory + on-device storage), refreshed when your contacts change — never sent to Groq, Gemini or any AI.</p>
+      </div>
+      </div>
+      <div class="sSec" data-sec="privacy" hidden>
+        <h2 class="secTitle">Data &amp; privacy</h2>
       <h3>Security</h3>
       <div class="card">
         <label class="row">App lock (PIN)<input type="checkbox" id="sPinOn" class="switch"></label>
         <label>Set / change PIN<input id="sPin" type="password" inputmode="numeric" maxlength="12" placeholder="4–12 digits" autocomplete="off"></label>
         <p class="note">PIN locks the app UI on this device. Data stays in this browser; this is not end-to-end encryption.</p>
       </div>
-      <h3>Privacy &amp; data</h3>
+      <h3>Your data</h3>
       <div class="card">
         <p class="note" id="privacyNote"></p>
         <button class="outline" id="sExport">Export all data (JSON)</button>
@@ -542,27 +630,38 @@
         <button class="outline" id="sClearChats">Clear all chat history</button>
         <button class="outline danger" id="sDeleteAll">Delete ALL local data</button>
       </div>
+      <div class="group"><button type="button" class="gRow redRow" id="rowReset"><span class="gt">Reset Astra (delete all local data)</span></button></div>
+      </div>
+      <div class="sSec" data-sec="about" hidden>
+        <h2 class="secTitle">About</h2>
+      <div class="aboutHero"><img src="icons/astra-mark.svg" alt=""><div class="fn">Astra</div><div class="fv" id="aboutVer">Version 3.0.0</div></div>
       <div class="group">
         <button type="button" class="gRow" id="rowHelp"><span class="gt">Help Center</span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16L16 8M9 8h7v7"/></svg></span></button>
         <button type="button" class="gRow" id="rowPrivacy"><span class="gt">Privacy Policy</span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16L16 8M9 8h7v7"/></svg></span></button>
-        <button type="button" class="gRow" id="rowWhatsNew"><span class="gt">What's new in 2.8.1</span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16L16 8M9 8h7v7"/></svg></span></button>
+        <button type="button" class="gRow" id="rowWhatsNew"><span class="gt">What's new in 3.0.0</span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16L16 8M9 8h7v7"/></svg></span></button>
       </div>
-      <div class="group"><button type="button" class="gRow redRow" id="rowReset"><span class="gt">Reset Astra (delete all local data)</span></button></div>
       <h3>On this device</h3>
       <div class="card"><p class="note" id="sIphone"></p></div>
       <p class="about" id="about"></p>
       <p class="about" id="aiAbout"></p>
-      <div class="sheetFoot"><img src="icons/astra-mascot.svg" alt=""><div class="fn">Astra</div><div class="fv" id="footVer">2.8.1</div><div class="fu" id="footSub">Made for Azeem · Lalamusa → Salalah</div></div>
+      <div class="sheetFoot"><img src="icons/astra-mark.svg" alt=""><div class="fn">Astra</div><div class="fv" id="footVer">3.0.0</div><div class="fu" id="footSub">Made for Azeem · Lalamusa → Salalah</div></div>
+      </div>
     </div>
   </section>
 
   <section id="handsFree" hidden aria-live="polite">
-    <button type="button" class="rbtn hfClose" id="hfClose" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-    <div class="hfOrb" id="hfOrb" data-state="idle"><span class="ring"></span><span class="ring r2"></span><img src="icons/astra-mascot.svg" alt=""></div>
-    <div class="hfLabel" id="hfLabel">Sun rahi hoon…</div>
-    <div class="hfText" id="hfText" dir="auto"></div>
-    <div class="hfHint">“bas” ya “stop” bolein to band · chup rahein to khud band</div>
-    <div class="hfBtns"><button type="button" class="hfRound" id="hfMute" aria-label="Mute"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/></svg></button><button type="button" class="hfRound red" id="hfStop" aria-label="Stop"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button><button type="button" class="hfRound" id="hfType" aria-label="Keyboard">Aa</button></div>
+    <div class="hfTop"><button type="button" class="rbtn ghost hfClose" id="hfClose" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button><div class="hfBrand"><span class="liveDot"></span>Astra Live</div><span class="hfSp"></span></div>
+    <div class="hfStage">
+      <button type="button" class="hfOrb" id="hfOrb" data-state="idle" aria-label="Tap to interrupt or talk"><span class="ring"></span><span class="ring r2"></span><span class="orbBody"><span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span><span class="orbShine"></span></span></button>
+      <div class="hfLabel" id="hfLabel">Sun rahi hoon…</div>
+      <div class="hfText" id="hfText" dir="auto"></div>
+    </div>
+    <div class="hfHint">Beech mein bolein ya orb tap karein to main ruk jaati hoon · “bas” ya “stop” se band</div>
+    <div class="hfBtns">
+      <div class="hfB"><button type="button" class="hfRound" id="hfMute" aria-label="Mute"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/></svg></button><span>Awaaz</span></div>
+      <div class="hfB"><button type="button" class="hfRound red" id="hfStop" aria-label="End"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button><span>End</span></div>
+      <div class="hfB"><button type="button" class="hfRound" id="hfType" aria-label="Keyboard">Aa</button><span>Type</span></div>
+    </div>
   </section>
   <nav id="bottomNav" hidden>
     <button data-tab="home" class="on"><span class="ni">⌂</span><span>Home</span></button>
@@ -573,6 +672,34 @@
     <button data-tab="memory"><span class="ni">🧠</span><span>Memory</span></button>
     <button data-tab="settings"><span class="ni">⚙️</span><span>Settings</span></button>
   </nav>
+</div>
+<div id="drawerScrim" hidden></div>
+<aside id="drawer" aria-label="Astra menu" aria-hidden="true">
+  <div class="dHead"><img src="icons/astra-mark.svg" alt="" class="dLogo"><span class="dBrand">Astra</span><span class="dVer" id="dVer">3.0</span><button type="button" class="rbtn ghost sm" id="drawerClose" aria-label="Close menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <button type="button" class="dNew" id="dNewChat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h8"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>Nayi chat</button>
+  <div class="dSearch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg><input id="dSearch" type="search" placeholder="Chats search karein" autocomplete="off" dir="auto"></div>
+  <nav class="dNav">
+    <button type="button" data-dgo="voice"><span class="dI"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4"/></svg></span>Astra Live<span class="dBadge">Voice</span></button>
+    <button type="button" data-dgo="create"><span class="dI"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/></svg></span>Create</button>
+    <button type="button" data-dgo="files"><span class="dI"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg></span>Library</button>
+    <button type="button" data-dgo="tools"><span class="dI"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L4 16.8V20h3.2l5.3-5.3a4 4 0 0 0 5.2-5.4l-2.4 2.4-2.6-.6-.6-2.6z"/></svg></span>Tools &amp; phone</button>
+    <button type="button" data-dgo="memory"><span class="dI"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4.5a3 3 0 0 0-3 3 3 3 0 0 0-1.5 5.3A3 3 0 0 0 9 19.5h.5V4.5z"/><path d="M15 4.5a3 3 0 0 1 3 3 3 3 0 0 1 1.5 5.3A3 3 0 0 1 15 19.5h-.5V4.5z"/></svg></span>Memory</button>
+    <button type="button" data-dgo="connect"><span class="dI"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0zM12 16v5"/></svg></span>Connect</button>
+  </nav>
+  <div class="dLabel"><span>Recent</span><button type="button" class="dAll" id="dAllChats">Sab dekhein</button></div>
+  <div class="dList" id="dList"></div>
+  <button type="button" class="dUser" id="dUser"><span class="uAv" id="dUserAv">A</span><span class="dUName"><b id="dUserName">Aap</b><small>Settings</small></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7 7 0 0 0-2-1.2L14.2 3h-4l-.4 2.7a7 7 0 0 0-2 1.2l-2.3-1-2 3.4 2 1.5A7 7 0 0 0 5 12a7 7 0 0 0 .1 1.2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 2 1.2l.4 2.7h4l.4-2.7a7 7 0 0 0 2-1.2l2.3 1 2-3.4-2-1.5A7 7 0 0 0 19 12z"/></svg></button>
+</aside>
+
+<div id="onboard" hidden>
+  <div class="obSkip"><button type="button" id="obSkip">Skip</button></div>
+  <div class="obTrack" id="obTrack">
+    <div class="obSlide"><div class="obArt a1"><img src="icons/astra-mark.svg" alt=""></div><h1>Astra 3.0 mein khush aamdeed</h1><p>Aap ki apni personal assistant — chat, voice, phone aur files, sab ek jagah. Main hamesha aap ke saath hoon 🤍</p></div>
+    <div class="obSlide"><div class="obArt a2"><span class="obOrb"></span></div><h1>Astra Live — bas bolein</h1><p>Waveform button dabayein aur hands-free baat karein. Main jawab de rahi hoon tab bhi beech mein bol sakte hain.</p></div>
+    <div class="obSlide"><div class="obArt a3"><span>🔒</span></div><h1>Aap ka data, aap ke paas</h1><p>Chats, memory aur API keys sirf is phone par. Memory aap Settings → Memory mein dekh aur mita sakte hain.</p><label class="obName">Aap ko kya bulaun?<input id="obName" placeholder="Aap ka naam" autocomplete="given-name" dir="auto"></label></div>
+  </div>
+  <div class="obDots" id="obDots"><span class="on"></span><span></span><span></span></div>
+  <button type="button" class="obNext" id="obNext">Aage</button>
 </div>
 
 <section class="panel" id="memoryPanel" hidden>

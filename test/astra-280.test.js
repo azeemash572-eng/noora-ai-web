@@ -5,7 +5,7 @@ const C = require('../core.js'); const T = require('../tools.js'); const L = C.L
 const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
 
 test('branding: title, manifest, version 2.8.0; storage keys unchanged', () => {
-  assert.equal(C.VERSION, '2.8.1');
+  assert.equal(C.VERSION, '3.0.0');
   assert.match(read('index.html'), /<title>Astra AI<\/title>/);
   const m = JSON.parse(read('manifest.webmanifest')); assert.equal(m.name, 'Astra AI'); assert.equal(m.short_name, 'Astra AI');
   const app = read('app.js'); assert.match(app, /localStorage\.getItem\('noora\.settings'\)/); assert.match(app, /indexedDB\.open\('noora-ai', 2\)/);

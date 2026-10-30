@@ -1,6 +1,6 @@
 /* Astra AI service worker: caches only the app shell. Live data (news, rates, AI, images) is never cached or faked. */
-const CACHE = 'astra-shell-2.8.1';
-const SHELL = ['./', 'index.html', 'app.css', 'astra.css', 'icons/astra-mascot.svg', 'core.js', 'tools.js', 'app.js', 'scan/pdfwriter.js', 'scan/scanstore.js', 'scan/lookup.js', 'scan/scanpdf.js', 'scan/zxing.min.js', 'VERSION', 'manifest.webmanifest', 'apple-touch-icon.png',
+const CACHE = 'astra-shell-3.0.0';
+const SHELL = ['./', 'index.html', 'app.css', 'astra.css', 'icons/astra-mark.svg', 'icons/astra-mascot.svg', 'core.js', 'tools.js', 'app.js', 'scan/pdfwriter.js', 'scan/scanstore.js', 'scan/lookup.js', 'scan/scanpdf.js', 'scan/zxing.min.js', 'VERSION', 'manifest.webmanifest', 'apple-touch-icon.png',
   'icons/apple-touch-icon.png', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/icon-64.png', 'icons/icon-32.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => {

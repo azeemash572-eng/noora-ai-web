@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><defs>
+  <radialGradient id="bg" cx="50%" cy="42%" r="70%"><stop offset="0" stop-color="#10202A"/><stop offset=".55" stop-color="#0A0D14"/><stop offset="1" stop-color="#05060A"/></radialGradient>
+  <radialGradient id="halo" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#22D3EE" stop-opacity=".32"/><stop offset="1" stop-color="#22D3EE" stop-opacity="0"/></radialGradient>
+  <radialGradient id="s" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#FFFFFF"/><stop offset=".35" stop-color="#C9FBFF"/><stop offset="1" stop-color="#22D3EE"/></radialGradient>
+  <filter id="g" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="22"/></filter>
+  <filter id="g2" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="8"/></filter>
+</defs>
+  <circle cx="256" cy="256" r="256" fill="url(#bg)"/><circle cx="256" cy="256" r="253" fill="none" stroke="#22D3EE" stroke-opacity=".28" stroke-width="6"/>
+  <circle cx="256" cy="256" r="190.0" fill="url(#halo)"/>
+  <g filter="url(#g)"><path d="M256 113.5 C280.225 229.3525 282.6475 231.775 398.5 256 C282.6475 280.225 280.225 282.6475 256 398.5 C231.775 282.6475 229.3525 280.225 113.5 256 C229.3525 231.775 231.775 229.3525 256 113.5Z" fill="#22D3EE" opacity=".9"/></g>
+  <path d="M256 113.5 C280.225 229.3525 282.6475 231.775 398.5 256 C282.6475 280.225 280.225 282.6475 256 398.5 C231.775 282.6475 229.3525 280.225 113.5 256 C229.3525 231.775 231.775 229.3525 256 113.5Z" fill="url(#s)"/>
+  <g filter="url(#g2)"><path d="M367.15 122.05000000000001 C372.84999999999997 144.28 373.41999999999996 144.85000000000002 395.65 150.55 C373.41999999999996 156.25 372.84999999999997 156.82000000000002 367.15 179.05 C361.45 156.82000000000002 360.88 156.25 338.65 150.55 C360.88 144.85000000000002 361.45 144.28 367.15 122.05000000000001Z" fill="#7DF9FF"/></g>
+  <path d="M367.15 122.05000000000001 C372.84999999999997 144.28 373.41999999999996 144.85000000000002 395.65 150.55 C373.41999999999996 156.25 372.84999999999997 156.82000000000002 367.15 179.05 C361.45 156.82000000000002 360.88 156.25 338.65 150.55 C360.88 144.85000000000002 361.45 144.28 367.15 122.05000000000001Z" fill="#E6FDFF"/>
+</svg>

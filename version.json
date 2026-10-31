@@ -1,0 +1,8 @@
+{
+  "version": "3.1.0",
+  "build": 82,
+  "apk": "https://github.com/azeemash572-eng/noora-ai-web/releases/download/v3.1.0/Astra-3.1.0.apk",
+  "release": "https://github.com/azeemash572-eng/noora-ai-web/releases/tag/v3.1.0",
+  "published": "2026-10-31",
+  "notes": ["Reel Studio — 9:16 reels with text, stickers, music, voice-over, transitions and end screen", "Auto-build a reel from a topic", "Astra Builder — ask Astra to add buttons, tools, themes and commands (preview, Apply, Undo, Safe Mode)", "Self-update — Astra now checks for and installs new versions"]
+}

@@ -12,12 +12,13 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Astra AI">
 <meta name="format-detection" content="telephone=no">
-<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=3.0.2">
-<link rel="icon" type="image/png" sizes="64x64" href="icons/icon-64.png?v=3.0.2">
-<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png?v=3.0.2">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=3.1.0">
+<link rel="icon" type="image/png" sizes="64x64" href="icons/icon-64.png?v=3.1.0">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png?v=3.1.0">
 <link rel="manifest" href="manifest.webmanifest" data-pwa>
-<link rel="stylesheet" href="app.css?v=3.0.2">
-<link rel="stylesheet" href="astra.css?v=3.0.2">
+<link rel="stylesheet" href="app.css?v=3.1.0">
+<link rel="stylesheet" href="astra.css?v=3.1.0">
+<link rel="stylesheet" href="reel/reel.css?v=3.1.0">
 </head>
 <body>
 <div id="lockGate" hidden>
@@ -177,6 +178,7 @@
     <div class="toolbar">
       <button class="chip sel" data-create-pane="image">Image Studio</button>
       <button class="chip" data-create-pane="video">Video Studio</button>
+      <button class="chip" data-go="reel">Reel Studio</button>
     </div>
     <div class="scroll" id="createImagePane">
       <div class="glassCard">
@@ -283,6 +285,8 @@
   </section>
 
   <!-- PROFILE / MENU (2.8.0) -->
+  <section class="tab" id="tab-reel" hidden></section>
+  <section class="tab" id="tab-builder" hidden></section>
   <section class="tab sheet" id="tab-profile" hidden>
     <header class="sheetHead"><button type="button" class="rbtn" data-go="chat" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button><span class="sp"></span><button type="button" class="rbtn" data-go="settings" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7 7 0 0 0-2-1.2L14.2 3h-4l-.4 2.7a7 7 0 0 0-2 1.2l-2.3-1-2 3.4 2 1.5A7 7 0 0 0 5 12a7 7 0 0 0 .1 1.2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 2 1.2l.4 2.7h4l.4-2.7a7 7 0 0 0 2-1.2l2.3 1 2-3.4-2-1.5A7 7 0 0 0 19 12z"/></svg></button></header>
     <div class="scroll">
@@ -294,6 +298,8 @@
       </div>
       <div class="group">
         <button type="button" class="gRow" data-go="create"><span class="gi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M18 15l.8 2.2L21 18l-2.2.8L18 21l-.8-2.2L15 18l2.2-.8z"/></svg></span><span class="gt">Create</span><span class="gv">Image · Video</span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
+        <button type="button" class="gRow" data-go="reel"><span class="gi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 9.5v5l4-2.5z"/></svg></span><span class="gt">Reel Studio</span><span class="gv">9:16 reels</span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
+        <button type="button" class="gRow" data-go="builder"><span class="gi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 4.5l-3 15"/></svg></span><span class="gt">Astra Builder</span><span class="gv">Customize Astra</span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
         <button type="button" class="gRow" data-go="tools"><span class="gi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L4 16.8V20h3.2l5.3-5.3a4 4 0 0 0 5.2-5.4l-2.4 2.4-2.6-.6-.6-2.6z"/></svg></span><span class="gt">Tools</span><span class="gv">PDF · Scan · Calculator</span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
         <button type="button" class="gRow" data-go="routine"><span class="gi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></span><span class="gt">Routine</span><span class="gv" data-routine-count>Seekh rahi</span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
         <button type="button" class="gRow" data-go="memory"><span class="gi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4.5a3 3 0 0 0-3 3 3 3 0 0 0-1.5 5.3A3 3 0 0 0 9 19.5h.5V4.5z"/><path d="M15 4.5a3 3 0 0 1 3 3 3 3 0 0 1 1.5 5.3A3 3 0 0 1 15 19.5h-.5V4.5z"/></svg></span><span class="gt">Memory</span><span class="gv" id="profMemCount"></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
@@ -353,7 +359,7 @@
       <div id="setHome">
         <button type="button" class="setProfile" id="setProfileCard"><span class="uAv" id="setUserAv">A</span><span class="gt"><b id="setUserName">Aap</b><small id="setUserSub">Astra account · is phone par</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
         <div class="group">
-        <button type="button" class="gRow" id="rowUpdate"><span class="blueDot" id="updDot" hidden></span><span class="gt"><span id="updTitle">Astra is up to date</span><small id="updSub">3.0.2</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16L16 8M9 8h7v7"/></svg></span></button>
+        <button type="button" class="gRow" id="rowUpdate"><span class="blueDot" id="updDot" hidden></span><span class="gt"><span id="updTitle">Astra is up to date</span><small id="updSub">3.1.0</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16L16 8M9 8h7v7"/></svg></span></button>
       </div>
         <div class="group catGroup">
           <button type="button" class="gRow catRow" data-sec="account"><span class="gi catIco i1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20c1.2-3.8 4-5.6 7.5-5.6s6.3 1.8 7.5 5.6"/></svg></span><span class="gt">Account & profile<small>Naam, time zone</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
@@ -634,11 +640,11 @@
       </div>
       <div class="sSec" data-sec="about" hidden>
         <h2 class="secTitle">About</h2>
-      <div class="aboutHero"><img src="icons/astra-mark.svg" alt=""><div class="fn">Astra</div><div class="fv" id="aboutVer">Version 3.0.2</div><div class="fb" id="aboutBuild">Build 81</div></div>
+      <div class="aboutHero"><img src="icons/astra-mark.svg" alt=""><div class="fn">Astra</div><div class="fv" id="aboutVer">Version 3.1.0</div><div class="fb" id="aboutBuild">Build 82</div></div>
       <div class="group">
         <button type="button" class="gRow" id="rowHelp"><span class="gt">Help Center</span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16L16 8M9 8h7v7"/></svg></span></button>
         <button type="button" class="gRow" id="rowPrivacy"><span class="gt">Privacy Policy</span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16L16 8M9 8h7v7"/></svg></span></button>
-        <button type="button" class="gRow" id="rowWhatsNew"><span class="gt">What's new in 3.0.2</span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16L16 8M9 8h7v7"/></svg></span></button>
+        <button type="button" class="gRow" id="rowWhatsNew"><span class="gt">What's new in 3.1.0</span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16L16 8M9 8h7v7"/></svg></span></button>
       </div>
       <h3>On this device</h3>
       <div class="card"><p class="note" id="sIphone"></p></div>
@@ -680,9 +686,11 @@
   <nav class="dNav">
     <button type="button" data-dgo="voice"><span class="dI"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4"/></svg></span>Astra Live<span class="dBadge">Voice</span></button>
     <button type="button" data-dgo="create"><span class="dI"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/></svg></span>Create</button>
+    <button type="button" data-dgo="reel"><span class="dI"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 9.5v5l4-2.5z"/></svg></span>Reel Studio<span class="dBadge">New</span></button>
     <button type="button" data-dgo="files"><span class="dI"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg></span>Library</button>
     <button type="button" data-dgo="tools"><span class="dI"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L4 16.8V20h3.2l5.3-5.3a4 4 0 0 0 5.2-5.4l-2.4 2.4-2.6-.6-.6-2.6z"/></svg></span>Tools &amp; phone</button>
     <button type="button" data-dgo="memory"><span class="dI"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4.5a3 3 0 0 0-3 3 3 3 0 0 0-1.5 5.3A3 3 0 0 0 9 19.5h.5V4.5z"/><path d="M15 4.5a3 3 0 0 1 3 3 3 3 0 0 1 1.5 5.3A3 3 0 0 1 15 19.5h-.5V4.5z"/></svg></span>Memory</button>
+    <button type="button" data-dgo="builder"><span class="dI"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 4.5l-3 15"/></svg></span>Astra Builder</button>
     <button type="button" data-dgo="connect"><span class="dI"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0zM12 16v5"/></svg></span>Connect</button>
   </nav>
   <div class="dLabel"><span>Recent</span><button type="button" class="dAll" id="dAllChats">Sab dekhein</button></div>
@@ -732,5 +740,10 @@
 <script src="scan/scanstore.js"></script>
 <script src="scan/lookup.js"></script>
 <script src="scan/scanpdf.js"></script>
+<script src="reel/reel-core.js"></script>
+<script src="reel/reel.js"></script>
+<script src="builder/builder-core.js"></script>
+<script src="builder/builder.js"></script>
+<script src="update.js"></script>
 </body>
 </html>

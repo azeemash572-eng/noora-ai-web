@@ -1,4 +1,4 @@
-/* Astra AI 3.0.2 (formerly NOORA AI) command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
+/* Astra AI 3.1.0 (formerly NOORA AI) command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
 (function () {
   'use strict';
   const C = window.NooraCore, L = C.Lang;
@@ -1785,6 +1785,8 @@
   window.__nooraNativeEvent = (ev) => {
     try {
       if (!ev || typeof ev !== 'object') return;
+      try { window.dispatchEvent(new CustomEvent('astra:native', { detail: ev })); } catch (e) {}
+      if (/^update/.test(ev.type || '') || ev.type === 'ttsSynth') return;
       if (ev.type === 'stt') return onNativeStt(ev);
       if (ev.type === 'tts') return onNativeTts(ev);
       if (ev.type === 'permission') {
@@ -2059,6 +2061,12 @@
     setTranscript(text, true); setVoiceState('THINKING');
     await addUser(text);
     const lang = C.detect(text, prefLang());
+    // 3.1.0 Astra Builder: extension chat commands, Safe Mode and self-edit requests
+    try {
+      const hk = window.AstraExt && window.AstraExt.chatHook(text);
+      if (hk) { busy = true; let r = null; try { r = await hk; } finally { busy = false; } if (r && r.text) return reply(r.text, lang, { meta: { via: 'extension' } }); }
+    } catch (e) { busy = false; }
+    if (/^\/?(reel|reel studio|make a reel|open reel studio)$/i.test(text)) { setTimeout(() => showTab('reel'), 300); return reply('Opening Reel Studio.', lang, { meta: { via: 'app' } }); }
     const cmd = T.parseCommand(text);
     if (cmd && cmd.steps && cmd.steps.length) return runPlan(cmd.steps, lang);
     const lastBot = [...msgs].reverse().find((m) => m.role === 'assistant' && !m.pending);
@@ -2748,6 +2756,36 @@
     if (!chunks.length) { if (onend) onend(); return; }
     await playChunk(0);
   }
+  // 3.1.0 Reel Studio: synthesize speech into an audio Blob (recordable) — online voices, or the Android phone voice via ttsSynth
+  async function ttsBlob(text, langId) {
+    const clean = C.cleanSpeakText(text || ''); if (!clean) return { error: 'Nothing to say' };
+    const provider = activeTtsProvider(); const offline = S.netMode === 'offline' || !navigator.onLine;
+    try {
+      if (provider === 'openai' && !offline && C.ttsProviderReady(S).ok) {
+        const base = String(S.ttsBaseUrl || '').replace(/\/+$/, '');
+        const res = await fetch(base + '/audio/speech', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + S.ttsApiKey }, body: JSON.stringify({ model: S.ttsModel || 'tts-1', input: clean.slice(0, 4096), voice: S.ttsVoiceId || 'nova' }) });
+        if (res.ok) return { blob: await res.blob(), via: 'OpenAI voice' };
+      }
+      if (provider === 'xai' && !offline && C.ttsProviderReady(S, ttsPlatform()).ok) {
+        const parts = [];
+        for (const ch of C.chunkSpeakText(clean, C.TTS_CHUNK)) { const req = C.buildXaiTtsRequest(S, ch, langId || 'ENGLISH'); const res = await fetch(req.url, { method: req.method, headers: req.headers, body: JSON.stringify(req.body) }); if (!res.ok) throw new Error('xAI voice ' + res.status); parts.push(await res.blob()); }
+        if (parts.length) return { blob: new Blob(parts, { type: parts[0].type || 'audio/mpeg' }), via: 'Grok voice' };
+      }
+    } catch (e) { /* fall through to the phone voice */ }
+    if (NATIVE_TTS && window.NooraNative && typeof window.NooraNative.ttsSynth === 'function') {
+      const id = 'syn' + Date.now() + Math.random().toString(36).slice(2, 6);
+      return new Promise((res) => {
+        const tm = setTimeout(() => { window.removeEventListener('astra:native', on); res({ error: 'Phone voice timed out' }); }, 20000);
+        const on = (e) => { const d = e.detail || {}; if (d.type !== 'ttsSynth' || d.id !== id) return; clearTimeout(tm); window.removeEventListener('astra:native', on);
+          if (!d.ok || !d.base64) return res({ error: d.message || 'Phone voice could not render' });
+          const bin = atob(d.base64); const u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+          res({ blob: new Blob([u8], { type: d.mime || 'audio/wav' }), via: 'Phone voice' }); };
+        window.addEventListener('astra:native', on);
+        try { const r = JSON.parse(window.NooraNative.ttsSynth(JSON.stringify({ id, text: clean.slice(0, 1200), lang: langId || 'ENGLISH', locales: (C.ttsLocalesFor ? C.ttsLocalesFor(langId || 'ENGLISH', clean) : ['en-US']), rate: S.rate || 1, pitch: S.pitch || 1 })) || '{}'); if (r && r.ok === false) { clearTimeout(tm); window.removeEventListener('astra:native', on); res({ error: r.message || 'Phone voice unavailable' }); } } catch (e) { clearTimeout(tm); window.removeEventListener('astra:native', on); res({ error: e.message }); }
+      });
+    }
+    return { error: offline ? 'Offline — online voices need internet' : 'No recordable voice: add an xAI or OpenAI voice key in Settings → Voice, or record with the mic' };
+  }
   function speak(text, lang, onend, opts) {
     const o = opts || {};
     const clean = C.cleanSpeakText(text);
@@ -3012,7 +3050,7 @@
   $('hintClose').onclick = () => { $('installHint').hidden = true; localStorage.setItem('noora.hint', '1'); };
 
   function showTab(name) {
-    const tabs = ['home', 'chat', 'chats', 'create', 'files', 'tools', 'memory', 'settings', 'profile', 'connect'];
+    const tabs = ['home', 'chat', 'chats', 'create', 'files', 'tools', 'memory', 'settings', 'profile', 'connect', 'reel', 'builder'];
     // legacy alias: old "home" chat callers → chat; 2.8.0: the old dashboard is replaced by the chat-first home
     if (name === 'ai') name = 'settings';
     if (name === 'home') name = 'chat';
@@ -3029,6 +3067,7 @@
     if (name === 'settings') { openSettings(); openAiTab(); try { openSettingsSheet(); openSetSec(''); } catch (e) {} }
     if (name === 'profile') openProfile();
     if (name === 'connect') renderConnect();
+    try { window.dispatchEvent(new CustomEvent('astra:tab', { detail: name })); } catch (e) {}
   }
   document.querySelectorAll('#bottomNav button').forEach((b) => { b.onclick = () => showTab(b.dataset.tab); });
   if ($('btnChatsList')) $('btnChatsList').onclick = () => showTab('chats');
@@ -3866,6 +3905,7 @@
   }
   $('sHaptics').onchange = () => { S.haptics = $('sHaptics').checked; saveS(); haptic(15); };
   async function checkUpdate() {
+    if (window.AstraUpdate) return window.AstraUpdate.refreshRow();
     try {
       const r = await fetch('VERSION?t=' + Date.now(), { cache: 'no-store' }); if (!r.ok) return;
       const v = (await r.text()).trim(); const newer = v && v !== C.VERSION && v.localeCompare(C.VERSION, undefined, { numeric: true }) > 0;
@@ -3876,6 +3916,7 @@
     } catch (e) {}
   }
   $('rowUpdate').onclick = async () => {
+    if (window.AstraUpdate) return window.AstraUpdate.rowTap();
     if ($('rowUpdate').dataset.newer) { try { const rs = await navigator.serviceWorker.getRegistrations(); await Promise.all(rs.map((r) => r.update())); } catch (e) {} location.reload(); }
     else { toast('Aap latest Astra ' + C.VERSION + ' par hain 🤍'); checkUpdate(); }
   };
@@ -3886,7 +3927,7 @@
     'Location — sirf jab aap mausam/raasta poochein.'].join('\n'), [{ label: 'Phone actions kholo', go: true, fn: () => go('phone') }, { label: 'OK' }]);
   $('rowHelp').onclick = () => modal('Help', C.help ? (typeof C.help === 'function' ? C.help(L.ROMAN_URDU) : String(C.help)) : 'Mujh se Roman Urdu, Urdu, English ya Arabic mein baat karein.', [{ label: 'OK' }]);
   $('rowPrivacy').onclick = () => modal('Privacy', 'Sab kuch isi phone par: chats, memory, routine log aur API keys (localStorage / IndexedDB). Routine log mein sirf waqt aur topic ki category hoti hai, messages nahi. AI jawab ke liye sirf aap ka sawal aap ke chune hue AI provider ko jaata hai.', [{ label: 'OK' }]);
-  $('rowWhatsNew').onclick = () => modal('What\'s new in Astra ' + C.VERSION, '• OpenAI: use your own OpenAI key (Settings → AI → OpenAI) as the main provider or as a fallback — GPT-6 Luna (default), GPT-6.1 Terra, GPT-6.1 Sol, GPT-6 Astra or a custom model id\n• "Test key" shows clearly if the key works, is invalid, has no credit, or the model isn\'t available\n• Without an OpenAI key Astra keeps using the free Gemini / Groq setup\n• English by default; tap the speaker under a reply to hear it', [{ label: 'OK' }]);
+  $('rowWhatsNew').onclick = () => modal('What\'s new in Astra ' + C.VERSION, '• Reel Studio: make 9:16 reels with text overlays, stickers, built-in music, per-scene voice-over, transitions and an end screen — then export, save or share\n• Auto-build: type a topic and Astra drafts the whole reel\n• Astra Builder: ask Astra to add a button, tool, theme or chat command — preview it, then tap Apply. Undo and Safe Mode included\n• Self-update: the app now updates itself when a new version is published (Android shows an Update button)', [{ label: 'OK' }]);
   $('rowReset').onclick = () => { if ($('sDeleteAll')) $('sDeleteAll').click(); };
   // connect tools list
   function connItems() {
@@ -4113,7 +4154,7 @@
   function renderSetHome() {
     if ($('setUserAv')) $('setUserAv').textContent = userInitial();
     if ($('setUserName')) $('setUserName').textContent = (S.userName || '').trim() || 'Aap';
-    if ($('setUserSub')) $('setUserSub').textContent = 'Astra ' + C.VERSION + ' · sab kuch isi phone par';
+    if ($('setUserSub')) $('setUserSub').textContent = 'Astra ' + C.VERSION + ' · everything stays on this phone';
     if ($('aboutVer')) $('aboutVer').textContent = 'Version ' + C.VERSION;
   }
   function astraReveal(el) { const s = el && el.closest && el.closest('#tab-settings .sSec'); if (s && s.hidden) openSetSec(s.dataset.sec); }
@@ -4158,10 +4199,12 @@
     setTimeout(hideSplash, 650);
     try { astraModeUi(); renderDrawer(); astraOnboard(); } catch (e) {}
     if ('serviceWorker' in navigator && document.querySelector('link[data-pwa]') && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
-      navigator.serviceWorker.register('./sw.js').catch(() => {});
+      if (!window.AstraUpdate) navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).catch(() => {});
     }
     window.__noora = { send, Store, S, route: C.route, msgs: () => msgs, showTab, AI, Live, VERSION: C.VERSION, speak, stopVoiceMode, replayLast, updateVoiceBar, continuous: () => continuous, tools: toolRegistry,
       T, runPlan, pending: () => pending, plan: () => plan, voiceState: () => voiceState, addChatFiles, chatPending: () => chatPending, setVoiceState, platform: PLATFORM,
-      lastAttachment: () => lastAttachment, attachAction, ttsProvider: () => activeTtsProvider(), offlineMode, localLlmStatus, tryLocalLlmChat };
+      lastAttachment: () => lastAttachment, attachAction, ttsProvider: () => activeTtsProvider(), offlineMode, localLlmStatus, tryLocalLlmChat,
+      toast, modal, ttsBlob, nativeRun, reply, addUser, go, C, isAndroid: IS_ANDROID_WV, ready: true };
+    try { window.dispatchEvent(new CustomEvent('astra:ready')); } catch (e) {}
   })();
 })();

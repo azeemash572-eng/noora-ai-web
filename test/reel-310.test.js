@@ -5,9 +5,9 @@ const R = require('../reel/reel-core.js'); const C = require('../core.js');
 const root = path.join(__dirname, '..'); const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
 
 test('3.1.0 version + build everywhere', () => {
-  assert.equal(C.VERSION, '3.1.0'); assert.equal(C.BUILD, 82); assert.equal(read('VERSION').trim(), '3.1.0');
-  const v = JSON.parse(read('version.json')); assert.equal(v.version, '3.1.0'); assert.equal(v.build, 82); assert.match(v.apk, /releases\/download\/v3\.1\.0\/Astra-3\.1\.0\.apk$/);
-  assert.match(read('sw.js'), /astra-shell-3\.1\.0/);
+  assert.equal(C.VERSION, '3.2.0'); assert.equal(C.BUILD, 83); assert.equal(read('VERSION').trim(), '3.2.0');
+  const v = JSON.parse(read('version.json')); assert.equal(v.version, '3.2.0'); assert.equal(v.build, 83); assert.match(v.apk, /releases\/download\/v3\.2\.0\/Astra-3\.2\.0\.apk$/);
+  assert.match(read('sw.js'), /astra-shell-3\.2\.0/);
 });
 test('default project: 9:16, three preset scenes, end screen with handle, music at 20 % with ducking', () => {
   const p = R.defaultProject(); assert.equal(R.W, 1080); assert.equal(R.H, 1920);

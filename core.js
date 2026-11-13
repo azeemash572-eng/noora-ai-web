@@ -719,7 +719,7 @@
     if (o.earlierTopics && o.earlierTopics.length) s += 'Earlier chat topics (continuity only): ' + o.earlierTopics.join('; ') + '. ';
     return s.trim();
   }
-  /** Short system prompt for the on-device 0.5B model (small context window): rules, name, a few memories, language hint. */
+  /** Short system prompt for the small on-device model (Qwen3-0.6B / Qwen2.5-0.5B backup) (small context window): rules, name, a few memories, language hint. */
   function systemPromptCompact(opts) {
     const o = opts || {};
     const name = (o.aiName && o.aiName.trim()) || 'Astra';
@@ -1135,8 +1135,8 @@
   }
 
   // ---------------- Voice / TTS helpers (shared, unit-testable) ----------------
-  const VERSION = '3.1.0';
-  const BUILD = 82;   // Android versionCode for this release (shown subtly in About)
+  const VERSION = '3.2.0';
+  const BUILD = 83;   // Android versionCode for this release (shown subtly in About)
   // 2.3.0: ElevenLabs removed (paid; silent fallback in the Android WebView). Saved ElevenLabs keys are left untouched but unused.
   // 'native' = Android TextToSpeech through the NooraNative bridge (free, offline-capable, Google voices incl. ur-PK / hi-IN / pa-IN).
   const TTS_PROVIDERS = [

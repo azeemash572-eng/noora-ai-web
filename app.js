@@ -1,4 +1,4 @@
-/* Astra AI 3.1.0 (formerly NOORA AI) command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
+/* Astra AI 3.2.0 (formerly NOORA AI) command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
 (function () {
   'use strict';
   const C = window.NooraCore, L = C.Lang;
@@ -2110,14 +2110,15 @@
     }
     const low = s.lowRamWarn ? ' ⚠ This phone reports under ~4 GB RAM — the model may fail to load.' : '';
     if (s.state === 'downloading') {
-      stEl.textContent = '⬇ Downloading Qwen 0.5B (' + (s.progress || 0) + '%) · ' + (s.sizeLabel || '~0.5 GB') + '…' + low;
+      stEl.textContent = '⬇ Downloading ' + (s.modelId || 'Qwen3-0.6B') + ' (' + (s.progress || 0) + '%) · ' + (s.sizeLabel || '~0.35 GB') + '…' + low;
       if (dl) dl.hidden = true; if (dlm) dlm.hidden = true; if (cancel) cancel.hidden = false; if (del) del.hidden = true;
     } else if (s.downloaded) {
-      stEl.textContent = '✅ On-device model ready (' + (s.modelId || 'Qwen') + '). Used only when offline / no internet. ' + (s.note || '') + low;
+      stEl.textContent = '✅ On-device model ready (' + (s.modelId || 'Qwen') + '). Used only when offline / no internet. ' + (s.note || '') + (s.upgradeAvailable ? ' Remove it and download again to upgrade to Qwen3-0.6B (~0.35 GB).' : '') + low;
       if (dl) dl.hidden = true; if (dlm) dlm.hidden = true; if (cancel) cancel.hidden = true; if (del) del.hidden = false;
     } else {
-      stEl.textContent = 'Not downloaded. Optional ~0.5 GB Wi‑Fi download of Qwen2.5-0.5B for offline chat (never bundled in the APK). Phone actions still work without it.' + low;
+      stEl.textContent = 'Not downloaded. Optional ' + (s.sizeLabel || '~0.35 GB') + ' Wi‑Fi download of ' + (s.modelId || 'Qwen3-0.6B') + ' for offline chat (never bundled in the APK). Phone actions still work without it.' + (s.lastError ? ' Last issue: ' + s.lastError : '') + low;
       if (dl) dl.hidden = false; if (dlm) dlm.hidden = false; if (cancel) cancel.hidden = true; if (del) del.hidden = true;
+      if (dl) dl.textContent = '⬇ Download on Wi‑Fi (' + (s.sizeLabel || '~0.35 GB') + ')';
     }
     const lic = $('localLlmLicense'); if (lic) lic.textContent = s.license || '';
   }
@@ -2149,15 +2150,16 @@
   }
   function onLocalLlmEvent(ev) {
     if (!ev || ev.type !== 'localLlm') return;
-    if (ev.phase === 'download_start' || ev.phase === 'download_done' || ev.phase === 'download_error' || ev.phase === 'download_cancel' || ev.phase === 'deleted') {
+    if (ev.phase === 'download_start' || ev.phase === 'download_done' || ev.phase === 'download_error' || ev.phase === 'download_cancel' || ev.phase === 'deleted' || ev.phase === 'fallback') {
       renderLocalLlmCard();
       if (ev.phase === 'download_done') toast('On-device model downloaded ✓');
       if (ev.phase === 'download_error') toast(ev.message || 'Download failed');
+      if (ev.phase === 'fallback') toast(ev.message || 'Switched to the backup on-device model');
     }
     if (ev.phase === 'chat_done' || ev.phase === 'chat_error') {
       const w = localChatWaiters[ev.id]; if (!w) return;
       delete localChatWaiters[ev.id];
-      if (ev.phase === 'chat_done' && ev.text) w.resolve(reply(String(ev.text), w.lang, { meta: { via: w.via + ' · on-device Qwen 0.5B' } }));
+      if (ev.phase === 'chat_done' && ev.text) w.resolve(reply(String(ev.text), w.lang, { meta: { via: w.via + ' · on-device ' + (ev.modelId || 'Qwen') } }));
       else w.resolve(reply((ev.message || C.offlineNoAi(w.lang)), w.lang, { meta: { via: w.via + ' · on-device failed' } }));
     }
   }
@@ -3927,7 +3929,7 @@
     'Location — sirf jab aap mausam/raasta poochein.'].join('\n'), [{ label: 'Phone actions kholo', go: true, fn: () => go('phone') }, { label: 'OK' }]);
   $('rowHelp').onclick = () => modal('Help', C.help ? (typeof C.help === 'function' ? C.help(L.ROMAN_URDU) : String(C.help)) : 'Mujh se Roman Urdu, Urdu, English ya Arabic mein baat karein.', [{ label: 'OK' }]);
   $('rowPrivacy').onclick = () => modal('Privacy', 'Sab kuch isi phone par: chats, memory, routine log aur API keys (localStorage / IndexedDB). Routine log mein sirf waqt aur topic ki category hoti hai, messages nahi. AI jawab ke liye sirf aap ka sawal aap ke chune hue AI provider ko jaata hai.', [{ label: 'OK' }]);
-  $('rowWhatsNew').onclick = () => modal('What\'s new in Astra ' + C.VERSION, '• Reel Studio: make 9:16 reels with text overlays, stickers, built-in music, per-scene voice-over, transitions and an end screen — then export, save or share\n• Auto-build: type a topic and Astra drafts the whole reel\n• Astra Builder: ask Astra to add a button, tool, theme or chat command — preview it, then tap Apply. Undo and Safe Mode included\n• Self-update: the app now updates itself when a new version is published (Android shows an Update button)', [{ label: 'OK' }]);
+  $('rowWhatsNew').onclick = () => modal('What\'s new in Astra ' + C.VERSION, '• Offline AI upgraded to Qwen3-0.6B: smaller download (~0.35 GB), quicker and more direct replies when there is no internet (Settings → On-device AI)\n• Automatic Qwen2.5 backup if Qwen3 cannot download or run on your phone\n• Reel Studio: make 9:16 reels with text overlays, stickers, built-in music, per-scene voice-over, transitions and an end screen — then export, save or share\n• Auto-build: type a topic and Astra drafts the whole reel\n• Astra Builder: ask Astra to add a button, tool, theme or chat command — preview it, then tap Apply. Undo and Safe Mode included\n• Self-update: the app now updates itself when a new version is published (Android shows an Update button)', [{ label: 'OK' }]);
   $('rowReset').onclick = () => { if ($('sDeleteAll')) $('sDeleteAll').click(); };
   // connect tools list
   function connItems() {

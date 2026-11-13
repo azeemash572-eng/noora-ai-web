@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const C = require('../core.js');
 
-test('VERSION is 3.1.0', () => assert.equal(C.VERSION, '3.1.0'));
+test('VERSION is 3.2.0', () => assert.equal(C.VERSION, '3.2.0'));
 
 test('shouldSkipCloudAi still gates cloud when offline (local LLM is a separate offline fallback)', () => {
   assert.equal(C.shouldSkipCloudAi({ netMode: 'online' }, true), false);
@@ -15,10 +15,11 @@ test('shouldSkipCloudAi still gates cloud when offline (local LLM is a separate 
 test('Settings HTML exposes on-device AI card with size warning and cancel', () => {
   const html = fs.readFileSync(path.join(__dirname, '../index.html'), 'utf8');
   assert.match(html, /id="localLlmCard"/);
-  assert.match(html, /~0\.5 GB/);
+  assert.match(html, /~0\.35 GB/);
   assert.match(html, /btnLocalLlmDownload/);
   assert.match(html, /btnLocalLlmCancel/);
-  assert.match(html, /Qwen2\.5-0\.5B/);
+  assert.match(html, /Qwen3-0\.6B/);
+  assert.match(html, /Qwen2\.5-0\.5B/);  // backup still named
   assert.match(html, /not inside the APK|not bundled/i);
 });
 
@@ -32,11 +33,16 @@ test('app.js offlineHandle tries local LLM only after offlineReply fails', () =>
   assert.ok(!/localChat/.test(chatFn), 'AI.chat online path must not invoke localChat');
 });
 
-test('Kotlin LocalLlm points at HF q8 .task (~521MB) and never bundles it', () => {
+test('Kotlin LocalLlm: Qwen3-0.6B no-think .litertlm primary (pinned HF commit), Qwen2.5 .task fallback, never bundled', () => {
   const kt = fs.readFileSync('/workspace/noora-ai/app/src/main/java/com/nura/assistant/LocalLlm.kt', 'utf8');
+  assert.match(kt, /qwen3_0\.6b_nothink_q4_block32_ekv1280\.litertlm/);
+  assert.match(kt, /huggingface\.co\/litert-community\/Qwen3-0\.6B-int4\/resolve\/01d8620f3233a158edc2aa2c84f5d5e3fa0c02c0\//);
+  assert.match(kt, /MODEL_BYTES = 347_251_840L/);
   assert.match(kt, /Qwen2\.5-0\.5B-Instruct_multi-prefill-seq_q8_ekv1280\.task/);
-  assert.match(kt, /huggingface\.co\/litert-community\/Qwen2\.5-0\.5B-Instruct/);
-  assert.match(kt, /MODEL_BYTES = 547_000_000L/);
+  assert.match(kt, /FALLBACK_BYTES = 547_000_000L/);
+  assert.match(kt, /<think>\\n\\n<\/think>\\n\\n/);   // thinking off
   assert.match(kt, /Apache-2\.0/);
-  assert.ok(!/assets\/.*\.task/.test(kt));
+  assert.ok(!/assets\/.*\.(task|litertlm)/.test(kt));
+  const gradle = fs.readFileSync('/workspace/noora-ai/app/build.gradle.kts', 'utf8');
+  assert.match(gradle, /tasks-genai:0\.10\.35/);
 });

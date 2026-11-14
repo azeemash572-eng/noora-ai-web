@@ -1135,8 +1135,8 @@
   }
 
   // ---------------- Voice / TTS helpers (shared, unit-testable) ----------------
-  const VERSION = '3.2.2';
-  const BUILD = 85;   // Android versionCode for this release (shown subtly in About)
+  const VERSION = '3.2.3';
+  const BUILD = 86;   // Android versionCode for this release (shown subtly in About)
   // 2.3.0: ElevenLabs removed (paid; silent fallback in the Android WebView). Saved ElevenLabs keys are left untouched but unused.
   // 'native' = Android TextToSpeech through the NooraNative bridge (free, offline-capable, Google voices incl. ur-PK / hi-IN / pa-IN).
   const TTS_PROVIDERS = [
@@ -1459,6 +1459,13 @@
     if (!out.v321Migrated) {
       if (out.voiceLang == null || out.voiceLang === '') out.voiceLang = 'ENGLISH';
       out.v321Migrated = true;
+    }
+    // 3.2.3 (runs once): stored AUTO was never an intentional pick for most users
+    // (the Settings default looked like Auto). Move AUTO / blank to ENGLISH once;
+    // an Auto choice made after this migration is kept.
+    if (!out.v323Migrated) {
+      if (out.voiceLang == null || out.voiceLang === '' || out.voiceLang === 'AUTO') out.voiceLang = 'ENGLISH';
+      out.v323Migrated = true;
     }
     if (out.voiceLang !== 'AUTO' && !Lang[out.voiceLang]) out.voiceLang = 'ENGLISH';
     return out;

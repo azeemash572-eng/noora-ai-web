@@ -427,7 +427,8 @@ input[type=checkbox].switch:disabled{opacity:.4}
 }
 :root[data-theme=dark] #app,:root[data-theme=dark] .tab,
 :root:not([data-theme]) #app,:root:not([data-theme]) .tab{background:transparent}
-#app,#lockGate,#splash,#drawer,#drawerScrim,#modal,#handsFree,#toast{position:relative;z-index:1}
+/* #app must stay position:absolute;inset:0 from app.css — a relative override collapses it to 0 height because .tab children are absolute. */
+#app{z-index:1}
 #splash{z-index:100;background:
   radial-gradient(60% 50% at 50% 40%,rgba(0,229,255,.12),transparent 60%),
   var(--bg)}

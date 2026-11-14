@@ -9,10 +9,10 @@ const ids = (s, o) => C.aiRoute(s, o).map((a) => a.id).join('>');
 const GEM = { apiKey: 'AIzaTESTKEY000', provider: 'Google Gemini', baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', chatModel: 'gemini-2.5-flash' };
 
 test('3.1.0 version + build everywhere', () => {
-  assert.equal(C.VERSION, '3.2.2'); assert.equal(C.BUILD, 85);
-  assert.equal(read('VERSION').trim(), '3.2.2'); assert.equal(JSON.parse(read('package.json')).version, '3.2.2');
-  assert.match(read('sw.js'), /astra-shell-3\.2\.2/); assert.match(read('manifest.webmanifest'), /\?v=3\.2\.2/);
-  const h = read('index.html'); assert.match(h, /id="aboutVer">Version 3\.2\.2</); assert.match(h, /id="aboutBuild">Build 85</);
+  assert.equal(C.VERSION, '3.2.3'); assert.equal(C.BUILD, 86);
+  assert.equal(read('VERSION').trim(), '3.2.3'); assert.equal(JSON.parse(read('package.json')).version, '3.2.3');
+  assert.match(read('sw.js'), /astra-shell-3\.2\.3/); assert.match(read('manifest.webmanifest'), /\?v=3\.2\.3/);
+  const h = read('index.html'); assert.match(h, /id="aboutVer">Version 3\.2\.3</); assert.match(h, /id="aboutBuild">Build 86</);
 });
 
 test('models: Luna default, Terra / Sol / Astra offered, custom allowed', () => {

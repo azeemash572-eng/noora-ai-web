@@ -5,7 +5,7 @@ const C = require('../core.js'); const T = require('../tools.js'); const L = C.L
 const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
 
 test('branding: title, manifest, version 2.8.0; storage keys unchanged', () => {
-  assert.equal(C.VERSION, '3.2.2');
+  assert.equal(C.VERSION, '3.2.3');
   assert.match(read('index.html'), /<title>Astra AI<\/title>/);
   const m = JSON.parse(read('manifest.webmanifest')); assert.equal(m.name, 'Astra AI'); assert.equal(m.short_name, 'Astra AI');
   const app = read('app.js'); assert.match(app, /localStorage\.getItem\('noora\.settings'\)/); assert.match(app, /indexedDB\.open\('noora-ai', 2\)/);
@@ -90,11 +90,14 @@ test('3.0.1: English default, auto-speak off, migration keeps explicit language 
   const fresh = C.migrateSettings({}, {}); assert.equal(fresh.voiceLang, 'ENGLISH'); assert.equal(fresh.ttsOn, false);
   const old = C.migrateSettings({ ttsOn: true, voiceLang: null, userName: 'A' }, {}); assert.equal(old.voiceLang, 'ENGLISH'); assert.equal(old.ttsOn, false);
   assert.equal(C.migrateSettings({ ttsOn: true, voiceLang: 'ROMAN_URDU' }, {}).voiceLang, 'ROMAN_URDU');
-  assert.equal(C.migrateSettings({ v301Migrated: true, voiceLang: 'AUTO' }, {}).voiceLang, 'AUTO');
+  // 3.2.3: stored AUTO / blank become English once; later explicit Auto is kept
+  const mAuto = C.migrateSettings({ v301Migrated: true, voiceLang: 'AUTO' }, {});
+  assert.equal(mAuto.voiceLang, 'ENGLISH'); assert.equal(mAuto.v323Migrated, true);
   assert.equal(C.migrateSettings({ v301Migrated: true, voiceLang: 'BOGUS' }, {}).voiceLang, 'ENGLISH');
   const m321 = C.migrateSettings({ v301Migrated: true, voiceLang: 'ROMAN_URDU' }, {});
-  assert.equal(m321.voiceLang, 'ROMAN_URDU'); assert.equal(m321.v321Migrated, true);
-  assert.equal(C.migrateSettings({ v301Migrated: true, v321Migrated: true, voiceLang: 'AUTO' }, {}).voiceLang, 'AUTO');
+  assert.equal(m321.voiceLang, 'ROMAN_URDU'); assert.equal(m321.v321Migrated, true); assert.equal(m321.v323Migrated, true);
+  assert.equal(C.migrateSettings({ v301Migrated: true, v321Migrated: true, voiceLang: 'AUTO' }, {}).voiceLang, 'ENGLISH');
+  assert.equal(C.migrateSettings({ v301Migrated: true, v321Migrated: true, v323Migrated: true, voiceLang: 'AUTO' }, {}).voiceLang, 'AUTO');
   assert.equal(C.migrateSettings({ v301Migrated: true, voiceLang: null }, {}).voiceLang, 'ENGLISH');
   assert.equal(C.greetingFor(20), 'Good evening 🌙');
   assert.equal(C.greetingFor(20, 'ROMAN_URDU'), 'Janu, raat ho gayi 🌙');
@@ -106,8 +109,23 @@ test('3.0.1: English default, auto-speak off, migration keeps explicit language 
   for (const h of [0, 3, 9, 14, 17, 21, 23]) assert.doesNotMatch(C.homeGreeting(h, 'ENGLISH').title + C.homeGreeting(h, 'ENGLISH').sub, /janu/i);
   const html = read('index.html'), app = read('app.js');
   assert.doesNotMatch(html, /Made for|Lalamusa|Salalah/i); assert.doesNotMatch(app, /footSub|· 79\)/);
-  assert.match(html, /id="aboutVer">Version 3\.2\.2</); assert.match(html, /id="welcome">Hello</);
+  assert.match(html, /id="aboutVer">Version 3\.2\.3</); assert.match(html, /id="welcome">Hello</);
   assert.doesNotMatch(html, /id="langRow"/); assert.doesNotMatch(app, /\$\('langRow'\)/);
   assert.match(app, /function autoSpeakOn\(\) \{ return !S\.muted && \(continuous \|\| S\.ttsOn === true\); \}/);
   assert.match(app, /msgSpeakBtn === sp/);
+});
+
+test('3.2.3: English default UI chrome, AUTO migrates once, chat shell is not position:relative', () => {
+  const html = read('index.html'), css = read('astra.css'), app = read('app.css');
+  assert.match(html, />New chat</);
+  assert.match(html, /placeholder="Search chats"/);
+  assert.match(html, />See all</);
+  assert.match(html, /id="welcome">Hello</);
+  assert.doesNotMatch(html, />Nayi chat</);
+  assert.doesNotMatch(html, /Chats search karein/);
+  assert.doesNotMatch(html, />Sab dekhein</);
+  assert.match(app, /#app\{position:absolute;inset:0/);
+  assert.doesNotMatch(css, /#app,\s*#lockGate[^{]*\{position:relative/);
+  assert.equal(C.migrateSettings({ v321Migrated: true, voiceLang: 'AUTO' }, {}).voiceLang, 'ENGLISH');
+  assert.equal(C.migrateSettings({ v323Migrated: true, voiceLang: 'ROMAN_URDU' }, {}).voiceLang, 'ROMAN_URDU');
 });

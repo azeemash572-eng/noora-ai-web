@@ -12,13 +12,13 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Astra AI">
 <meta name="format-detection" content="telephone=no">
-<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=3.2.2">
-<link rel="icon" type="image/png" sizes="64x64" href="icons/icon-64.png?v=3.2.2">
-<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png?v=3.2.2">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=3.2.3">
+<link rel="icon" type="image/png" sizes="64x64" href="icons/icon-64.png?v=3.2.3">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png?v=3.2.3">
 <link rel="manifest" href="manifest.webmanifest" data-pwa>
-<link rel="stylesheet" href="app.css?v=3.2.2">
-<link rel="stylesheet" href="astra.css?v=3.2.2">
-<link rel="stylesheet" href="reel/reel.css?v=3.2.2">
+<link rel="stylesheet" href="app.css?v=3.2.3">
+<link rel="stylesheet" href="astra.css?v=3.2.3">
+<link rel="stylesheet" href="reel/reel.css?v=3.2.3">
 </head>
 <body>
 <canvas id="net" aria-hidden="true"></canvas>
@@ -76,13 +76,13 @@
     </header>
     <div id="modeMenu" class="popMenu topCenter" hidden role="menu">
       <div class="pmHead">Mode</div>
-      <button type="button" role="menuitemradio" data-mode="Fast"><span class="mi mIco">⚡</span><span class="mt"><b>Auto</b><small>Tez jawab — rozmarra ke kaam</small></span><span class="mk"></span></button>
-      <button type="button" role="menuitemradio" data-mode="Advanced reasoning"><span class="mi mIco">🧠</span><span class="mt"><b>Thinking</b><small>Mushkil sawal, hisaab, planning</small></span><span class="mk"></span></button>
-      <button type="button" role="menuitemradio" data-mode="Creative"><span class="mi mIco">✨</span><span class="mt"><b>Creative</b><small>Likhai, ideas, captions</small></span><span class="mk"></span></button>
+      <button type="button" role="menuitemradio" data-mode="Fast"><span class="mi mIco">⚡</span><span class="mt"><b>Auto</b><small id="modeFastSub">Quick replies — everyday tasks</small></span><span class="mk"></span></button>
+      <button type="button" role="menuitemradio" data-mode="Advanced reasoning"><span class="mi mIco">🧠</span><span class="mt"><b>Thinking</b><small id="modeThinkSub">Harder questions, maths, planning</small></span><span class="mk"></span></button>
+      <button type="button" role="menuitemradio" data-mode="Creative"><span class="mi mIco">✨</span><span class="mt"><b>Creative</b><small id="modeCreativeSub">Writing, ideas, captions</small></span><span class="mk"></span></button>
       <button type="button" role="menuitemradio" data-mode="Coding"><span class="mi mIco">⌘</span><span class="mt"><b>Coding</b><small>Code, apps, websites</small></span><span class="mk"></span></button>
       <div class="pmSep"></div>
-      <label class="pmTog"><span class="mi mIco">🌐</span><span class="mt"><b>Web search</b><small>Khabrein, rates, mausam — live</small></span><input type="checkbox" id="mmWeb" class="switch sm"></label>
-      <label class="pmTog"><span class="mi mIco">📴</span><span class="mt"><b>Offline mode</b><small>Bina internet: phone actions</small></span><input type="checkbox" id="mmOffline" class="switch sm"></label>
+      <label class="pmTog"><span class="mi mIco">🌐</span><span class="mt"><b>Web search</b><small id="modeWebSub">News, rates, weather — live</small></span><input type="checkbox" id="mmWeb" class="switch sm"></label>
+      <label class="pmTog"><span class="mi mIco">📴</span><span class="mt"><b>Offline mode</b><small id="modeOffSub">Without internet: phone actions</small></span><input type="checkbox" id="mmOffline" class="switch sm"></label>
       <div class="pmFoot" id="mmRoute">AI route</div>
     </div>
     <div id="moreMenu" class="popMenu topRight" hidden role="menu">
@@ -341,7 +341,7 @@
         </select></label>
         <button type="button" class="outline" id="btnAddMemory">+ Add memory</button>
       </div>
-      <h3 id="routineHead">Aap ki routine</h3>
+      <h3 id="routineHead">Your routine</h3>
       <div class="glassCard" id="routineCard">
         <p class="routineText" id="routineSummary" dir="auto"></p>
         <label class="row">Routine seekhna (sirf is phone par)<input type="checkbox" id="sRoutineOn" class="switch"></label>
@@ -361,12 +361,12 @@
       <div id="setHome">
         <button type="button" class="setProfile" id="setProfileCard"><span class="uAv" id="setUserAv">A</span><span class="gt"><b id="setUserName">Aap</b><small id="setUserSub">Astra account · is phone par</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
         <div class="group">
-        <button type="button" class="gRow" id="rowUpdate"><span class="blueDot" id="updDot" hidden></span><span class="gt"><span id="updTitle">Astra is up to date</span><small id="updSub">3.2.2</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16L16 8M9 8h7v7"/></svg></span></button>
+        <button type="button" class="gRow" id="rowUpdate"><span class="blueDot" id="updDot" hidden></span><span class="gt"><span id="updTitle">Astra is up to date</span><small id="updSub">3.2.3</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16L16 8M9 8h7v7"/></svg></span></button>
       </div>
         <div class="group catGroup">
           <button type="button" class="gRow catRow" data-sec="account"><span class="gi catIco i1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20c1.2-3.8 4-5.6 7.5-5.6s6.3 1.8 7.5 5.6"/></svg></span><span class="gt">Account & profile<small>Naam, time zone</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
           <button type="button" class="gRow catRow" data-sec="persona"><span class="gi catIco i2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M18 15l.8 2.2L21 18l-2.2.8L18 21l-.8-2.2L15 18l2.2-.8z"/></svg></span><span class="gt">Personalization<small>Persona, zubaan, theme, instructions</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
-          <button type="button" class="gRow catRow" data-sec="voice"><span class="gi catIco i3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4"/></svg></span><span class="gt">Voice<small>Awaaz, wake word, owner voice</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
+          <button type="button" class="gRow catRow" data-sec="voice"><span class="gi catIco i3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4"/></svg></span><span class="gt">Voice<small id="voiceCatSub">Voice, wake word, owner voice</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
           <button type="button" class="gRow catRow" data-sec="memory"><span class="gi catIco i4"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4.5a3 3 0 0 0-3 3 3 3 0 0 0-1.5 5.3A3 3 0 0 0 9 19.5h.5V4.5z"/><path d="M15 4.5a3 3 0 0 1 3 3 3 3 0 0 1 1.5 5.3A3 3 0 0 1 15 19.5h-.5V4.5z"/></svg></span><span class="gt">Memory<small>Yaadein aur routine</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
           <button type="button" class="gRow catRow" data-sec="models"><span class="gi catIco i5"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="3"/><path d="M9 9h6v6H9zM9 2.5V5M15 2.5V5M9 19v2.5M15 19v2.5M2.5 9H5M2.5 15H5M19 9h2.5M19 15h2.5"/></svg></span><span class="gt">Models & API keys<small>Groq, Gemini, OpenAI, Grok, offline</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
           <button type="button" class="gRow catRow" data-sec="phone"><span class="gi catIco i6"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="3" width="10" height="18" rx="2.5"/><path d="M11 17.5h2"/></svg></span><span class="gt">Phone & permissions<small>Mic, contacts, notifications</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
@@ -419,7 +419,7 @@
         <h2 class="secTitle">Voice</h2>
       <h3>Hands-free</h3>
       <div class="group">
-          <label class="gRow tog"><span class="gt">Wake word “Astra”<small id="wakeSub">Sirf jab app khuli ho · iPhone par nahi</small></span><input type="checkbox" id="sWakeWord" class="switch"></label>
+          <label class="gRow tog"><span class="gt">Wake word “Astra”<small id="wakeSub">Only while the app is open · not on iPhone</small></span><input type="checkbox" id="sWakeWord" class="switch"></label>
       </div>
       <h3>Speech</h3>
       <div class="card">
@@ -507,12 +507,12 @@
         <button class="outline" id="btnOpenMemory">Review / edit memory…</button>
       </div>
       <div class="group">
-        <button type="button" class="gRow" data-go="routine"><span class="gt">Aap ki routine<small>Kab kya poochte hain — sirf is phone par</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
+        <button type="button" class="gRow" data-go="routine"><span class="gt" id="routineRowTitle">Your routine<small id="routineRowSub">What you usually ask — stays on this phone</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
       </div>
       </div>
       <div class="sSec" data-sec="models" hidden>
         <h2 class="secTitle">Models &amp; API keys</h2>
-      <p class="secLead">Astra pehle Groq, phir Gemini, phir free Pollinations try karti hai. Keys sirf is phone par rehti hain — kabhi code ya chat mein nahi.</p>
+      <p class="secLead" id="aiChainLead">Astra tries Groq first, then Gemini, then free Pollinations. Keys stay on this phone — never in the code or in chat.</p>
       <h3>Groq — primary</h3>
       <div class="card groqCard" id="groqCard">
         <p class="routeLine" id="aiRouteLine">Primary: Groq (Qwen 27B), Backup: Gemini</p>
@@ -642,11 +642,11 @@
       </div>
       <div class="sSec" data-sec="about" hidden>
         <h2 class="secTitle">About</h2>
-      <div class="aboutHero"><img src="icons/astra-mark.svg" alt=""><div class="fn">Astra</div><div class="fv" id="aboutVer">Version 3.2.2</div><div class="fb" id="aboutBuild">Build 85</div></div>
+      <div class="aboutHero"><img src="icons/astra-mark.svg" alt=""><div class="fn">Astra</div><div class="fv" id="aboutVer">Version 3.2.3</div><div class="fb" id="aboutBuild">Build 86</div></div>
       <div class="group">
         <button type="button" class="gRow" id="rowHelp"><span class="gt">Help Center</span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16L16 8M9 8h7v7"/></svg></span></button>
         <button type="button" class="gRow" id="rowPrivacy"><span class="gt">Privacy Policy</span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16L16 8M9 8h7v7"/></svg></span></button>
-        <button type="button" class="gRow" id="rowWhatsNew"><span class="gt">What's new in 3.2.2</span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16L16 8M9 8h7v7"/></svg></span></button>
+        <button type="button" class="gRow" id="rowWhatsNew"><span class="gt">What's new in 3.2.3</span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16L16 8M9 8h7v7"/></svg></span></button>
       </div>
       <h3>On this device</h3>
       <div class="card"><p class="note" id="sIphone"></p></div>
@@ -660,12 +660,12 @@
     <div class="hfTop"><button type="button" class="rbtn ghost hfClose" id="hfClose" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button><div class="hfBrand"><span class="liveDot"></span>Astra Live</div><span class="hfSp"></span></div>
     <div class="hfStage">
       <button type="button" class="hfOrb" id="hfOrb" data-state="idle" aria-label="Tap to interrupt or talk"><span class="ring"></span><span class="ring r2"></span><span class="orbBody"><span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span><span class="orbShine"></span></span></button>
-      <div class="hfLabel" id="hfLabel">Sun rahi hoon…</div>
+      <div class="hfLabel" id="hfLabel">Listening…</div>
       <div class="hfText" id="hfText" dir="auto"></div>
     </div>
-    <div class="hfHint">Beech mein bolein ya orb tap karein to main ruk jaati hoon · “bas” ya “stop” se band</div>
+    <div class="hfHint" id="hfHint">Speak while I'm talking, or tap the orb to interrupt · say “stop” to end</div>
     <div class="hfBtns">
-      <div class="hfB"><button type="button" class="hfRound" id="hfMute" aria-label="Mute"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/></svg></button><span>Awaaz</span></div>
+      <div class="hfB"><button type="button" class="hfRound" id="hfMute" aria-label="Mute"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/></svg></button><span id="hfMuteLbl">Voice</span></div>
       <div class="hfB"><button type="button" class="hfRound red" id="hfStop" aria-label="End"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button><span>End</span></div>
       <div class="hfB"><button type="button" class="hfRound" id="hfType" aria-label="Keyboard">Aa</button><span>Type</span></div>
     </div>
@@ -683,8 +683,8 @@
 <div id="drawerScrim" hidden></div>
 <aside id="drawer" aria-label="Astra menu" aria-hidden="true">
   <div class="dHead"><img src="icons/astra-mark.svg" alt="" class="dLogo"><span class="dBrand">Astra</span><span class="dVer" id="dVer">3.0</span><button type="button" class="rbtn ghost sm" id="drawerClose" aria-label="Close menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
-  <button type="button" class="dNew" id="dNewChat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h8"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>Nayi chat</button>
-  <div class="dSearch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg><input id="dSearch" type="search" placeholder="Chats search karein" autocomplete="off" dir="auto"></div>
+  <button type="button" class="dNew" id="dNewChat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h8"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>New chat</button>
+  <div class="dSearch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg><input id="dSearch" type="search" placeholder="Search chats" autocomplete="off" dir="auto"></div>
   <nav class="dNav">
     <button type="button" data-dgo="voice"><span class="dI"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4"/></svg></span>Astra Live<span class="dBadge">Voice</span></button>
     <button type="button" data-dgo="create"><span class="dI"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/></svg></span>Create</button>
@@ -695,20 +695,20 @@
     <button type="button" data-dgo="builder"><span class="dI"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 4.5l-3 15"/></svg></span>Astra Builder</button>
     <button type="button" data-dgo="connect"><span class="dI"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0zM12 16v5"/></svg></span>Connect</button>
   </nav>
-  <div class="dLabel"><span>Recent</span><button type="button" class="dAll" id="dAllChats">Sab dekhein</button></div>
+  <div class="dLabel"><span>Recent</span><button type="button" class="dAll" id="dAllChats">See all</button></div>
   <div class="dList" id="dList"></div>
-  <button type="button" class="dUser" id="dUser"><span class="uAv" id="dUserAv">A</span><span class="dUName"><b id="dUserName">Aap</b><small>Settings</small></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7 7 0 0 0-2-1.2L14.2 3h-4l-.4 2.7a7 7 0 0 0-2 1.2l-2.3-1-2 3.4 2 1.5A7 7 0 0 0 5 12a7 7 0 0 0 .1 1.2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 2 1.2l.4 2.7h4l.4-2.7a7 7 0 0 0 2-1.2l2.3 1 2-3.4-2-1.5A7 7 0 0 0 19 12z"/></svg></button>
+  <button type="button" class="dUser" id="dUser"><span class="uAv" id="dUserAv">A</span><span class="dUName"><b id="dUserName">You</b><small>Settings</small></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7 7 0 0 0-2-1.2L14.2 3h-4l-.4 2.7a7 7 0 0 0-2 1.2l-2.3-1-2 3.4 2 1.5A7 7 0 0 0 5 12a7 7 0 0 0 .1 1.2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 2 1.2l.4 2.7h4l.4-2.7a7 7 0 0 0 2-1.2l2.3 1 2-3.4-2-1.5A7 7 0 0 0 19 12z"/></svg></button>
 </aside>
 
 <div id="onboard" hidden>
   <div class="obSkip"><button type="button" id="obSkip">Skip</button></div>
   <div class="obTrack" id="obTrack">
-    <div class="obSlide"><div class="obArt a1"><img src="icons/astra-mark.svg" alt=""></div><h1>Astra 3.0 mein khush aamdeed</h1><p>Aap ki apni personal assistant — chat, voice, phone aur files, sab ek jagah. Main hamesha aap ke saath hoon 🤍</p></div>
-    <div class="obSlide"><div class="obArt a2"><span class="obOrb"></span></div><h1>Astra Live — bas bolein</h1><p>Waveform button dabayein aur hands-free baat karein. Main jawab de rahi hoon tab bhi beech mein bol sakte hain.</p></div>
-    <div class="obSlide"><div class="obArt a3"><span>🔒</span></div><h1>Aap ka data, aap ke paas</h1><p>Chats, memory aur API keys sirf is phone par. Memory aap Settings → Memory mein dekh aur mita sakte hain.</p><label class="obName">Aap ko kya bulaun?<input id="obName" placeholder="Aap ka naam" autocomplete="given-name" dir="auto"></label></div>
+    <div class="obSlide"><div class="obArt a1"><img src="icons/astra-mark.svg" alt=""></div><h1 id="ob1t">Welcome to Astra</h1><p id="ob1p">Your own personal assistant — chat, voice, phone and files, all in one place. I'm always here with you 🤍</p></div>
+    <div class="obSlide"><div class="obArt a2"><span class="obOrb"></span></div><h1 id="ob2t">Astra Live — just speak</h1><p id="ob2p">Tap the waveform button and talk hands-free. You can also interrupt me while I'm answering.</p></div>
+    <div class="obSlide"><div class="obArt a3"><span>🔒</span></div><h1 id="ob3t">Your data stays with you</h1><p id="ob3p">Chats, memory and API keys stay on this phone. You can review and delete memories in Settings → Memory.</p><label class="obName" id="obNameLbl">What should I call you?<input id="obName" placeholder="Your name" autocomplete="given-name" dir="auto"></label></div>
   </div>
   <div class="obDots" id="obDots"><span class="on"></span><span></span><span></span></div>
-  <button type="button" class="obNext" id="obNext">Aage</button>
+  <button type="button" class="obNext" id="obNext">Next</button>
 </div>
 
 <section class="panel" id="memoryPanel" hidden>

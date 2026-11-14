@@ -1,4 +1,4 @@
-/* Astra AI 3.2.2 (formerly NOORA AI) command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
+/* Astra AI 3.2.3 (formerly NOORA AI) command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
 (function () {
   'use strict';
   const C = window.NooraCore, L = C.Lang;
@@ -64,6 +64,38 @@
   // 3.0.1: small UI strings follow the Settings language: English by default, Roman Urdu wording for Urdu / Punjabi users.
   const uiUrdu = () => ['ru', 'ur', 'rp', 'ps'].includes(C.homeLangKey(S.voiceLang));
   const ui = (en, ru) => (uiUrdu() && ru ? ru : en);
+  function setLeafText(el, text) {
+    if (!el) return;
+    const nodes = [...el.childNodes].filter((n) => n.nodeType === 3 && String(n.textContent).trim());
+    if (nodes.length) { nodes[nodes.length - 1].textContent = text; return; }
+    el.appendChild(document.createTextNode(text));
+  }
+  function applyUiChrome() {
+    setLeafText($('dNewChat'), ui('New chat', 'Nayi chat'));
+    if ($('dSearch')) $('dSearch').placeholder = ui('Search chats', 'Chats search karein');
+    if ($('dAllChats')) $('dAllChats').textContent = ui('See all', 'Sab dekhein');
+    if ($('routineHead')) $('routineHead').textContent = ui('Your routine', 'Aap ki routine');
+    if ($('voiceCatSub')) $('voiceCatSub').textContent = ui('Voice, wake word, owner voice', 'Awaaz, wake word, owner voice');
+    setLeafText($('routineRowTitle'), ui('Your routine', 'Aap ki routine'));
+    if ($('routineRowSub')) $('routineRowSub').textContent = ui('What you usually ask — stays on this phone', 'Kab kya poochte hain — sirf is phone par');
+    if ($('aiChainLead')) $('aiChainLead').textContent = ui('Astra tries Groq first, then Gemini, then free Pollinations. Keys stay on this phone — never in the code or in chat.', 'Astra pehle Groq, phir Gemini, phir free Pollinations try karti hai. Keys sirf is phone par rehti hain — kabhi code ya chat mein nahi.');
+    if ($('modeFastSub')) $('modeFastSub').textContent = ui('Quick replies — everyday tasks', 'Tez jawab — rozmarra ke kaam');
+    if ($('modeThinkSub')) $('modeThinkSub').textContent = ui('Harder questions, maths, planning', 'Mushkil sawal, hisaab, planning');
+    if ($('modeCreativeSub')) $('modeCreativeSub').textContent = ui('Writing, ideas, captions', 'Likhai, ideas, captions');
+    if ($('modeWebSub')) $('modeWebSub').textContent = ui('News, rates, weather — live', 'Khabrein, rates, mausam — live');
+    if ($('modeOffSub')) $('modeOffSub').textContent = ui('Without internet: phone actions', 'Bina internet: phone actions');
+    if ($('hfHint')) $('hfHint').textContent = ui('Speak while I\'m talking, or tap the orb to interrupt · say “stop” to end', 'Beech mein bolein ya orb tap karein to main ruk jaati hoon · “bas” ya “stop” se band');
+    if ($('hfMuteLbl')) $('hfMuteLbl').textContent = ui('Voice', 'Awaaz');
+    const hf = $('handsFree');
+    if ($('hfLabel') && (!hf || hf.hidden)) $('hfLabel').textContent = ui('Listening…', 'Sun rahi hoon…');
+    if ($('ob1t')) $('ob1t').textContent = ui('Welcome to Astra', 'Astra mein khush aamdeed');
+    if ($('ob1p')) $('ob1p').textContent = ui('Your own personal assistant — chat, voice, phone and files, all in one place. I\'m always here with you 🤍', 'Aap ki apni personal assistant — chat, voice, phone aur files, sab ek jagah. Main hamesha aap ke saath hoon 🤍');
+    if ($('ob2t')) $('ob2t').textContent = ui('Astra Live — just speak', 'Astra Live — bas bolein');
+    if ($('ob2p')) $('ob2p').textContent = ui('Tap the waveform button and talk hands-free. You can also interrupt me while I\'m answering.', 'Waveform button dabayein aur hands-free baat karein. Main jawab de rahi hoon tab bhi beech mein bol sakte hain.');
+    if ($('ob3t')) $('ob3t').textContent = ui('Your data stays with you', 'Aap ka data, aap ke paas');
+    if ($('ob3p')) $('ob3p').textContent = ui('Chats, memory and API keys stay on this phone. You can review and delete memories in Settings → Memory.', 'Chats, memory aur API keys sirf is phone par. Memory aap Settings → Memory mein dekh aur mita sakte hain.');
+    if ($('obName')) $('obName').placeholder = ui('Your name', 'Aap ka naam');
+  }
   const aiName = () => (S.aiName && S.aiName.trim()) || 'Astra';
 
   async function sha256(text) {
@@ -1700,7 +1732,7 @@
     }
     if (ev.phase === 'check_result' && voiceIdChecking) {
       voiceIdChecking = false; setListening(false);
-      if (ev.decision === 'match') { voiceIdPassed = true; toast('✓ Aap hi hain — ab boliye', 2500); setVoiceState('LISTENING'); setTimeout(() => startNativeListening(), 350); return; }
+      if (ev.decision === 'match') { voiceIdPassed = true; toast(ui("✓ It's you — go ahead", '✓ Aap hi hain — ab boliye'), 2500); setVoiceState('LISTENING'); setTimeout(() => startNativeListening(), 350); return; }
       if (ev.decision === 'confirm') {
         setVoiceState('IDLE');
         return modal('Is this you?', 'Your voice is close but not certain. Tap “Yes, it\'s me” to continue.', [
@@ -3853,14 +3885,14 @@
   ['fileMedia', 'fileCam'].forEach((id) => { if ($(id)) $(id).addEventListener('change', (e) => { const fs = Array.from(e.target.files || []); e.target.value = ''; if (fs.length) addChatFiles(fs); }); });
   if ($('btnHandsFree')) $('btnHandsFree').onclick = () => { haptic(12); unlockSpeech(); if (continuous) { hfRender(); return; } window.__nooraStartVoice(); hfRender(); };
   // hands-free full screen
-  const HF_LABEL = { IDLE: 'Main yahin hoon…', LISTENING: 'Sun rahi hoon…', THINKING: 'Soch rahi hoon…', EXECUTING: 'Kar rahi hoon…', SPEAKING: 'Bol rahi hoon…', ERROR: 'Mic mein masla' };
+  const hfLabelText = (st) => ({ IDLE: ui("I'm here…", 'Main yahin hoon…'), LISTENING: ui('Listening…', 'Sun rahi hoon…'), THINKING: ui('Thinking…', 'Soch rahi hoon…'), EXECUTING: ui('Working on it…', 'Kar rahi hoon…'), SPEAKING: ui('Speaking…', 'Bol rahi hoon…'), ERROR: ui('Mic problem', 'Mic mein masla') }[st] || ui("I'm here…", 'Main yahin hoon…'));
   function hfRender() {
     const el = $('handsFree'); if (!el) return;
     el.hidden = !continuous;
     if (!continuous) return;
     const st = voiceState || 'IDLE';
     $('hfOrb').dataset.state = st.toLowerCase();
-    $('hfLabel').textContent = HF_LABEL[st] || HF_LABEL.IDLE;
+    $('hfLabel').textContent = hfLabelText(st);
     const tr = $('vsTranscript') ? $('vsTranscript').textContent : '';
     $('hfText').textContent = tr || (st === 'LISTENING' ? ui('Listening…', 'Boliye…') : '');
     if ($('hfMute')) $('hfMute').classList.toggle('on', !!S.muted);
@@ -3896,7 +3928,7 @@
     $('tzVal').textContent = tz || 'Asia/Muscat';
     $('sHaptics').checked = S.haptics !== false;
     $('sWakeWord').checked = !!S.wakeWordOn; $('sWakeWord').disabled = !wakeSupported();
-    $('wakeSub').textContent = IS_IOS ? 'iPhone web app par mumkin nahi — Siri Shortcut use karein' : PLATFORM === 'android' ? 'Sirf jab app khuli ho (screen on)' : 'Sirf jab yeh tab khula ho';
+    $('wakeSub').textContent = IS_IOS ? ui('Not available in the iPhone web app — use a Siri Shortcut', 'iPhone web app par mumkin nahi — Siri Shortcut use karein') : PLATFORM === 'android' ? ui('Only while the app is open (screen on)', 'Sirf jab app khuli ho (screen on)') : ui('Only while this tab is open', 'Sirf jab yeh tab khula ho');
     if ($('aboutVer')) $('aboutVer').textContent = 'Version ' + C.VERSION;
     if ($('aboutBuild')) $('aboutBuild').textContent = 'Build ' + C.BUILD;
     const perms = [];
@@ -3920,7 +3952,7 @@
   $('rowUpdate').onclick = async () => {
     if (window.AstraUpdate) return window.AstraUpdate.rowTap();
     if ($('rowUpdate').dataset.newer) { try { const rs = await navigator.serviceWorker.getRegistrations(); await Promise.all(rs.map((r) => r.update())); } catch (e) {} location.reload(); }
-    else { toast('Aap latest Astra ' + C.VERSION + ' par hain 🤍'); checkUpdate(); }
+    else { toast(ui("You're on the latest Astra " + C.VERSION, 'Aap latest Astra ' + C.VERSION + ' par hain 🤍')); checkUpdate(); }
   };
   $('rowPerms').onclick = () => modal('Permissions', [
     'Mic — voice ke liye. ' + (IS_IOS ? 'iPhone par har baar mic tap se shuru hota hai.' : ''),
@@ -3929,7 +3961,7 @@
     'Location — sirf jab aap mausam/raasta poochein.'].join('\n'), [{ label: 'Phone actions kholo', go: true, fn: () => go('phone') }, { label: 'OK' }]);
   $('rowHelp').onclick = () => modal('Help', C.help ? (typeof C.help === 'function' ? C.help(prefLang() || L.ENGLISH) : String(C.help)) : 'Talk to me in English, Roman Urdu, Urdu or Arabic.', [{ label: 'OK' }]);
   $('rowPrivacy').onclick = () => modal('Privacy', 'Sab kuch isi phone par: chats, memory, routine log aur API keys (localStorage / IndexedDB). Routine log mein sirf waqt aur topic ki category hoti hai, messages nahi. AI jawab ke liye sirf aap ka sawal aap ke chune hue AI provider ko jaata hai.', [{ label: 'OK' }]);
-  $('rowWhatsNew').onclick = () => modal('What\'s new in Astra ' + C.VERSION, '• New cyber theme to match azeemash572-eng.github.io/azeem/ — neon cyan, glass cards, HUD details, the crown phoenix, and a lightweight neural-network background that pauses when the app is hidden\n• English remains the default language for the app, AI replies, greetings, speech recognition and voice — switch to Urdu or Roman Urdu any time in Settings\n• Offline AI upgraded to Qwen3-0.6B: smaller download (~0.35 GB), quicker and more direct replies when there is no internet (Settings → On-device AI)\n• Automatic Qwen2.5 backup if Qwen3 cannot download or run on your phone\n• Reel Studio: make 9:16 reels with text overlays, stickers, built-in music, per-scene voice-over, transitions and an end screen — then export, save or share\n• Auto-build: type a topic and Astra drafts the whole reel\n• Astra Builder: ask Astra to add a button, tool, theme or chat command — preview it, then tap Apply. Undo and Safe Mode included\n• Self-update: the app now updates itself when a new version is published (Android shows an Update button)', [{ label: 'OK' }]);
+  $('rowWhatsNew').onclick = () => modal('What\'s new in Astra ' + C.VERSION, '• Chat fix: your messages and Astra\'s replies now show after you tap send (a theme bug on 3.2.2 had left the chat area blank on iPhone)\n• English is the default language and the default UI language (New chat, Search chats, See all, Today). Stored Auto is moved to English once — Urdu and Roman Urdu stay in Settings\n• New cyber theme to match azeemash572-eng.github.io/azeem/ — neon cyan, glass cards, HUD details, the crown phoenix, and a lightweight neural-network background that pauses when the app is hidden\n• English remains the default language for the app, AI replies, greetings, speech recognition and voice — switch to Urdu or Roman Urdu any time in Settings\n• Offline AI upgraded to Qwen3-0.6B: smaller download (~0.35 GB), quicker and more direct replies when there is no internet (Settings → On-device AI)\n• Automatic Qwen2.5 backup if Qwen3 cannot download or run on your phone\n• Reel Studio: make 9:16 reels with text overlays, stickers, built-in music, per-scene voice-over, transitions and an end screen — then export, save or share\n• Auto-build: type a topic and Astra drafts the whole reel\n• Astra Builder: ask Astra to add a button, tool, theme or chat command — preview it, then tap Apply. Undo and Safe Mode included\n• Self-update: the app now updates itself when a new version is published (Android shows an Update button)', [{ label: 'OK' }]);
   $('rowReset').onclick = () => { if ($('sDeleteAll')) $('sDeleteAll').click(); };
   // connect tools list
   function connItems() {
@@ -4019,11 +4051,11 @@
     on('sWakeWord', () => {
       S.wakeWordOn = $('sWakeWord').checked; saveS();
       if (S.wakeWordOn && !wakeSupported()) { toast(IS_IOS ? 'iPhone par wake word mumkin nahi — mic ke liye tap zaroori hai.' : 'Is browser mein wake word nahi chal sakta.', 6000); }
-      else if (S.wakeWordOn) { toast('Theek hai janu — app khuli ho to "Astra" bolein 🤍'); wakePausedUntil = 0; astraWakeResume(); }
+      else if (S.wakeWordOn) { toast(ui('Okay — say “Astra” while the app is open', 'Theek hai — app khuli ho to “Astra” bolein')); wakePausedUntil = 0; astraWakeResume(); }
       else if (wakeMode) stopMic();
     });
     if ($('btnRoutineSpeak')) $('btnRoutineSpeak').onclick = () => { unlockSpeech(); speak(astraRoutineText(), prefLang() || L.ENGLISH, null, { force: true }); };
-    if ($('btnRoutineClear')) $('btnRoutineClear').onclick = () => modal('Routine data saaf karein?', 'Sirf routine ka log mitega — chats, memory aur settings waisi hi rahengi.', [
+    if ($('btnRoutineClear')) $('btnRoutineClear').onclick = () => modal(ui('Clear routine data?', 'Routine data saaf karein?'), ui('Only the routine log will be deleted — chats, memory and settings stay as they are.', 'Sirf routine ka log mitega — chats, memory aur settings waisi hi rahengi.'), [
       { label: 'Saaf karo', go: true, fn: () => { try { localStorage.removeItem(RKEY); } catch (e) {} renderRoutineCard(); toast('Routine data saaf ho gaya 🤍'); } }, { label: 'Cancel' }]);
     renderRoutineCard();
     setInterval(astraWakeResume, 4000);
@@ -4042,7 +4074,7 @@
     try { if (window.speechSynthesis && speechSynthesis.speaking) return; } catch (e) {}
     try { if (ownerOnlyActive()) return; } catch (e) {}
     wakeMode = true; startListening();
-    const el = $('listening'); if (el && wakeMode) el.textContent = '👂 "Astra" bolein…';
+    const el = $('listening'); if (el && wakeMode) el.textContent = ui('👂 Say “Astra”…', '👂 “Astra” bolein…');
   }
   function astraWakeHeard(t) {
     wakeMode = false; input.value = ''; autoGrow(); updateMicIcon();
@@ -4095,10 +4127,10 @@
     const now = Date.now(), day = 864e5; let lastGrp = '';
     cs.slice(0, 40).forEach((c) => {
       const age = now - (c.updated || now);
-      const grp = age < day ? 'Aaj' : age < 2 * day ? 'Kal' : age < 7 * day ? 'Is hafte' : 'Pehle';
+      const grp = age < day ? ui('Today', 'Aaj') : age < 2 * day ? ui('Yesterday', 'Kal') : age < 7 * day ? ui('This week', 'Is hafte') : ui('Earlier', 'Pehle');
       if (grp !== lastGrp) { const h = document.createElement('div'); h.className = 'dGrp'; h.textContent = grp; box.appendChild(h); lastGrp = grp; }
       const b = document.createElement('button'); b.type = 'button'; b.className = 'dItem' + (c.id === convId ? ' on' : ''); b.dir = 'auto';
-      b.textContent = c.title || 'Nayi chat';
+      b.textContent = c.title || ui('New chat', 'Nayi chat');
       b.onclick = async () => { haptic(); await loadConversation(c.id); closeDrawer(); showTab('chat'); };
       box.appendChild(b);
     });
@@ -4178,7 +4210,7 @@
   function astraOnboard() {
     const ob = $('onboard'); if (!ob || localStorage.getItem('astra.onboarded')) return;
     let i = 0; const slides = ob.querySelectorAll('.obSlide'), dots = ob.querySelectorAll('#obDots span');
-    const show = () => { $('obTrack').style.transform = 'translateX(' + (-100 * i) + '%)'; dots.forEach((d, k) => d.classList.toggle('on', k === i)); $('obNext').textContent = i === slides.length - 1 ? 'Shuru karein 🤍' : 'Aage'; };
+    const show = () => { $('obTrack').style.transform = 'translateX(' + (-100 * i) + '%)'; dots.forEach((d, k) => d.classList.toggle('on', k === i)); $('obNext').textContent = i === slides.length - 1 ? ui('Get started 🤍', 'Shuru karein 🤍') : ui('Next', 'Aage'); };
     const done = () => { const n = ($('obName').value || '').trim(); if (n) { S.userName = n; saveS(); if ($('sName')) $('sName').value = n; }
       localStorage.setItem('astra.onboarded', C.VERSION); ob.classList.add('out'); setTimeout(() => { ob.hidden = true; }, 350); updateEmpty(); renderDrawer(); };
     if ($('obName')) $('obName').value = S.userName || '';
@@ -4194,12 +4226,12 @@
     await loadConversation(convId);
     continuous = false; S.continuousVoice = false; // hands-free always starts from a tap or the wake word
     astraLog('open'); astraOpen = C.proactiveGreeting(astraLoad(), new Date(), { proactive: S.proactiveOn !== false, lang: S.voiceLang });
-    refreshStatus(); updateEmpty(); updateVoiceBar(); astraWireRoutine();
+    refreshStatus(); applyUiChrome(); updateEmpty(); updateVoiceBar(); astraWireRoutine();
     openHomeDash();
     setVoiceState('IDLE');
     handleLaunchParams();
     setTimeout(hideSplash, 650);
-    try { astraModeUi(); renderDrawer(); astraOnboard(); } catch (e) {}
+    try { applyUiChrome(); astraModeUi(); renderDrawer(); astraOnboard(); } catch (e) {}
     if ('serviceWorker' in navigator && document.querySelector('link[data-pwa]') && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
       if (!window.AstraUpdate) navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).catch(() => {});
     }

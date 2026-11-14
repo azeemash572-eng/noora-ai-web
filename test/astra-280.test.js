@@ -5,7 +5,7 @@ const C = require('../core.js'); const T = require('../tools.js'); const L = C.L
 const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
 
 test('branding: title, manifest, version 2.8.0; storage keys unchanged', () => {
-  assert.equal(C.VERSION, '3.2.0');
+  assert.equal(C.VERSION, '3.2.1');
   assert.match(read('index.html'), /<title>Astra AI<\/title>/);
   const m = JSON.parse(read('manifest.webmanifest')); assert.equal(m.name, 'Astra AI'); assert.equal(m.short_name, 'Astra AI');
   const app = read('app.js'); assert.match(app, /localStorage\.getItem\('noora\.settings'\)/); assert.match(app, /indexedDB\.open\('noora-ai', 2\)/);
@@ -16,12 +16,15 @@ test('saved assistant name Noora/NOORA/Nora migrates to Astra once; other names 
   assert.equal(C.migrateSettings({ aiName: 'Noora', astraNameMigrated: true }, {}).aiName, 'Noora');      // chosen again after migration → respected
   const out = C.migrateSettings({ aiName: 'Noora', apiKey: 'k', groqApiKey: 'g', memoryOn: true }, {}); assert.equal(out.apiKey, 'k'); assert.equal(out.groqApiKey, 'g');
 });
-test('persona: female Astra, owner context, Roman Urdu default, concise, honest, just-do', () => {
+test('persona: female Astra, owner context, English default, concise, honest, just-do', () => {
   const sp = C.systemPrompt({ userName: 'Azeem', memories: [] });
-  for (const rx of [/You are Astra/, /Main Astra hoon, janu. Batayein, kya karna hai?/, /karti hoon/, /Azeem Ashfaq/, /Chaand/, /Lalamusa/, /Salalah/, /SELFISH/, /The Dark Side/, /Sawera/, /lado rani/, /Abu g/,
-    /Roman Urdu by default/, /1-3 short sentences/, /As an AI/, /never invent facts/, /web search/, /JUST DO IT/, /janu" or "darling"/, /never bring up private family pain/]) assert.match(sp, rx);
+  for (const rx of [/You are Astra/, /I'm Astra\. What can I do for you\?/, /karti hoon/, /Azeem Ashfaq/, /Chaand/, /Lalamusa/, /Salalah/, /SELFISH/, /The Dark Side/, /Sawera/, /lado rani/, /Abu g/,
+    /reply in English by default/, /1-3 short sentences/, /As an AI/, /never invent facts/, /web search/, /JUST DO IT/, /janu" or "darling"/, /never bring up private family pain/]) assert.match(sp, rx);
+  assert.doesNotMatch(sp, /reply in Roman Urdu by default/);
   assert.doesNotMatch(sp, /You are Noora/);
   assert.match(C.systemPromptCompact({}), /You are Astra, a warm, caring female assistant/);
+  assert.match(C.systemPromptCompact({}), /Reply in English by default/);
+  assert.doesNotMatch(C.systemPromptCompact({}), /Reply in Roman Urdu by default/);
 });
 test('canned / offline replies use the new tone', () => {
   assert.match(C.offlineReply('tum kaun ho', L.ROMAN_URDU, ''), /^Main Astra hoon, janu. Batayein, kya karna hai?/);
@@ -49,10 +52,12 @@ test('routine: categories only, patterns after 3 days, one proactive offer', () 
   const p = C.routinePatterns(log); assert.equal(p[0].cat, 'stock'); assert.equal(p[0].days, 3);
   assert.ok(!JSON.stringify(log).includes('report'));                 // message text is never stored
   const g = C.proactiveGreeting(log, new Date(2026, 9, 27, 20, 5));
-  assert.equal(g.offer, null); assert.equal(g.text, 'Janu, raat ho gayi 🌙 Batayein, kya karna hai?');   // 2.8.1: never a sales/stock offer on home
+  assert.equal(g.offer, null); assert.equal(g.text, 'Good evening 🌙 How can I help you today?');   // 3.2.1: English default; 2.8.1: never a sales/stock offer on home
+  assert.equal(C.proactiveGreeting(log, new Date(2026, 9, 27, 20, 5), { lang: 'ROMAN_URDU' }).text, 'Janu, raat ho gayi 🌙 Batayein, kya karna hai?');
   assert.equal(C.proactiveGreeting(log, new Date(2026, 9, 27, 9, 0)).offer, null);
   assert.equal(C.proactiveGreeting(log, new Date(2026, 9, 27, 20, 5), { proactive: false }).offer, null);
-  assert.match(C.routineSummary(p), /8–10 baje raat: Stock report \(3 din\)/);
+  assert.match(C.routineSummary(p), /8–10 at night: Stock report \(3 days\)/);
+  assert.match(C.routineSummary(p, 'ROMAN_URDU'), /8–10 baje raat: Stock report \(3 din\)/);
 });
 test('2.8.0 UI: chat-first shell, own mascot, menu/profile/settings/connect/hands-free, every old section still present', () => {
   const h = read('index.html');
@@ -87,6 +92,13 @@ test('3.0.1: English default, auto-speak off, migration keeps explicit language 
   assert.equal(C.migrateSettings({ ttsOn: true, voiceLang: 'ROMAN_URDU' }, {}).voiceLang, 'ROMAN_URDU');
   assert.equal(C.migrateSettings({ v301Migrated: true, voiceLang: 'AUTO' }, {}).voiceLang, 'AUTO');
   assert.equal(C.migrateSettings({ v301Migrated: true, voiceLang: 'BOGUS' }, {}).voiceLang, 'ENGLISH');
+  const m321 = C.migrateSettings({ v301Migrated: true, voiceLang: 'ROMAN_URDU' }, {});
+  assert.equal(m321.voiceLang, 'ROMAN_URDU'); assert.equal(m321.v321Migrated, true);
+  assert.equal(C.migrateSettings({ v301Migrated: true, v321Migrated: true, voiceLang: 'AUTO' }, {}).voiceLang, 'AUTO');
+  assert.equal(C.migrateSettings({ v301Migrated: true, voiceLang: null }, {}).voiceLang, 'ENGLISH');
+  assert.equal(C.greetingFor(20), 'Good evening 🌙');
+  assert.equal(C.greetingFor(20, 'ROMAN_URDU'), 'Janu, raat ho gayi 🌙');
+  assert.equal(C.greetingFor(9), 'Good morning ☀️');
   assert.deepEqual(C.homeGreeting(9, 'ENGLISH'), { title: 'Good morning', sub: 'How can I help you today?' });
   assert.equal(C.homeGreeting(14, null).title, 'Good afternoon');
   assert.equal(C.homeGreeting(14, 'ROMAN_URDU').title, 'Assalam o alaikum');
@@ -94,7 +106,7 @@ test('3.0.1: English default, auto-speak off, migration keeps explicit language 
   for (const h of [0, 3, 9, 14, 17, 21, 23]) assert.doesNotMatch(C.homeGreeting(h, 'ENGLISH').title + C.homeGreeting(h, 'ENGLISH').sub, /janu/i);
   const html = read('index.html'), app = read('app.js');
   assert.doesNotMatch(html, /Made for|Lalamusa|Salalah/i); assert.doesNotMatch(app, /footSub|· 79\)/);
-  assert.match(html, /id="aboutVer">Version 3\.2\.0</); assert.match(html, /id="welcome">Hello</);
+  assert.match(html, /id="aboutVer">Version 3\.2\.1</); assert.match(html, /id="welcome">Hello</);
   assert.doesNotMatch(html, /id="langRow"/); assert.doesNotMatch(app, /\$\('langRow'\)/);
   assert.match(app, /function autoSpeakOn\(\) \{ return !S\.muted && \(continuous \|\| S\.ttsOn === true\); \}/);
   assert.match(app, /msgSpeakBtn === sp/);

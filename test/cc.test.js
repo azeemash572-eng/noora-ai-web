@@ -4,8 +4,8 @@ const fs = require('node:fs');
 const C = require('../core.js');
 
 test('version is 3.1.0', () => {
-  assert.equal(C.VERSION, '3.2.0');
-  assert.equal(fs.readFileSync(__dirname + '/../VERSION', 'utf8').trim(), '3.2.0');
+  assert.equal(C.VERSION, '3.2.1');
+  assert.equal(fs.readFileSync(__dirname + '/../VERSION', 'utf8').trim(), '3.2.1');
 });
 
 test('tool registry lists expected tools', async () => {
@@ -82,6 +82,8 @@ test('migration preserves Gemini key and old chats shape', () => {
   assert.equal(m.ttsProvider, 'auto');
   assert.equal(m.ttsOn, false);            // 3.0.1: auto-speak is switched off once for existing users…
   assert.equal(m.v301Migrated, true);
+  assert.equal(m.v321Migrated, true);
+  assert.equal(m.voiceLang, 'ENGLISH');
   assert.equal(C.migrateSettings(Object.assign({}, m, { ttsOn: true }), {}).ttsOn, true);   // …a later explicit opt-in is kept
   // Old chat objects remain valid without forced schema wipe
   const chat = { id: 9, title: 'Old chat', created: 1, updated: 2, folderId: null };

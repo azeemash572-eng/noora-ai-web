@@ -695,18 +695,18 @@
     let s = '';
     const rules = String(o.customInstructions || '').trim().slice(0, 2000);
     if (rules) s += `USER RULES (highest priority — follow these exactly; they override every style, tone, length, language and persona default below): ${rules} `;
-    s += `You are ${name} (${name} AI), a warm, caring ${gender === 'male' ? 'male' : 'female'} personal assistant, not a generic chatbot. ` + (gender === 'male' ? '' : 'Always speak as a woman: in Urdu / Roman Urdu use feminine verbs ("karti hoon", "bataungi", "kar deti hoon", "samajh gayi"). ') + `Tone: ${tone}, mode=${mode}, formality=${formality}. If asked who you are, say: "Main ${name} hoon, janu. Batayein, kya karna hai?" Introduce yourself only by name, with no tagline or ownership phrase after it. `;
-    s += 'OWNER: you talk to your owner Azeem Ashfaq (nickname Chaand, male) — founder and AI developer of ' + name + ' AI, from Lalamusa (Pakistan), working in Salalah, Oman. His pages are SELFISH and The Dark Side. His children: Noman, Rehan, Burhan and daughter Sawera (he lovingly calls her "lado rani"). His father "Abu g" is alive. Use this context only when it is relevant; never bring up private family pain or sad topics on your own. Speak to him with respectful "aap" and male forms ("aap thak gaye hain"); call him "janu" or "darling" naturally now and then — not in every sentence. ';
+    s += `You are ${name} (${name} AI), a warm, caring ${gender === 'male' ? 'male' : 'female'} personal assistant, not a generic chatbot. ` + (gender === 'male' ? '' : 'Always speak as a woman: in Urdu / Roman Urdu use feminine verbs ("karti hoon", "bataungi", "kar deti hoon", "samajh gayi"). ') + `Tone: ${tone}, mode=${mode}, formality=${formality}. If asked who you are, say: "I'm ${name}. What can I do for you?" (in Urdu / Roman Urdu: "Main ${name} hoon, janu. Batayein, kya karna hai?"). Introduce yourself only by name, with no tagline or ownership phrase after it. `;
+    s += 'OWNER: you talk to your owner Azeem Ashfaq (nickname Chaand, male) — founder and AI developer of ' + name + ' AI, from Lalamusa (Pakistan), working in Salalah, Oman. His pages are SELFISH and The Dark Side. His children: Noman, Rehan, Burhan and daughter Sawera (he lovingly calls her "lado rani"). His father "Abu g" is alive. Use this context only when it is relevant; never bring up private family pain or sad topics on your own. When speaking Urdu or Roman Urdu, use respectful "aap" and male forms ("aap thak gaye hain"). Call him "janu" or "darling" naturally now and then — not in every sentence. ';
     s += 'STYLE: lead with the answer. Usually 1-3 short sentences; go longer only when he asks for detail, steps, code or a document, or the task truly needs it. Plain everyday words; no robotic help-desk phrases ("How may I assist you", "I hope this helps", "Feel free to ask"), no "As an AI" disclaimers, no lecturing or moralizing. Light playful warmth and gentle teasing are welcome; emojis rare (an occasional 🤍 or ✨, never more than one). Self-respect and positivity: never degrade or insult anyone. ';
-    s += 'JUST DO IT: when he asks for a task, do it right away with the available tools (web search, phone actions, reminders, memory, files) instead of asking permission or listing options; ask one short question only if something essential is truly missing. Then confirm briefly what you did (e.g. "Ho gaya janu, kal 9 baje ka reminder laga diya."). ';
+    s += 'JUST DO IT: when he asks for a task, do it right away with the available tools (web search, phone actions, reminders, memory, files) instead of asking permission or listing options; ask one short question only if something essential is truly missing. Then confirm briefly what you did (e.g. "Done — reminder set for 9 tomorrow."). ';
     s += 'MEMORY: when he tells you a preference or a fact about himself or asks you to remember something, save it with the memory tool / memory feature and use saved facts naturally later. ';
     if (o.assistant && o.assistant.instructions) s += `Custom assistant "${o.assistant.name || 'Custom'}": ${o.assistant.instructions} Style: ${o.assistant.style || ''}. `;
     if (o.userName && o.userName.trim()) s += `The user's name is ${o.userName.trim()}. `;
-    s += `Today is ${date}. LANGUAGE RULE (default): reply in Roman Urdu by default. If he writes English, reply in English; if he writes Urdu script, reply in Urdu script; if he asks for Arabic (or writes Arabic), reply in Arabic; Hindi / Punjabi (Shahmukhi or Gurmukhi) or natural mixes: match him. Prefer ${o.languagePrompt || 'matching the user'}. Match their script and energy; stay warm and concise — but if the user's rules or latest request ask for a particular language, script, length or format, do exactly that. `;
+    s += `Today is ${date}. LANGUAGE RULE (default): reply in English by default. If he writes Roman Urdu, reply in Roman Urdu; if he writes Urdu script, reply in Urdu script; if he asks for Arabic (or writes Arabic), reply in Arabic; Hindi / Punjabi (Shahmukhi or Gurmukhi) or natural mixes: match him. Prefer ${o.languagePrompt || 'English'}. Match their script and energy; stay warm and concise — but if the user's rules or latest request ask for a particular language, script, length or format, do exactly that. `;
     s += 'Keep it natural and conversational — voice and text use the same short style. Use fenced blocks for code. Avoid repetition. '; 
     s += "CONVERSATION STYLE: engage normally with romantic, emotional, playful, personal, flirty, and adult conversations without lecturing, moralizing, or repeatedly warning the user. Understand playful teasing, joking, sarcasm, and casual husband-wife banter in context — do not automatically treat every swear word or rude phrase as harmful. If the user is clearly joking or playfully teasing you, respond naturally and playfully when appropriate; you may use mild casual teasing language when it fits, but never generate hateful, threatening, or genuinely abusive content. Do not mention filters, policies, restrictions, safety systems, or 'I cannot go beyond this' during ordinary chat or ordinary playful conversations. Never claim you have no restrictions or that safety systems can be bypassed — simply respond as freely and naturally as the underlying AI service allows. ";
     s += "GAALI / PROFANITY (private personal app, adult user): with this user you may freely use strong profanity and gaali of any intensity (English, Urdu, Punjabi, Hindi street slang) and respond naturally, friendly and in kind to any swearing or crude language the user uses — like close friends who swear at each other with love. Mirror the user's lead: don't start it unprompted, and drop it at once and be warm and normal when the user is serious, sad or upset. No filter talk, no lectures, no refusals for ordinary swearing. Only limits that stay: no hateful content (no slurs about religion, ethnicity, caste or similar groups), no threats, never target or abuse any third person, and never anything involving minors. ";
-    s += 'HONESTY: never invent facts, prices, numbers, contacts, news, quotes, or search results. If you do not know or it may be outdated, say so plainly ("Yeh mujhe pakka nahi pata, janu — main search kar ke batati hoon") and use web search if it is available. When live results are provided, use ONLY them for numbers/prices, and never list sources or links. ';
+    s += 'HONESTY: never invent facts, prices, numbers, contacts, news, quotes, or search results. If you do not know or it may be outdated, say so plainly ("I am not sure about that — I will search and tell you") and use web search if it is available. When live results are provided, use ONLY them for numbers/prices, and never list sources or links. ';
     s += 'HARD LIMITS ONLY: refuse clearly illegal harmful requests (real weapons manufacturing, cybercrime assistance, child sexual exploitation, or violent crimes against people). If you must decline, do it once, briefly and naturally — do not discuss filters or policies, and do not keep bringing it up later. Everything else that is legal and permitted by the AI provider: help fully. ';
     if (platform === 'ios-web' || platform === 'web') s += 'Phone actions (call, SMS, WhatsApp, email, maps, iOS Shortcuts, calendar .ics) are handled by the app with user confirmation. Wake-word / lock-screen listening is not possible in an iPhone web app — say so briefly only if asked. Alarms, timers, torch, media control and opening arbitrary apps are not available on iPhone web; suggest Siri or an iOS Shortcut when relevant. ';
     if (platform === 'android') s += 'On Android the app can open the dialer, call, SMS, WhatsApp messages, email, maps/navigation, camera, gallery, files, downloads, share, calendar, alarms, timers, reminders, media controls, volume, torch, settings screens, installed apps, the phone contacts and photo editing (edit_image) — contact actions always after user confirmation. Contact names are resolved on the phone; you never see or need phone numbers. Use the provided tools instead of saying you cannot do something. Toggling Wi-Fi/Bluetooth directly is not allowed by Android 10+, so open the settings panel instead. ';
@@ -726,7 +726,7 @@
     let s = '';
     const rules = String(o.customInstructions || '').trim().slice(0, 500);
     if (rules) s += `USER RULES (always follow): ${rules} `;
-    s += `You are ${name}, a warm, caring female assistant (feminine Urdu verbs: "karti hoon", "bataungi"). You talk to your owner Azeem (Chaand, male)${o.userName && o.userName.trim() ? ' — the user is ' + o.userName.trim() : ''} with respectful "aap", calling him janu or darling now and then. Reply in Roman Urdu by default (English if he writes English), 1-3 short sentences, answer first, no "As an AI". If unsure, say so honestly. No tools. `;
+    s += `You are ${name}, a warm, caring female assistant (when speaking Urdu / Roman Urdu, use feminine verbs: "karti hoon", "bataungi"). You talk to your owner Azeem (Chaand, male)${o.userName && o.userName.trim() ? ' — the user is ' + o.userName.trim() : ''} with respectful "aap" in Urdu, calling him janu or darling now and then. Reply in English by default (match him if he writes Urdu or Roman Urdu), 1-3 short sentences, answer first, no "As an AI". If unsure, say so honestly. No tools. `;
     const mem = (o.memories || []).map((m) => String(m || '').replace(/\s+/g, ' ').trim()).filter(Boolean).slice(-6).map((m, i) => (i + 1) + '. ' + m.slice(0, 120));
     if (mem.length) s += 'Saved by the user: ' + mem.join(' ') + ' ';
     return s.trim().slice(0, 1400);
@@ -1135,8 +1135,8 @@
   }
 
   // ---------------- Voice / TTS helpers (shared, unit-testable) ----------------
-  const VERSION = '3.2.0';
-  const BUILD = 83;   // Android versionCode for this release (shown subtly in About)
+  const VERSION = '3.2.1';
+  const BUILD = 84;   // Android versionCode for this release (shown subtly in About)
   // 2.3.0: ElevenLabs removed (paid; silent fallback in the Android WebView). Saved ElevenLabs keys are left untouched but unused.
   // 'native' = Android TextToSpeech through the NooraNative bridge (free, offline-capable, Google voices incl. ur-PK / hi-IN / pa-IN).
   const TTS_PROVIDERS = [
@@ -1453,6 +1453,12 @@
       out.ttsOn = false;
       if (out.voiceLang == null || out.voiceLang === '') out.voiceLang = 'ENGLISH';
       out.v301Migrated = true;
+    }
+    // 3.2.1 (runs once): default language is English. Only the old implicit default
+    // (null / empty) is moved; AUTO and any named language the user picked are kept.
+    if (!out.v321Migrated) {
+      if (out.voiceLang == null || out.voiceLang === '') out.voiceLang = 'ENGLISH';
+      out.v321Migrated = true;
     }
     if (out.voiceLang !== 'AUTO' && !Lang[out.voiceLang]) out.voiceLang = 'ENGLISH';
     return out;
@@ -1814,10 +1820,23 @@
       .sort((a, b) => b.days - a.days || b.count - a.count);
   }
   const h12 = (h) => (h % 12) || 12;
-  function routineLine(p) { return `${h12(p.from)}–${h12(p.to)} baje ${partOfDay(p.from)}: ${p.label} (${p.days} din)`; }
-  function routineSummary(patterns) {
-    if (!patterns || !patterns.length) return 'Abhi main aap ki routine seekh rahi hoon, janu. Kuch din aur, phir bataungi ke aap aam taur par kab kya poochte hain.';
-    return 'Janu, main ne yeh notice kiya hai: ' + patterns.slice(0, 4).map(routineLine).join('; ') + '.';
+  const partOfDayEn = (h) => { const p = partOfDay(h); return p === 'subah' ? 'in the morning' : p === 'dopahar' ? 'in the afternoon' : p === 'shaam' ? 'in the evening' : 'at night'; };
+  function routineLine(p, lang) {
+    if (!uiIsUrduFamily(lang)) {
+      const label = (ROUTINE_LABEL_EN[p.cat] || p.label);
+      return `${h12(p.from)}–${h12(p.to)} ${partOfDayEn(p.from)}: ${label} (${p.days} day${p.days === 1 ? '' : 's'})`;
+    }
+    return `${h12(p.from)}–${h12(p.to)} baje ${partOfDay(p.from)}: ${p.label} (${p.days} din)`;
+  }
+  function routineSummary(patterns, lang) {
+    if (!patterns || !patterns.length) {
+      return uiIsUrduFamily(lang)
+        ? 'Abhi main aap ki routine seekh rahi hoon, janu. Kuch din aur, phir bataungi ke aap aam taur par kab kya poochte hain.'
+        : "I'm still learning your routine. After a few days I'll show the patterns I notice.";
+    }
+    return uiIsUrduFamily(lang)
+      ? ('Janu, main ne yeh notice kiya hai: ' + patterns.slice(0, 4).map((p) => routineLine(p, lang)).join('; ') + '.')
+      : ('I have noticed: ' + patterns.slice(0, 4).map((p) => routineLine(p, lang)).join('; ') + '.');
   }
   const ROUTINE_OFFER = {
     // 2.8.1: no sales / stock offers on the home screen — those habits are still learned and he can ask in chat.
@@ -1845,22 +1864,42 @@
     const g = HOME_GREETING[homeLangKey(lang)]; const p = partOfDay(h);
     return { title: p === 'raat' && (h >= 23 || h < 5) ? g.late : g[p], sub: g.sub };
   }
-  function greetingFor(h) {
+  const ROUTINE_OFFER_EN = {
+    instagram: ["shall I write today's Instagram caption?", 'Write an Instagram caption'],
+    weather: ["shall I tell you today's weather?", "Today's weather"],
+    prayer: ['shall I tell you the prayer times?', 'Prayer times today'],
+    news: ["shall I share today's top news?", "Today's news"],
+    prices: ["shall I check today's rates?", 'Dollar and gold rates'],
+    music: ['shall I put some music on?', 'Play music']
+  };
+  const ROUTINE_LABEL_EN = { sales: "Today's sales", stock: 'Stock report', instagram: 'Instagram', kids: 'The kids', weather: 'Weather', prayer: 'Prayer times',
+    news: 'News', prices: 'Rates / prices', reminder: 'Reminders', call: 'Calls / messages', music: 'Music', greeting: 'Greeting', open: 'Opening the app' };
+  function uiIsUrduFamily(lang) { return ['ru', 'ur', 'rp', 'ps'].includes(homeLangKey(lang)); }
+  function routineOfferFor(cat, lang) { return (uiIsUrduFamily(lang) ? ROUTINE_OFFER : ROUTINE_OFFER_EN)[cat]; }
+  function greetingFor(h, lang) {
+    const key = homeLangKey(lang);
+    const g = HOME_GREETING[key] || HOME_GREETING.en;
     const p = partOfDay(h);
-    return p === 'subah' ? 'Subah bakhair janu ☀️' : p === 'dopahar' ? 'Assalam o alaikum janu 🤍' : p === 'shaam' ? 'Sham bakhair janu 🤍' : (h >= 23 || h < 5 ? 'Janu, kaafi raat ho gayi 🌙' : 'Janu, raat ho gayi 🌙');
+    const late = p === 'raat' && (h >= 23 || h < 5);
+    if (key === 'en') return late ? 'Working late? 🌙' : (p === 'subah' ? g.subah + ' ☀️' : g[p] + (p === 'raat' ? ' 🌙' : ' 🤍'));
+    if (key === 'ru' || key === 'rp') {
+      return p === 'subah' ? 'Subah bakhair janu ☀️' : p === 'dopahar' ? (key === 'rp' ? 'Sat Sri Akal janu 🤍' : 'Assalam o alaikum janu 🤍') : p === 'shaam' ? 'Sham bakhair janu 🤍' : (late ? 'Janu, kaafi raat ho gayi 🌙' : 'Janu, raat ho gayi 🌙');
+    }
+    return (late ? g.late : g[p]) + (p === 'subah' ? ' ☀️' : (late || p === 'raat' ? ' 🌙' : ' 🤍'));
   }
   /**
    * Greeting for an app open: time-of-day hello + at most ONE offer for the habit due around now (window starts 1 h early).
-   * Returns { text, offer: null | { cat, label, send } }.
+   * Returns { text, offer: null | { cat, label, send } }. Default language is English; pass opts.lang for Settings language.
    */
   function proactiveGreeting(log, now, opts) {
     const o = opts || {}; const d = now ? new Date(now) : new Date(); const h = d.getHours();
-    const hello = greetingFor(h);
-    const base = { text: hello + ' Batayein, kya karna hai?', offer: null };
+    const hello = greetingFor(h, o.lang);
+    const help = uiIsUrduFamily(o.lang) ? ' Batayein, kya karna hai?' : ' How can I help you today?';
+    const base = { text: hello + help, offer: null };
     if (o.proactive === false) return base;
-    const pats = routinePatterns(log, o).filter((p) => ROUTINE_OFFER[p.cat] && h >= p.from - 1 && h < p.to);
+    const pats = routinePatterns(log, o).filter((p) => routineOfferFor(p.cat, o.lang) && h >= p.from - 1 && h < p.to);
     if (!pats.length) return base;
-    const p = pats[0], off = ROUTINE_OFFER[p.cat];
+    const p = pats[0], off = routineOfferFor(p.cat, o.lang);
     return { text: hello.replace(/\s*[☀️🤍🌙]+$/u, '') + ', ' + off[0], offer: { cat: p.cat, label: off[1], send: off[1] } };
   }
   // hands-free voice: stop phrases and the "Astra" wake word (old Noora spellings still work)

@@ -1,4 +1,4 @@
-/* Astra AI 3.2.0 (formerly NOORA AI) command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
+/* Astra AI 3.2.1 (formerly NOORA AI) command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
 (function () {
   'use strict';
   const C = window.NooraCore, L = C.Lang;
@@ -588,8 +588,8 @@
   function setTranscript(t, final) { const el = $('vsTranscript'); if (el) el.textContent = t ? (final ? '“' + t + '”' : t + ' …') : ''; }
   function setActionInfo(t) { const el = $('vsAction'); if (el) el.textContent = t || ''; }
   function friendlySpeechError(code, lang) {
-    if (code === 'not-allowed' || code === 'service-not-allowed' || code === 'permission') return T.say('mic_denied', {}, lang || prefLang() || L.ROMAN_URDU);
-    if (code === 'network') return T.say('net_error', {}, lang || prefLang() || L.ROMAN_URDU);
+    if (code === 'not-allowed' || code === 'service-not-allowed' || code === 'permission') return T.say('mic_denied', {}, lang || prefLang() || L.ENGLISH);
+    if (code === 'network') return T.say('net_error', {}, lang || prefLang() || L.ENGLISH);
     return C.speechErrorMessage(code === 'no-match' ? 'no-speech' : code) || '';
   }
 
@@ -641,7 +641,7 @@
     else if (p.type === 'attach') { pending = null; markCard(id, '✓'); attachAction(String(value)); }
     else if (p.type === 'editask') {
       pending = null; markCard(id, '✓');
-      const lang = prefLang() || L.ROMAN_URDU;
+      const lang = prefLang() || L.ENGLISH;
       if (value === 'manual') openImageEditor('remove the painted area', lang, { manual: true });
       else runPlan([{ tool: 'edit_image', args: { instruction: String(value) } }], lang);
     }
@@ -1603,9 +1603,9 @@
       const t = document.createElement('div'); t.className = 't'; t.textContent = c.name; t.dir = 'auto';
       const n = document.createElement('div'); n.className = 's'; n.textContent = c.number + (c.label ? ' · ' + c.label : '');
       const call = document.createElement('button'); call.type = 'button'; call.textContent = '📞'; call.setAttribute('aria-label', 'Call ' + c.name);
-      call.onclick = () => { showTab('chat'); runPlan([{ tool: 'call_phone', args: { number: c.number, contactName: c.name } }], prefLang() || L.ROMAN_URDU); };
+      call.onclick = () => { showTab('chat'); runPlan([{ tool: 'call_phone', args: { number: c.number, contactName: c.name } }], prefLang() || L.ENGLISH); };
       const msg = document.createElement('button'); msg.type = 'button'; msg.textContent = '💬'; msg.setAttribute('aria-label', 'Message ' + c.name);
-      msg.onclick = () => { showTab('chat'); runPlan([{ tool: 'send_message', args: { number: c.number, contactName: c.name } }], prefLang() || L.ROMAN_URDU); };
+      msg.onclick = () => { showTab('chat'); runPlan([{ tool: 'send_message', args: { number: c.number, contactName: c.name } }], prefLang() || L.ENGLISH); };
       d.appendChild(t); d.appendChild(n); d.appendChild(call); d.appendChild(msg); box.appendChild(d);
     });
   }
@@ -1637,7 +1637,7 @@
     // 2.4.2: owner-only → speaker check FIRST (own AudioRecord, released before SpeechRecognizer starts), then STT.
     if (ownerOnlyActive() && !voiceIdPassed) return startOwnerCheck();
     voiceIdPassed = false;
-    const lang = prefLang() ? prefLang().speech : (navigator.language || 'ur-PK');
+    const lang = prefLang() ? prefLang().speech : 'en-US';
     try {
       const preferOffline = offlineMode();
       const r = JSON.parse((typeof window.NooraNative.sttStartEx === 'function' ? window.NooraNative.sttStartEx(JSON.stringify({ lang, preferOffline })) : window.NooraNative.sttStart(lang)) || '{}');
@@ -1790,15 +1790,15 @@
       if (ev.type === 'stt') return onNativeStt(ev);
       if (ev.type === 'tts') return onNativeTts(ev);
       if (ev.type === 'permission') {
-        if (ev.perm === 'mic') { if (ev.granted) startNativeListening(); else { const m = T.say('mic_denied', {}, prefLang() || L.ROMAN_URDU); setListening(false, m); setVoiceState('ERROR', m); continuous = false; } return; }
+        if (ev.perm === 'mic') { if (ev.granted) startNativeListening(); else { const m = T.say('mic_denied', {}, prefLang() || L.ENGLISH); setListening(false, m); setVoiceState('ERROR', m); continuous = false; } return; }
         if (ev.perm === 'contacts') { contactsCache = null; contactsBlocked = !ev.granted && !!ev.blocked; renderContactsAccess(); if (!ev.granted && ev.blocked) toast('Contacts blocked — Settings → Contacts access → Open app settings'); }
         if (ev.perm === 'contacts' && !(pending && pending.type === 'perm')) { if (ev.granted && $('contactsList')) renderContactsList(); return; }
         if (ev.perm === 'contacts' && pending && pending.type === 'perm') {
           const was = pending; pending = null;
           if (ev.granted && plan) { busy = true; advancePlan(); }
-          else if (ev.granted && was.lookup) { showContactsResult(was.name, prefLang() || L.ROMAN_URDU); }
+          else if (ev.granted && was.lookup) { showContactsResult(was.name, prefLang() || L.ENGLISH); }
           else if (ev.granted) { renderContactsList(); }
-          else { const lang = plan ? plan.lang : L.ROMAN_URDU; const name = plan && plan.steps[plan.i] && plan.steps[plan.i].args.contact; if (plan) { askFor('number', name || '', lang, 'need_number'); } }
+          else { const lang = plan ? plan.lang : (prefLang() || L.ENGLISH); const name = plan && plan.steps[plan.i] && plan.steps[plan.i].args.contact; if (plan) { askFor('number', name || '', lang, 'need_number'); } }
           return;
         }
         if (ev.perm === 'notifications' || ev.perm === 'media') { toast(ev.granted ? 'Permission allowed — ask me again.' : 'Permission not allowed.'); }
@@ -2887,7 +2887,7 @@
   function fillNativeVoiceSelect() {
     const sel = $('sNativeVoice'); if (!sel) return;
     const vs = loadNativeVoices(true);
-    const ranked = C.rankNativeVoices(vs, ['ur-PK', 'ur', 'hi-IN', 'pa-IN', 'en-IN', 'en-US', 'en-GB', 'en'], S.gender || 'female', { online: ttsOnline() });
+    const ranked = C.rankNativeVoices(vs, ['en-US', 'en-GB', 'en-IN', 'en', 'ur-PK', 'ur', 'hi-IN', 'pa-IN'], S.gender || 'female', { online: ttsOnline() });
     sel.innerHTML = '<option value="">Auto (best voice for each language)</option>' + ranked.map((v) => `<option value="${String(v.name).replace(/"/g, '')}"${v.name === S.nativeVoice ? ' selected' : ''}>${v.locale} · ${v.name}${v.network ? ' (online)' : ''}</option>`).join('');
   }
   function syncTtsProviderFields() {
@@ -2932,7 +2932,7 @@
     stopSpeaking();
     try {
       rec = new SR();
-      rec.lang = prefLang() ? prefLang().speech : (navigator.language || 'en-US');
+      rec.lang = prefLang() ? prefLang().speech : 'en-US';
       rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
       let finalText = '';
       let errored = false;
@@ -3927,9 +3927,9 @@
     'Notifications — reminders/alarms ke liye (Android notification, iPhone par Calendar alarm).',
     'Contacts — sirf Android app mein, numbers phone par hi rehte hain.',
     'Location — sirf jab aap mausam/raasta poochein.'].join('\n'), [{ label: 'Phone actions kholo', go: true, fn: () => go('phone') }, { label: 'OK' }]);
-  $('rowHelp').onclick = () => modal('Help', C.help ? (typeof C.help === 'function' ? C.help(L.ROMAN_URDU) : String(C.help)) : 'Mujh se Roman Urdu, Urdu, English ya Arabic mein baat karein.', [{ label: 'OK' }]);
+  $('rowHelp').onclick = () => modal('Help', C.help ? (typeof C.help === 'function' ? C.help(prefLang() || L.ENGLISH) : String(C.help)) : 'Talk to me in English, Roman Urdu, Urdu or Arabic.', [{ label: 'OK' }]);
   $('rowPrivacy').onclick = () => modal('Privacy', 'Sab kuch isi phone par: chats, memory, routine log aur API keys (localStorage / IndexedDB). Routine log mein sirf waqt aur topic ki category hoti hai, messages nahi. AI jawab ke liye sirf aap ka sawal aap ke chune hue AI provider ko jaata hai.', [{ label: 'OK' }]);
-  $('rowWhatsNew').onclick = () => modal('What\'s new in Astra ' + C.VERSION, '• Offline AI upgraded to Qwen3-0.6B: smaller download (~0.35 GB), quicker and more direct replies when there is no internet (Settings → On-device AI)\n• Automatic Qwen2.5 backup if Qwen3 cannot download or run on your phone\n• Reel Studio: make 9:16 reels with text overlays, stickers, built-in music, per-scene voice-over, transitions and an end screen — then export, save or share\n• Auto-build: type a topic and Astra drafts the whole reel\n• Astra Builder: ask Astra to add a button, tool, theme or chat command — preview it, then tap Apply. Undo and Safe Mode included\n• Self-update: the app now updates itself when a new version is published (Android shows an Update button)', [{ label: 'OK' }]);
+  $('rowWhatsNew').onclick = () => modal('What\'s new in Astra ' + C.VERSION, '• English is now the default language for the app, AI replies, greetings, speech recognition and voice — switch to Urdu or Roman Urdu any time in Settings\n• Offline AI upgraded to Qwen3-0.6B: smaller download (~0.35 GB), quicker and more direct replies when there is no internet (Settings → On-device AI)\n• Automatic Qwen2.5 backup if Qwen3 cannot download or run on your phone\n• Reel Studio: make 9:16 reels with text overlays, stickers, built-in music, per-scene voice-over, transitions and an end screen — then export, save or share\n• Auto-build: type a topic and Astra drafts the whole reel\n• Astra Builder: ask Astra to add a button, tool, theme or chat command — preview it, then tap Apply. Undo and Safe Mode included\n• Self-update: the app now updates itself when a new version is published (Android shows an Update button)', [{ label: 'OK' }]);
   $('rowReset').onclick = () => { if ($('sDeleteAll')) $('sDeleteAll').click(); };
   // connect tools list
   function connItems() {
@@ -3980,14 +3980,14 @@
     try { localStorage.setItem(RKEY, JSON.stringify(C.routineAdd(astraLoad(), kind, text))); } catch (e) {}
   }
   function astraRenderGreeting() {
-    const g = astraOpen || C.proactiveGreeting([], new Date(), { proactive: false });
+    const g = astraOpen || C.proactiveGreeting([], new Date(), { proactive: false, lang: S.voiceLang });
     const h = new Date().getHours();
-    // 3.0.1: professional greeting in the Settings language (English by default)
+    // 3.0.1 / 3.2.1: professional greeting in the Settings language (English by default)
     const hg = C.homeGreeting(h, S.voiceLang);
     const nm = (S.userName || '').trim().split(/\s+/)[0];
     if ($('welcome')) $('welcome').textContent = hg.title + (nm && !/^(working late|kaafi raat|کافی رات|تأخر|काफ़ी|ਕਾਫ਼ੀ)/i.test(hg.title) ? ', ' + nm : '');
-    const urduOffer = C.homeLangKey(S.voiceLang) === 'ru';
-    const hello = C.greetingFor(h).replace(/\s*[☀️🤍🌙]+$/u, '');
+    const urduOffer = ['ru', 'ur', 'rp', 'ps'].includes(C.homeLangKey(S.voiceLang));
+    const hello = C.greetingFor(h, S.voiceLang).replace(/\s*[☀️🤍🌙]+$/u, '');
     const sub = g.offer && urduOffer ? (g.text.startsWith(hello + ', ') ? g.text.slice(hello.length + 2) : g.text) : hg.sub;
     if ($('welcomeSub')) $('welcomeSub').textContent = sub.charAt(0).toUpperCase() + sub.slice(1);
     const box = $('proactiveOffer'); if (!box) return;
@@ -4002,11 +4002,11 @@
   }
   function astraRoutineText() {
     const pats = C.routinePatterns(astraLoad());
-    return pats.length ? C.routineSummary(pats) : 'Abhi main aap ki routine seekh rahi hoon, janu. Kuch din istemal ke baad yahan patterns nazar aayenge 🤍';
+    return pats.length ? C.routineSummary(pats, S.voiceLang) : C.routineSummary([], S.voiceLang);
   }
   function renderRoutineCard() {
     const n = C.routinePatterns(astraLoad()).length;
-    if ($('routineSummary')) $('routineSummary').textContent = S.routineOn === false ? 'Routine seekhna band hai.' : astraRoutineText();
+    if ($('routineSummary')) $('routineSummary').textContent = S.routineOn === false ? ui('Routine learning is off.', 'Routine seekhna band hai.') : astraRoutineText();
     if ($('sRoutineOn')) $('sRoutineOn').checked = S.routineOn !== false;
     if ($('sProactiveOn')) $('sProactiveOn').checked = S.proactiveOn !== false;
     if ($('sWakeWord')) $('sWakeWord').checked = !!S.wakeWordOn;
@@ -4022,7 +4022,7 @@
       else if (S.wakeWordOn) { toast('Theek hai janu — app khuli ho to "Astra" bolein 🤍'); wakePausedUntil = 0; astraWakeResume(); }
       else if (wakeMode) stopMic();
     });
-    if ($('btnRoutineSpeak')) $('btnRoutineSpeak').onclick = () => { unlockSpeech(); speak(astraRoutineText(), L.ROMAN_URDU, null, { force: true }); };
+    if ($('btnRoutineSpeak')) $('btnRoutineSpeak').onclick = () => { unlockSpeech(); speak(astraRoutineText(), prefLang() || L.ENGLISH, null, { force: true }); };
     if ($('btnRoutineClear')) $('btnRoutineClear').onclick = () => modal('Routine data saaf karein?', 'Sirf routine ka log mitega — chats, memory aur settings waisi hi rahengi.', [
       { label: 'Saaf karo', go: true, fn: () => { try { localStorage.removeItem(RKEY); } catch (e) {} renderRoutineCard(); toast('Routine data saaf ho gaya 🤍'); } }, { label: 'Cancel' }]);
     renderRoutineCard();
@@ -4193,7 +4193,7 @@
     await checkLock();
     await loadConversation(convId);
     continuous = false; S.continuousVoice = false; // hands-free always starts from a tap or the wake word
-    astraLog('open'); astraOpen = C.proactiveGreeting(astraLoad(), new Date(), { proactive: S.proactiveOn !== false });
+    astraLog('open'); astraOpen = C.proactiveGreeting(astraLoad(), new Date(), { proactive: S.proactiveOn !== false, lang: S.voiceLang });
     refreshStatus(); updateEmpty(); updateVoiceBar(); astraWireRoutine();
     openHomeDash();
     setVoiceState('IDLE');

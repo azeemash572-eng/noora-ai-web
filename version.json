@@ -1,11 +1,12 @@
 {
-  "version": "3.2.1",
-  "build": 84,
-  "apk": "https://github.com/azeemash572-eng/noora-ai-web/releases/download/v3.2.0/Astra-3.2.0.apk",
-  "release": "https://github.com/azeemash572-eng/noora-ai-web/releases/tag/v3.2.0",
+  "version": "3.2.2",
+  "build": 85,
+  "apk": "https://github.com/azeemash572-eng/noora-ai-web/releases/download/v3.2.2/Astra-3.2.2.apk",
+  "release": "https://github.com/azeemash572-eng/noora-ai-web/releases/tag/v3.2.2",
   "published": "2026-11-15",
   "notes": [
-    "English is now the default language for the app, AI replies, greetings, speech recognition and voice (switch to Urdu or Roman Urdu in Settings)",
+    "Cyber theme to match azeemash572-eng.github.io/azeem/ — neon cyan, glass cards, HUD details, crown phoenix, and a lightweight neural-network background",
+    "English remains the default language for the app, AI replies, greetings, speech recognition and voice (switch to Urdu or Roman Urdu in Settings)",
     "Offline AI upgraded to Qwen3-0.6B — smaller download (~0.35 GB) and quicker, direct replies",
     "Automatic Qwen2.5 backup if Qwen3 cannot download or run on a phone"
   ]

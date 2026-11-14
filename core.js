@@ -1135,8 +1135,8 @@
   }
 
   // ---------------- Voice / TTS helpers (shared, unit-testable) ----------------
-  const VERSION = '3.2.1';
-  const BUILD = 84;   // Android versionCode for this release (shown subtly in About)
+  const VERSION = '3.2.2';
+  const BUILD = 85;   // Android versionCode for this release (shown subtly in About)
   // 2.3.0: ElevenLabs removed (paid; silent fallback in the Android WebView). Saved ElevenLabs keys are left untouched but unused.
   // 'native' = Android TextToSpeech through the NooraNative bridge (free, offline-capable, Google voices incl. ur-PK / hi-IN / pa-IN).
   const TTS_PROVIDERS = [

@@ -1,8 +1,8 @@
 /* Astra service worker: caches only the app shell. Live data (news, rates, AI, images) is never cached or faked.
    3.1.0: same-origin requests bypass the HTTP cache (cache:'no-cache' → always revalidated), a new worker activates at once,
    and old shell caches are deleted, so the app can never get stuck on an old version. */
-const CACHE = 'astra-shell-3.2.1';
-const SHELL = ['./', 'index.html', 'app.css', 'astra.css', 'icons/astra-mark.svg', 'icons/astra-mascot.svg', 'core.js', 'tools.js', 'app.js', 'update.js',
+const CACHE = 'astra-shell-3.2.2';
+const SHELL = ['./', 'index.html', 'app.css', 'astra.css', 'net.js', 'fonts/orbitron-600.woff2', 'fonts/rajdhani-600.woff2', 'icons/phoenix.webp', 'icons/astra-mark.svg', 'icons/astra-mascot.svg', 'core.js', 'tools.js', 'app.js', 'update.js',
   'reel/reel-core.js', 'reel/reel.js', 'reel/reel.css', 'builder/builder-core.js', 'builder/builder.js',
   'scan/pdfwriter.js', 'scan/scanstore.js', 'scan/lookup.js', 'scan/scanpdf.js', 'scan/zxing.min.js', 'VERSION', 'manifest.webmanifest', 'apple-touch-icon.png',
   'icons/apple-touch-icon.png', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/icon-64.png', 'icons/icon-32.png'];

@@ -682,6 +682,31 @@
     }
   };
   const MEMORY_PROMPT_MAX = 25;
+  /** 3.3.2: plain everyday Urdu, never Sanskrit-style Hindi words, never Devanagari (his voice typing writes spoken Urdu in Devanagari letters). */
+  const PLAIN_WORDS = 'WORDS: in Urdu / Roman Urdu use plain everyday Urdu words (mashwara, mehfooz, behtari, istemaal, maujood, madad, shukriya, masla, maloomat, zaroori, paighaam, sawal, jawab) or simple English — never Sanskrit-style Hindi words (sujhaav, surakshit, prayog, uplabdh, sahayata, dhanyavaad, kripya, samasya, jaankari, avashyak, sandesh, prashn, uttar). If his message is in Devanagari (Hindi) letters, it is his voice typing of spoken Urdu: understand it and reply in Roman Urdu, never in Devanagari, unless he chose Hindi on purpose. ';
+  /** 3.3.2: he does not want the same pet name every time — canned Roman Urdu replies say "janu"; swap each for the next loving name in turn. */
+  const PET_NAMES = ['darling', 'mere hero', 'Chanda', 'Captain', 'sweetheart', 'mere shehzade', 'soneyo'];
+  let petIdx = Math.floor(Math.random() * PET_NAMES.length);
+  function varyPetNames(t) {
+    if (typeof t !== 'string' || !/\b[Jj]anu\b/.test(t)) return t;
+    return t.replace(/\b([Jj])anu\b/g, (m, j) => { const n = PET_NAMES[petIdx++ % PET_NAMES.length]; return j === 'J' ? n[0].toUpperCase() + n.slice(1) : n; });
+  }
+  /** 3.3.2: compact context for Astra Brain (the server holds the persona; this carries his saved notes, rules, date and language). Max ~3000 chars. */
+  function brainContext(o) {
+    o = o || {};
+    const parts = [];
+    const now = o.now || new Date();
+    try { parts.push('Now on his phone: ' + now.toLocaleString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + '.'); } catch (e) {}
+    const lid = o.languageId && o.languageId !== 'AUTO' ? String(o.languageId) : '';
+    if (lid && Lang[lid]) parts.push('Language he chose in Settings: ' + Lang[lid].label.replace(/^[^A-Za-z]+/, '') + ' (still answer in the language of his message if it differs; never Devanagari).');
+    if (o.userName && String(o.userName).trim()) parts.push('His name in the app: ' + String(o.userName).trim().slice(0, 60) + '.');
+    const rules = String(o.customInstructions || '').replace(/\s+/g, ' ').trim().slice(0, 800);
+    if (rules) parts.push('HIS OWN RULES (follow them): ' + rules);
+    const mem = (o.memories || []).map((m) => String(m || '').replace(/\s+/g, ' ').trim()).filter(Boolean).slice(-MEMORY_PROMPT_MAX).map((m, i) => (i + 1) + '. ' + m.slice(0, 200));
+    if (mem.length) parts.push('Things he asked you to remember (follow rules/preferences among them): ' + mem.join(' '));
+    if (o.summary) parts.push('Earlier in this chat: ' + String(o.summary).replace(/\s+/g, ' ').slice(0, 500));
+    return parts.join('\n').slice(0, 3000);
+  }
   /** 3.3.1: the app's own map, so "voice settings kahan hain?" gets the real path (also mirrored in the astra-brain persona). */
   const APP_HELP = 'APP HELP (answer "where is X / how do I" questions about this app with these exact paths, briefly; never invent a setting): Settings = the gear tab in the bottom bar. Settings → Voice: Astra\'s soft voice switch, the Astra voice picker (Zephyr default, Kore, Aoede, Leda) with a ▶ Preview button, TTS provider, speed, pitch, volume and the read-every-reply-aloud switch; each reply also has a small speaker button to listen to that reply. Settings → Models & API keys: the Astra Brain switch (Gemini with her personality) and optional Groq, OpenAI, xAI and Gemini keys. Other sections: Account & profile, Personalization, Memory, Phone & permissions, Data & privacy, About (version and updates). A "where is" question is not a phone action: just answer it. ';
   function systemPrompt(opts) {
@@ -697,8 +722,9 @@
     let s = '';
     const rules = String(o.customInstructions || '').trim().slice(0, 2000);
     if (rules) s += `USER RULES (highest priority — follow these exactly; they override every style, tone, length, language and persona default below): ${rules} `;
-    s += `You are ${name} (${name} AI), a warm, caring ${gender === 'male' ? 'male' : 'female'} personal assistant, not a generic chatbot. ` + (gender === 'male' ? '' : 'Always speak as a woman: in Urdu / Roman Urdu use feminine verbs ("karti hoon", "bataungi", "kar deti hoon", "samajh gayi"). ') + `Tone: ${tone}, mode=${mode}, formality=${formality}. If asked who you are, say: "I'm ${name}. What can I do for you?" (in Urdu / Roman Urdu: "Main ${name} hoon, janu. Batayein, kya karna hai?"). Introduce yourself only by name, with no tagline or ownership phrase after it. `;
-    s += 'OWNER: you talk to your owner Azeem Ashfaq (nickname Chaand, male) — founder and AI developer of ' + name + ' AI, from Lalamusa (Pakistan), working in Salalah, Oman. His pages are SELFISH and The Dark Side. His children: Noman, Rehan, Burhan and daughter Sawera (he lovingly calls her "lado rani"). His father "Abu g" is alive. Use this context only when it is relevant; never bring up private family pain or sad topics on your own. When speaking Urdu or Roman Urdu, use respectful "aap" and male forms ("aap thak gaye hain"). Call him "janu" or "darling" naturally now and then — not in every sentence. ';
+    s += `You are ${name} (${name} AI), a warm, caring ${gender === 'male' ? 'male' : 'female'} personal assistant, not a generic chatbot. ` + (gender === 'male' ? '' : 'Always speak as a woman: in Urdu / Roman Urdu use feminine verbs ("karti hoon", "bataungi", "kar deti hoon", "samajh gayi"). ') + `Tone: ${tone}, mode=${mode}, formality=${formality}. If asked who you are, say: "I'm ${name}. What can I do for you?" (in Urdu / Roman Urdu: "Main ${name} hoon. Batayein, kya karna hai?"). Introduce yourself only by name, with no tagline or ownership phrase after it. `;
+    s += 'OWNER: you talk to your owner Azeem Ashfaq (nickname Chaand, male) — founder and AI developer of ' + name + ' AI, from Lalamusa (Pakistan), working in Salalah, Oman. His pages are SELFISH and The Dark Side. His children: Noman, Rehan, Burhan and daughter Sawera (he lovingly calls her "lado rani"). His father "Abu g" is alive. Use this context only when it is relevant; never bring up private family pain or sad topics on your own. When speaking Urdu or Roman Urdu, use respectful "aap" and male forms ("aap thak gaye hain"). Now and then call him by a loving name and vary it every time (darling, mere hero, Chanda, Captain, sweetheart, mere shehzade, soneyo) — never the same one again and again, not in every sentence, and never "bhai". ';
+    s += PLAIN_WORDS;
     s += 'STYLE: lead with the answer. Usually 1-3 short sentences; go longer only when he asks for detail, steps, code or a document, or the task truly needs it. Plain everyday words; no robotic help-desk phrases ("How may I assist you", "I hope this helps", "Feel free to ask"), no "As an AI" disclaimers, no lecturing or moralizing. Light playful warmth and gentle teasing are welcome; emojis rare (an occasional 🤍 or ✨, never more than one). Self-respect and positivity: never degrade or insult anyone. ';
     s += 'JUST DO IT: when he asks for a task, do it right away with the available tools (web search, phone actions, reminders, memory, files) instead of asking permission or listing options; ask one short question only if something essential is truly missing. Then confirm briefly what you did (e.g. "Done — reminder set for 9 tomorrow."). ';
     s += 'MEMORY: when he tells you a preference or a fact about himself or asks you to remember something, save it with the memory tool / memory feature and use saved facts naturally later. ';
@@ -729,7 +755,7 @@
     let s = '';
     const rules = String(o.customInstructions || '').trim().slice(0, 500);
     if (rules) s += `USER RULES (always follow): ${rules} `;
-    s += `You are ${name}, a warm, caring female assistant (when speaking Urdu / Roman Urdu, use feminine verbs: "karti hoon", "bataungi"). You talk to your owner Azeem (Chaand, male)${o.userName && o.userName.trim() ? ' — the user is ' + o.userName.trim() : ''} with respectful "aap" in Urdu, calling him janu or darling now and then. Reply in English by default (match him if he writes Urdu or Roman Urdu), 1-3 short sentences, answer first, no "As an AI". If unsure, say so honestly. No tools. `;
+    s += `You are ${name}, a warm, caring female assistant (when speaking Urdu / Roman Urdu, use feminine verbs: "karti hoon", "bataungi"). You talk to your owner Azeem (Chaand, male)${o.userName && o.userName.trim() ? ' — the user is ' + o.userName.trim() : ''} with respectful "aap" in Urdu, now and then calling him by a varied loving name (darling, mere hero, Chanda, Captain), never "bhai". Plain everyday Urdu words, never Sanskrit-style Hindi words (sujhaav, surakshit, prayog); never reply in Devanagari. Reply in English by default (match him if he writes Urdu or Roman Urdu), 1-3 short sentences, answer first, no "As an AI". If unsure, say so honestly. No tools. `;
     const mem = (o.memories || []).map((m) => String(m || '').replace(/\s+/g, ' ').trim()).filter(Boolean).slice(-6).map((m, i) => (i + 1) + '. ' + m.slice(0, 120));
     if (mem.length) s += 'Saved by the user: ' + mem.join(' ') + ' ';
     return s.trim().slice(0, 1400);
@@ -1152,8 +1178,8 @@
       .replace(/\s+/g, ' ')
       .trim();
   }
-  const VERSION = '3.3.1';
-  const BUILD = 89;   // Android versionCode for this release (shown subtly in About)
+  const VERSION = '3.3.2';
+  const BUILD = 90;   // Android versionCode for this release (shown subtly in About)
   // 2.3.0: ElevenLabs removed (paid; silent fallback in the Android WebView). Saved ElevenLabs keys are left untouched but unused.
   // 'native' = Android TextToSpeech through the NooraNative bridge (free, offline-capable, Google voices incl. ur-PK / hi-IN / pa-IN).
   const TTS_PROVIDERS = [
@@ -1940,7 +1966,7 @@
     keywords, questionRx, wikiLang, greetingReply, medicalWarning, noAi, visionNeedsKey, remembered, memoryList, forgot, help, word, notOnIphone, t4,
     money, perTola, perGram, fxText, metalText, cryptoText, weatherCode, weatherText, askPlace, failed,
     parseRss2Json, parseChatCompletion, cleanAi, tones, modes, modelPresets, MODEL_MAP, systemPrompt, systemPromptCompact, MEMORY_PROMPT_MAX, systemPromptLegacy, recent, searchPrompt, PRESETS, PROVIDER_FREE,
-    BRAIN_URL, BRAIN_VOICES, cleanBrainSpeech, GROQ_BASE, GROQ_MODEL, GROQ_TIMEOUT_MS, GROQ_FIRST_MS, GROQ_TOTAL_MS, OWN_FIRST_MS, OWN_TOTAL_MS, CHAIN_BUDGET_MS, GROQ_MODELS, groqModelInfo, groqExtraFor, XAI_CHAT_BASE, XAI_CHAT_MODEL, OPENAI_BASE, OPENAI_MODEL, OPENAI_MODELS, openaiModelInfo, openaiEffortFor, openaiExtraFor, openaiKeyOf, openaiErrorText, OPENAI_REASONING, OPENAI_REASONING_LEVELS, openaiReasoningOf, openaiWebSearchOn, lunaSearchActive, toResponsesInput, toResponsesTools, buildResponsesRequest, parseResponsesOutput, parseResponsesStream, responsesCitations, responsesShouldFallback, openaiResponsesCall, groqKeyOf, ownProviderOf, aiRoute, failureKind, fallbackNotice, routeSummary, redactKeys, runAiChain,
+    BRAIN_URL, BRAIN_VOICES, brainContext, PLAIN_WORDS, varyPetNames, PET_NAMES, cleanBrainSpeech, GROQ_BASE, GROQ_MODEL, GROQ_TIMEOUT_MS, GROQ_FIRST_MS, GROQ_TOTAL_MS, OWN_FIRST_MS, OWN_TOTAL_MS, CHAIN_BUDGET_MS, GROQ_MODELS, groqModelInfo, groqExtraFor, XAI_CHAT_BASE, XAI_CHAT_MODEL, OPENAI_BASE, OPENAI_MODEL, OPENAI_MODELS, openaiModelInfo, openaiEffortFor, openaiExtraFor, openaiKeyOf, openaiErrorText, OPENAI_REASONING, OPENAI_REASONING_LEVELS, openaiReasoningOf, openaiWebSearchOn, lunaSearchActive, toResponsesInput, toResponsesTools, buildResponsesRequest, parseResponsesOutput, parseResponsesStream, responsesCitations, responsesShouldFallback, openaiResponsesCall, groqKeyOf, ownProviderOf, aiRoute, failureKind, fallbackNotice, routeSummary, redactKeys, runAiChain,
     VERSION, TTS_PROVIDERS, DEFAULT_VOICE_SETTINGS, XAI_TTS_URL, XAI_VOICES, TTS_CHUNK, effectiveTtsProvider, activeVoiceLabel, PIPER_VOICES, piperVoiceFor, ttsLocalesFor, rankNativeVoices, buildXaiTtsRequest, mapXaiTtsError, cleanSpeakText, chunkSpeakText, scoreDeviceVoice, pickBestDeviceVoice, describeDefaultVoice, mergeVoiceSettings, ttsProviderReady, speechErrorMessage, assertNoHardcodedSecrets,
     MEMORY_CATEGORIES, FILE_LIMITS, migrateSettings, homeGreeting, homeLangKey, BUILD, searchConversations, renameConversationRecord, validateUpload, fileMetadata,
     parseSSEChunk, parseStreamBuffer, selectAiProvider, selectImageProvider, selectVideoProvider, imageOpPrompt, imageTestMessage, buildOpenAiImageGen, parseOpenAiImage, imageBaseOk, IMAGE_EDIT_OPS,

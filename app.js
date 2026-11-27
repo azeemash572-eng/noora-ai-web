@@ -1,4 +1,4 @@
-/* Astra AI 3.3.1 (formerly NOORA AI) command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
+/* Astra AI 3.3.2 (formerly NOORA AI) command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
 (function () {
   'use strict';
   const C = window.NooraCore, L = C.Lang;
@@ -61,6 +61,9 @@
   const openaiOn = () => !!(C.openaiKeyOf(S) && S.openaiChatMode !== 'off');
   const hasAnyKey = () => !!(hasOwnKey() || C.groqKeyOf(S) || openaiOn());
   const prefLang = () => (S.voiceLang && L[S.voiceLang] ? L[S.voiceLang] : null);   // 'AUTO' (explicit) → follow each message
+  // 3.3.2: his phone's voice typing writes spoken Urdu in Devanagari (Hindi) letters — treat that as Roman Urdu so replies are never in Devanagari
+  // (only when Hindi is not chosen on purpose in Settings, and the switch is not turned off)
+  const detectLang = (text, pref) => { const l = C.detect(text, pref); return l === L.HINDI && S.voiceLang !== 'HINDI' && S.devanagariAsUrdu !== false ? L.ROMAN_URDU : l; };
   // 3.0.1: small UI strings follow the Settings language: English by default, Roman Urdu wording for Urdu / Punjabi users.
   const uiUrdu = () => ['ru', 'ur', 'rp', 'ps'].includes(C.homeLangKey(S.voiceLang));
   const ui = (en, ru) => (uiUrdu() && ru ? ru : en);
@@ -78,7 +81,7 @@
     if ($('voiceCatSub')) $('voiceCatSub').textContent = ui('Voice, wake word, owner voice', 'Awaaz, wake word, owner voice');
     setLeafText($('routineRowTitle'), ui('Your routine', 'Aap ki routine'));
     if ($('routineRowSub')) $('routineRowSub').textContent = ui('What you usually ask — stays on this phone', 'Kab kya poochte hain — sirf is phone par');
-    if ($('aiChainLead')) $('aiChainLead').textContent = ui('Astra tries Groq first, then Gemini, then free Pollinations. Keys stay on this phone — never in the code or in chat.', 'Astra pehle Groq, phir Gemini, phir free Pollinations try karti hai. Keys sirf is phone par rehti hain — kabhi code ya chat mein nahi.');
+    if ($('aiChainLead')) $('aiChainLead').textContent = ui('Astra Brain (Gemini with her personality) answers first. If it is off or busy, Astra tries Groq, then Gemini, then free Pollinations. Keys stay on this phone — never in the code or in chat.', 'Pehle Astra Brain (Gemini, Astra ke mizaaj ke saath) jawab deti hai. Wo band ya masroof ho to Groq, phir Gemini, phir free Pollinations. Keys sirf is phone par rehti hain — kabhi code ya chat mein nahi.');
     if ($('modeFastSub')) $('modeFastSub').textContent = ui('Quick replies — everyday tasks', 'Tez jawab — rozmarra ke kaam');
     if ($('modeThinkSub')) $('modeThinkSub').textContent = ui('Harder questions, maths, planning', 'Mushkil sawal, hisaab, planning');
     if ($('modeCreativeSub')) $('modeCreativeSub').textContent = ui('Writing, ideas, captions', 'Likhai, ideas, captions');
@@ -356,13 +359,29 @@
   }
 
   const brainState = { offUntil: 0, told: false };
+  let brainCtx = '';   // 3.3.2: compact context for Astra Brain, set by buildMessages()
+  const brainWarm = { at: 0 };
+  // 3.3.2: the free Render server sleeps after ~15 min; wake it while he is still typing so the first reply is not lost to the fallback
+  function warmBrain(force) {
+    try {
+      if (S.astraBrain === false || !navigator.onLine || S.netMode === 'offline') return;
+      if (!force && Date.now() - brainWarm.at < 240000) return;
+      brainWarm.at = Date.now();
+      fetch(C.BRAIN_URL + '/health', { cache: 'no-store', mode: 'cors' }).catch(() => {});
+    } catch (e) {}
+  }
   const AI = {
     // 3.2.4: Astra Brain — Gemini with the Astra persona, behind a Render proxy (the key lives only on the server). Plain chat only; any failure falls through to the usual providers.
     async brain(messages, toolPrompt) {
       const turns = messages.filter((m) => m && m.role !== 'system' && typeof m.content === 'string' && m.content.trim()).slice(-10)
         .map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', text: m.content.slice(0, 1500) }));
       if (!turns.length || turns[turns.length - 1].role !== 'user') return { failure: 'no user turn' };
-      const r = await http(C.BRAIN_URL + '/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(toolPrompt ? { messages: turns, toolPrompt } : { messages: turns }) }, 30000);
+      // 3.3.2: also send his saved memories / rules / date (brainCtx), so "Remember things I ask" works with the Brain too; 40s covers a Render cold start
+      const payload = { messages: turns };
+      if (toolPrompt) payload.toolPrompt = toolPrompt;
+      if (brainCtx) payload.context = brainCtx;
+      const r = await http(C.BRAIN_URL + '/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }, 40000);
+      brainWarm.at = Date.now();
       if (!r.ok) return { failure: r.error || 'HTTP ' + r.status, status: r.status };
       try { const j = await r.res.json(); const t = String(j.reply || '').trim(); return t ? { text: t, model: j.model || '' } : { failure: 'empty reply' }; } catch (e) { return { failure: 'bad JSON' }; }
     },
@@ -1080,7 +1099,7 @@
   async function handlePendingReply(text) {
     const p = pending; if (!p) return false;
     const yn = T.parseYesNo(text);
-    const lang = plan ? plan.lang : C.detect(text, prefLang());
+    const lang = plan ? plan.lang : detectLang(text, prefLang());
     if (p.type === 'confirm') {
       if (yn === 'yes') { await addUser(text); confirmPending(); return true; }
       if (yn === 'no') { await addUser(text); cancelPending(); return true; }
@@ -1138,7 +1157,7 @@
     if (p.type === 'contacts' || p.type === 'attach') { markCard(p.cardId, 'Closed'); pending = null; return false; }
     if (p.type === 'editask') {
       markCard(p.cardId, '✓'); pending = null;
-      await addUser(text); runPlan([{ tool: 'edit_image', args: { instruction: String(text).trim() } }], C.detect(text, prefLang())); return true;
+      await addUser(text); runPlan([{ tool: 'edit_image', args: { instruction: String(text).trim() } }], detectLang(text, prefLang())); return true;
     }
     return false;
   }
@@ -1291,7 +1310,7 @@
     await runPlan(good.map((c) => ({ tool: c.name, args: c.args })), lang, { source: 'ai' });
     return true;
   }
-  function retryLast(text) { if (!text) return; busy = true; const lang = C.detect(text, prefLang()); chat(text, lang, false, false); }
+  function retryLast(text) { if (!text) return; busy = true; const lang = detectLang(text, prefLang()); chat(text, lang, false, false); }
 
   // ---- chat attachments: preview · remove · status · validation → pipeline ----
   let chatPending = []; let chatSeq = 0;
@@ -1350,7 +1369,7 @@
     return true;
   }
   async function attachAction(act) {
-    const lang = prefLang() || C.detect(input.value || 'please', null);
+    const lang = prefLang() || detectLang(input.value || 'please', null);
     const q = (k) => (T.langKey(lang) === 'en' ? ATTACH_Q[k].en : ATTACH_Q[k].ru);
     const hasTray = chatPending.some((x) => x.status === 'ready');
     if (busy) return toast(aiName() + ' is still answering…');
@@ -1500,7 +1519,7 @@
     const names = processed.map((p) => (fileIcon[p.kind] || '📎') + ' ' + p.name).join('\n');
     const firstImg = processed.find((p) => p.dataUrl);
     await addUser((question ? question + '\n' : '') + names, firstImg ? firstImg.dataUrl : null);
-    const lang = C.detect(question || 'please', prefLang());
+    const lang = detectLang(question || 'please', prefLang());
     if (question && T.isImageEditRequest(question) && processed.some((p) => p.kind === 'image')) { busy = false; return runPlan([{ tool: 'edit_image', args: { instruction: question } }], lang); }
     const cmd = question && T.parseCommand(question);
     if (cmd) { busy = false; return runPlan(cmd.steps, lang); }
@@ -1905,6 +1924,7 @@
       : !navigator.onLine ? (S.netMode === 'online' ? 'No internet — Online mode needs a connection' : 'Offline — phone actions & small talk')
       : openaiOn() && S.openaiChatMode !== 'backup' ? `AI: OpenAI · ${S.openaiModel || C.OPENAI_MODEL}`
       : C.groqKeyOf(S) ? `AI: Groq · ${S.groqModel || C.GROQ_MODEL}` + (hasOwnKey() && !/groq/i.test(S.baseUrl || '') ? ` (backup ${/generativelanguage/.test(S.baseUrl || '') ? 'Gemini' : S.provider})` : '')
+      : S.astraBrain !== false && Date.now() > brainState.offUntil ? 'AI: Astra Brain · Gemini'
       : hasOwnKey() ? `AI: ${S.provider} · ${S.chatModel}` : 'AI: free Pollinations (no key, rate-limited)';
     // header shows who actually answered last (e.g. Gemini when the Groq key was rejected), not only who is configured
     if (lastAnswer && navigator.onLine && S.netMode !== 'offline') base = `AI: ${lastAnswer.via}` + (lastAnswer.fellBack ? ' (fallback — check Settings)' : '');
@@ -1993,7 +2013,7 @@
           if (msgSpeakBtn === sp) { stopSpeaking(); setVoiceState('IDLE'); return; }   // stopSpeaking() resets the button
           stopSpeaking(); ssAbort();
           msgSpeakBtn = sp; sp.classList.add('speaking'); sp.setAttribute('aria-pressed', 'true'); sp.setAttribute('aria-label', 'Stop'); sp.title = 'Stop'; sp.innerHTML = STOP_SVG;
-          speak(m.text, C.detect(m.text, prefLang()), () => { if (msgSpeakBtn === sp) msgSpeakReset(); }, { force: true, msgBtn: true });
+          speak(m.text, detectLang(m.text, prefLang()), () => { if (msgSpeakBtn === sp) msgSpeakReset(); }, { force: true, msgBtn: true });
         };
         acts.append(cp, sp); mt.prepend(acts);
       }
@@ -2027,6 +2047,7 @@
   }
   async function reply(text, lang, opts = {}) {
     removePending();
+    text = C.varyPetNames(text);   // 3.3.2: a different loving name each time, not "janu" again and again
     const files = extractProjectFiles(text);
     const meta = Object.assign({}, opts.meta || {});
     if (files.length >= 2) meta.downloadZip = files;
@@ -2104,7 +2125,7 @@
       if (lastAttachment && lastAttachment.file) { addChatFiles([lastAttachment.file]); return sendWithAttachments(text); }
       input.value = ''; autoGrow(); updateMicIcon();
       await addUser(text);
-      const l0 = C.detect(text, prefLang());
+      const l0 = detectLang(text, prefLang());
       return reply(T.langKey(l0) === 'en'
         ? 'Please attach the file with 📎 first, then ask again. ' + (IS_ANDROID_WV ? 'Astra can only read files you pick — it does not scan your storage.' : 'A web app can\'t browse your phone\'s files or find your "latest PDF" by itself.')
         : 'Jaanu, pehle 📎 se file attach kar do, phir dobara kaho. ' + (IS_ANDROID_WV ? 'Main sirf wohi file parh sakti hoon jo aap chuno — storage scan nahi karti.' : 'Web app aap ke phone ki files khud nahi dekh sakti, na "latest PDF" dhoond sakti hai.'), l0, { meta: { via: 'honest' } });
@@ -2113,7 +2134,7 @@
     input.value = ''; autoGrow(); updateMicIcon(); stopSpeaking();
     setTranscript(text, true); setVoiceState('THINKING');
     await addUser(text);
-    const lang = C.detect(text, prefLang());
+    const lang = detectLang(text, prefLang());
     // 3.1.0 Astra Builder: extension chat commands, Safe Mode and self-edit requests
     try {
       const hk = window.AstraExt && window.AstraExt.chatHook(text);
@@ -2270,13 +2291,14 @@
     const [mems, convs, summary, assist] = await Promise.all([
       Store.memories(), Store.conversations(), Store.getSummary(convId), activeAssistant()
     ]);
-    const useMem = !assist || assist.useMemory !== false;
+    const useMem = (!assist || assist.useMemory !== false) && S.memoryOn !== false;   // 3.3.2: memory switch off → saved notes are not sent either
     const topics = convs.filter((c) => c.id !== convId && c.title).slice(0, 5).map((c) => c.title);
     const out = [{ role: 'system', content: C.systemPrompt({
       userName: S.userName, aiName: aiName(), tone: S.tone, mode: S.mode, formality: S.formality, gender: S.gender,
       languagePrompt: (assist && assist.language) || lang.prompt, memories: useMem ? mems : [], medical,
       earlierTopics: topics, summary, assistant: assist, platform: PLATFORM, customInstructions: S.customInstructions
     }) }];
+    brainCtx = C.brainContext({ userName: S.userName, customInstructions: S.customInstructions, memories: useMem ? mems : [], summary, languageId: S.voiceLang, now: new Date() });
     const turns = C.recent(msgs.filter((m) => !m.pending).map((m) => ({ role: m.role, text: m.text })), HISTORY_TURNS);
     turns.forEach((t, i) => out.push({ role: t.role, content: i === turns.length - 1 && t.role === 'user' && overrideLastUser ? overrideLastUser : t.text }));
     return out;
@@ -2452,7 +2474,7 @@
         const q = question || 'What is in this image? Describe it. If there is text, extract it (OCR).';
         await addUser(q, dataUrl);
         await Store.addFile({ name, mime: mime || 'image/jpeg', kind: 'image', ts: Date.now(), dataUrl });
-        const lang = C.detect(q, prefLang());
+        const lang = detectLang(q, prefLang());
         busy = true; showPending(C.word(lang, 'thinking')); status('Looking at the photo…');
         const mems = await Store.memories();
         const messages = [{ role: 'system', content: C.systemPrompt({ userName: S.userName, aiName: aiName(), tone: S.tone, mode: S.mode, formality: S.formality, gender: S.gender, languagePrompt: lang.prompt, memories: mems, platform: PLATFORM, customInstructions: S.customInstructions }) },
@@ -2472,7 +2494,7 @@
       await Store.addFile({ name, mime: mime || 'text/plain', kind, ts: Date.now(), text: extracted.slice(0, 100000) });
       const q = question || (`Please read and summarize this file (${name}). Highlight key points.`);
       await addUser(q + '\n\n---\nFile: ' + name + '\n' + extracted.slice(0, 12000));
-      const lang = C.detect(q, prefLang());
+      const lang = detectLang(q, prefLang());
       return chat(q + '\n\n[File content of ' + name + ']\n' + extracted.slice(0, 12000), lang, false, false);
     } catch (e) { toast('File error: ' + e.message); busy = false; }
   }
@@ -2937,7 +2959,7 @@
     if (!lastSpeakPayload.text) {
       const last = [...msgs].reverse().find((m) => m.role === 'assistant' && !m.pending && m.text);
       if (!last) return toast('Nothing to replay yet');
-      const lang = C.detect(last.text, prefLang());
+      const lang = detectLang(last.text, prefLang());
       unlockSpeech(); speak(last.text, lang, null, { force: true });
       return;
     }
@@ -3614,7 +3636,7 @@
   async function openHomeDash() {
     if ($('homeGreeting')) $('homeGreeting').textContent = (S.userName ? ('Hi, ' + S.userName) : ('Hi — ' + aiName()));
     if ($('homeStatus')) {
-      const base = openaiOn() && S.openaiChatMode !== 'backup' ? ('OpenAI · ' + (S.openaiModel || C.OPENAI_MODEL)) : C.groqKeyOf(S) ? ('Groq · ' + (S.groqModel || C.GROQ_MODEL)) : hasOwnKey() ? (S.provider + ' · ' + (S.chatModel || '')) : (S.serverUrl ? 'Server proxy' : 'Free Pollinations');
+      const base = openaiOn() && S.openaiChatMode !== 'backup' ? ('OpenAI · ' + (S.openaiModel || C.OPENAI_MODEL)) : C.groqKeyOf(S) ? ('Groq · ' + (S.groqModel || C.GROQ_MODEL)) : hasOwnKey() ? (S.provider + ' · ' + (S.chatModel || '')) : (S.serverUrl ? 'Server proxy' : S.astraBrain !== false ? 'Astra Brain · Gemini' : 'Free Pollinations');
       $('homeStatus').textContent = base;
     }
     if ($('homeDot')) $('homeDot').classList.toggle('off', !navigator.onLine);
@@ -4045,7 +4067,7 @@
     'Location — sirf jab aap mausam/raasta poochein.'].join('\n'), [{ label: 'Phone actions kholo', go: true, fn: () => go('phone') }, { label: 'OK' }]);
   $('rowHelp').onclick = () => modal('Help', C.help ? (typeof C.help === 'function' ? C.help(prefLang() || L.ENGLISH) : String(C.help)) : 'Talk to me in English, Roman Urdu, Urdu or Arabic.', [{ label: 'OK' }]);
   $('rowPrivacy').onclick = () => modal('Privacy', 'Sab kuch isi phone par: chats, memory, routine log aur API keys (localStorage / IndexedDB). Routine log mein sirf waqt aur topic ki category hoti hai, messages nahi. AI jawab ke liye sirf aap ka sawal aap ke chune hue AI provider ko jaata hai.', [{ label: 'OK' }]);
-  $('rowWhatsNew').onclick = () => modal('What\'s new in Astra ' + C.VERSION, '• Chat fix: your messages and Astra\'s replies now show after you tap send (a theme bug on 3.2.2 had left the chat area blank on iPhone)\n• English is the default language and the default UI language (New chat, Search chats, See all, Today). Stored Auto is moved to English once — Urdu and Roman Urdu stay in Settings\n• New cyber theme to match azeemash572-eng.github.io/azeem/ — neon cyan, glass cards, HUD details, the crown phoenix, and a lightweight neural-network background that pauses when the app is hidden\n• English remains the default language for the app, AI replies, greetings, speech recognition and voice — switch to Urdu or Roman Urdu any time in Settings\n• Offline AI upgraded to Qwen3-0.6B: smaller download (~0.35 GB), quicker and more direct replies when there is no internet (Settings → On-device AI)\n• Automatic Qwen2.5 backup if Qwen3 cannot download or run on your phone\n• Reel Studio: make 9:16 reels with text overlays, stickers, built-in music, per-scene voice-over, transitions and an end screen — then export, save or share\n• Auto-build: type a topic and Astra drafts the whole reel\n• Astra Builder: ask Astra to add a button, tool, theme or chat command — preview it, then tap Apply. Undo and Safe Mode included\n• Self-update: the app now updates itself when a new version is published (Android shows an Update button)', [{ label: 'OK' }]);
+  $('rowWhatsNew').onclick = () => modal('What\'s new in Astra ' + C.VERSION, '• Astra Brain now remembers: your saved notes, your own rules and today\'s date go along with every question\n• Faster first reply: Astra wakes her Brain as soon as you open the app or start typing\n• The top bar now shows "Astra Brain · Gemini" when the Brain is on, not "free Pollinations"\n• Voice typing in Hindi letters is understood as Urdu, and Astra always answers in Roman Urdu letters\n• Plain everyday Urdu words (mashwara, mehfooz, behtari) — no heavy Hindi words\n• A different loving name each time, not the same one again and again\n• Memory switch off now also stops sending your saved notes\n• 3.3.x: soft Gemini voices (Zephyr, Kore, Aoede, Leda) on the speaker button — Settings → Voice\n• 3.3.x: Astra Brain also handles phone actions like "open settings" or "call Ali"', [{ label: 'OK' }]);
   $('rowReset').onclick = () => { if ($('sDeleteAll')) $('sDeleteAll').click(); };
   // connect tools list
   function connItems() {
@@ -4323,6 +4345,10 @@
       T, runPlan, pending: () => pending, plan: () => plan, voiceState: () => voiceState, addChatFiles, chatPending: () => chatPending, setVoiceState, platform: PLATFORM,
       lastAttachment: () => lastAttachment, attachAction, ttsProvider: () => activeTtsProvider(), offlineMode, localLlmStatus, tryLocalLlmChat,
       toast, modal, ttsBlob, nativeRun, reply, addUser, go, C, isAndroid: IS_ANDROID_WV, ready: true };
+    // 3.3.2: wake Astra Brain on open, when the app comes back to the front, and when he starts typing
+    warmBrain(true);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) warmBrain(false); });
+    try { if (input) input.addEventListener('focus', () => warmBrain(false)); } catch (e) {}
     try { window.dispatchEvent(new CustomEvent('astra:ready')); } catch (e) {}
   })();
 })();

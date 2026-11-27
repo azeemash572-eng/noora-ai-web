@@ -15,7 +15,7 @@ test('brain: plain chat only, falls back on 503 and keeps the old providers', ()
   assert.match(a, /Astra Brain isn't switched on yet/);
   assert.match(read('index.html'), /id="sBrain"/);
 });
-test('brain: sends only the last 10 non-system turns (no system prompt / memories leave the device)', () => {
+test('brain: sends the last 10 non-system turns (the full system prompt stays on the phone; 3.3.2 adds a short context)', () => {
   const a = read('app.js');
   assert.match(a, /m\.role !== 'system'[\s\S]{0,120}\.slice\(-10\)/);
 });
@@ -42,7 +42,7 @@ test('3.3.1: brain no longer skipped for actionable text; tool prompt travels wi
   assert.ok(!/opts\.brain && !vision && !withTools/.test(a), 'withTools must not skip the brain');
   assert.match(a, /opts\.brain && !vision && !opts\.only && S\.astraBrain !== false/);
   assert.match(a, /this\.brain\(messages, withTools \? T\.toolPromptFallback\(PLATFORM\) : ''\)/);
-  assert.match(a, /toolPrompt \? \{ messages: turns, toolPrompt \}/);
+  assert.match(a, /if \(toolPrompt\) payload\.toolPrompt = toolPrompt;/);
   assert.match(a, /jsonTools: true/);
 });
 test('3.3.1: "voice settings kahan hain" is actionable but the prompt knows Settings → Voice', () => {

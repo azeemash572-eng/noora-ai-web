@@ -12,13 +12,13 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Astra AI">
 <meta name="format-detection" content="telephone=no">
-<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=3.2.4">
-<link rel="icon" type="image/png" sizes="64x64" href="icons/icon-64.png?v=3.2.4">
-<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png?v=3.2.4">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=3.3.0">
+<link rel="icon" type="image/png" sizes="64x64" href="icons/icon-64.png?v=3.3.0">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png?v=3.3.0">
 <link rel="manifest" href="manifest.webmanifest" data-pwa>
-<link rel="stylesheet" href="app.css?v=3.2.4">
-<link rel="stylesheet" href="astra.css?v=3.2.4">
-<link rel="stylesheet" href="reel/reel.css?v=3.2.4">
+<link rel="stylesheet" href="app.css?v=3.3.0">
+<link rel="stylesheet" href="astra.css?v=3.3.0">
+<link rel="stylesheet" href="reel/reel.css?v=3.3.0">
 </head>
 <body>
 <canvas id="net" aria-hidden="true"></canvas>
@@ -361,7 +361,7 @@
       <div id="setHome">
         <button type="button" class="setProfile" id="setProfileCard"><span class="uAv" id="setUserAv">A</span><span class="gt"><b id="setUserName">Aap</b><small id="setUserSub">Astra account · is phone par</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
         <div class="group">
-        <button type="button" class="gRow" id="rowUpdate"><span class="blueDot" id="updDot" hidden></span><span class="gt"><span id="updTitle">Astra is up to date</span><small id="updSub">3.2.4</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16L16 8M9 8h7v7"/></svg></span></button>
+        <button type="button" class="gRow" id="rowUpdate"><span class="blueDot" id="updDot" hidden></span><span class="gt"><span id="updTitle">Astra is up to date</span><small id="updSub">3.3.0</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16L16 8M9 8h7v7"/></svg></span></button>
       </div>
         <div class="group catGroup">
           <button type="button" class="gRow catRow" data-sec="account"><span class="gi catIco i1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20c1.2-3.8 4-5.6 7.5-5.6s6.3 1.8 7.5 5.6"/></svg></span><span class="gt">Account & profile<small>Naam, time zone</small></span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
@@ -425,6 +425,10 @@
       <div class="card">
         <label class="row">Read every reply aloud automatically<input type="checkbox" id="sTts" class="switch"></label>
         <p class="note">Off by default. Each reply has a speaker button to listen on demand; Astra Live always talks.</p>
+        <label class="row">Astra's soft voice for the speaker button (online, free)<input type="checkbox" id="sBrainVoiceOn" class="switch"></label>
+        <label>Astra voice<select id="sBrainVoice"><option value="Zephyr">Zephyr — soft, bright (default)</option><option value="Kore">Kore — calm, steady</option><option value="Aoede">Aoede — light, airy</option><option value="Leda">Leda — gentle, youthful</option></select></label>
+        <button type="button" class="outline" id="btnBrainVoicePreview">▶ Preview</button>
+        <p class="note">Natural Urdu voice from Astra's server. If it is busy or offline, the speaker button uses the voice below.</p>
         <label>TTS provider<select id="sTtsProvider">
           <option value="auto">Auto — Grok voice if you added an xAI key and are online, otherwise the most natural phone/browser voice</option>
           <option value="native" data-android-only>Phone voice (Android TextToSpeech) — free, works offline</option>
@@ -646,11 +650,11 @@
       </div>
       <div class="sSec" data-sec="about" hidden>
         <h2 class="secTitle">About</h2>
-      <div class="aboutHero"><img src="icons/astra-mark.svg" alt=""><div class="fn">Astra</div><div class="fv" id="aboutVer">Version 3.2.4</div><div class="fb" id="aboutBuild">Build 87</div></div>
+      <div class="aboutHero"><img src="icons/astra-mark.svg" alt=""><div class="fn">Astra</div><div class="fv" id="aboutVer">Version 3.3.0</div><div class="fb" id="aboutBuild">Build 88</div></div>
       <div class="group">
         <button type="button" class="gRow" id="rowHelp"><span class="gt">Help Center</span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16L16 8M9 8h7v7"/></svg></span></button>
         <button type="button" class="gRow" id="rowPrivacy"><span class="gt">Privacy Policy</span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16L16 8M9 8h7v7"/></svg></span></button>
-        <button type="button" class="gRow" id="rowWhatsNew"><span class="gt">What's new in 3.2.4</span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16L16 8M9 8h7v7"/></svg></span></button>
+        <button type="button" class="gRow" id="rowWhatsNew"><span class="gt">What's new in 3.3.0</span><span class="gc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16L16 8M9 8h7v7"/></svg></span></button>
       </div>
       <h3>On this device</h3>
       <div class="card"><p class="note" id="sIphone"></p></div>

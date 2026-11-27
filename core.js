@@ -1136,8 +1136,21 @@
 
   // ---------------- Voice / TTS helpers (shared, unit-testable) ----------------
   const BRAIN_URL = 'https://astra-brain.onrender.com';   // 3.2.4: Astra Brain proxy (Gemini key lives only on that server)
-  const VERSION = '3.2.4';
-  const BUILD = 87;   // Android versionCode for this release (shown subtly in About)
+  const BRAIN_VOICES = ['Zephyr', 'Kore', 'Aoede', 'Leda'];   // 3.3.0: Gemini voices offered by the astra-brain /tts endpoint (Zephyr = default)
+  /** Text for the Brain voice: no links, Devanagari/Gurmukhi, emoji or markdown (a Roman Urdu voice would mangle them). */
+  function cleanBrainSpeech(text) {
+    return String(text || '')
+      .replace(/https?:\/\/\S+/g, ' ')
+      .replace(/```[\s\S]*?```/g, ' ')
+      .replace(/[\u0900-\u097F\u0A00-\u0A7F]/g, ' ')
+      .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE00}-\u{FE0F}\u{200D}]/gu, '')
+      .replace(/\[\d+]/g, '')
+      .replace(/[*#`_>|~]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+  const VERSION = '3.3.0';
+  const BUILD = 88;   // Android versionCode for this release (shown subtly in About)
   // 2.3.0: ElevenLabs removed (paid; silent fallback in the Android WebView). Saved ElevenLabs keys are left untouched but unused.
   // 'native' = Android TextToSpeech through the NooraNative bridge (free, offline-capable, Google voices incl. ur-PK / hi-IN / pa-IN).
   const TTS_PROVIDERS = [
@@ -1461,7 +1474,7 @@
       if (out.voiceLang == null || out.voiceLang === '') out.voiceLang = 'ENGLISH';
       out.v321Migrated = true;
     }
-    // 3.2.4 (runs once): stored AUTO was never an intentional pick for most users
+    // 3.3.0 (runs once): stored AUTO was never an intentional pick for most users
     // (the Settings default looked like Auto). Move AUTO / blank to ENGLISH once;
     // an Auto choice made after this migration is kept.
     if (!out.v323Migrated) {
@@ -1924,7 +1937,7 @@
     keywords, questionRx, wikiLang, greetingReply, medicalWarning, noAi, visionNeedsKey, remembered, memoryList, forgot, help, word, notOnIphone, t4,
     money, perTola, perGram, fxText, metalText, cryptoText, weatherCode, weatherText, askPlace, failed,
     parseRss2Json, parseChatCompletion, cleanAi, tones, modes, modelPresets, MODEL_MAP, systemPrompt, systemPromptCompact, MEMORY_PROMPT_MAX, systemPromptLegacy, recent, searchPrompt, PRESETS, PROVIDER_FREE,
-    BRAIN_URL, GROQ_BASE, GROQ_MODEL, GROQ_TIMEOUT_MS, GROQ_FIRST_MS, GROQ_TOTAL_MS, OWN_FIRST_MS, OWN_TOTAL_MS, CHAIN_BUDGET_MS, GROQ_MODELS, groqModelInfo, groqExtraFor, XAI_CHAT_BASE, XAI_CHAT_MODEL, OPENAI_BASE, OPENAI_MODEL, OPENAI_MODELS, openaiModelInfo, openaiEffortFor, openaiExtraFor, openaiKeyOf, openaiErrorText, OPENAI_REASONING, OPENAI_REASONING_LEVELS, openaiReasoningOf, openaiWebSearchOn, lunaSearchActive, toResponsesInput, toResponsesTools, buildResponsesRequest, parseResponsesOutput, parseResponsesStream, responsesCitations, responsesShouldFallback, openaiResponsesCall, groqKeyOf, ownProviderOf, aiRoute, failureKind, fallbackNotice, routeSummary, redactKeys, runAiChain,
+    BRAIN_URL, BRAIN_VOICES, cleanBrainSpeech, GROQ_BASE, GROQ_MODEL, GROQ_TIMEOUT_MS, GROQ_FIRST_MS, GROQ_TOTAL_MS, OWN_FIRST_MS, OWN_TOTAL_MS, CHAIN_BUDGET_MS, GROQ_MODELS, groqModelInfo, groqExtraFor, XAI_CHAT_BASE, XAI_CHAT_MODEL, OPENAI_BASE, OPENAI_MODEL, OPENAI_MODELS, openaiModelInfo, openaiEffortFor, openaiExtraFor, openaiKeyOf, openaiErrorText, OPENAI_REASONING, OPENAI_REASONING_LEVELS, openaiReasoningOf, openaiWebSearchOn, lunaSearchActive, toResponsesInput, toResponsesTools, buildResponsesRequest, parseResponsesOutput, parseResponsesStream, responsesCitations, responsesShouldFallback, openaiResponsesCall, groqKeyOf, ownProviderOf, aiRoute, failureKind, fallbackNotice, routeSummary, redactKeys, runAiChain,
     VERSION, TTS_PROVIDERS, DEFAULT_VOICE_SETTINGS, XAI_TTS_URL, XAI_VOICES, TTS_CHUNK, effectiveTtsProvider, activeVoiceLabel, PIPER_VOICES, piperVoiceFor, ttsLocalesFor, rankNativeVoices, buildXaiTtsRequest, mapXaiTtsError, cleanSpeakText, chunkSpeakText, scoreDeviceVoice, pickBestDeviceVoice, describeDefaultVoice, mergeVoiceSettings, ttsProviderReady, speechErrorMessage, assertNoHardcodedSecrets,
     MEMORY_CATEGORIES, FILE_LIMITS, migrateSettings, homeGreeting, homeLangKey, BUILD, searchConversations, renameConversationRecord, validateUpload, fileMetadata,
     parseSSEChunk, parseStreamBuffer, selectAiProvider, selectImageProvider, selectVideoProvider, imageOpPrompt, imageTestMessage, buildOpenAiImageGen, parseOpenAiImage, imageBaseOk, IMAGE_EDIT_OPS,

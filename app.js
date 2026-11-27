@@ -1,4 +1,4 @@
-/* Astra AI 3.2.4 (formerly NOORA AI) command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
+/* Astra AI 3.3.0 (formerly NOORA AI) command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
 (function () {
   'use strict';
   const C = window.NooraCore, L = C.Lang;
@@ -35,7 +35,7 @@
     provider: C.PROVIDER_FREE, baseUrl: '', apiKey: '', chatModel: '', visionModel: '',
     modelPreset: 'Fast', webSearchOn: true, memoryOn: true,
     pinOn: false, pinHash: '', continuousVoice: false, activeAssistantId: null,
-    astraBrain: true, serverUrl: '', imageProvider: '', imageBaseUrl: '', imageApiKey: '', imageModel: '', videoProvider: '', videoApiKey: '', videoBaseUrl: '',
+    astraBrain: true, astraVoice: true, astraVoiceName: 'Zephyr', serverUrl: '', imageProvider: '', imageBaseUrl: '', imageApiKey: '', imageModel: '', videoProvider: '', videoApiKey: '', videoBaseUrl: '',
     mapsProvider: '', defaultCountryCode: '', handsFree: false,
     netMode: 'auto', defaultMessenger: 'ask', imageEditModel: '',
     groqApiKey: '', groqModel: C.GROQ_MODEL, groqAltOn: true,
@@ -2005,7 +2005,7 @@
   let msgSpeakBtn = null;
   function msgSpeakReset() {
     const b = msgSpeakBtn; msgSpeakBtn = null; if (!b) return;
-    b.classList.remove('speaking'); b.setAttribute('aria-pressed', 'false'); b.setAttribute('aria-label', 'Listen'); b.title = 'Listen'; b.innerHTML = SPEAK_SVG;
+    b.classList.remove('speaking', 'loading'); b.setAttribute('aria-pressed', 'false'); b.setAttribute('aria-label', 'Listen'); b.title = 'Listen'; b.innerHTML = SPEAK_SVG;
   }
   function renderAll() { msgSpeakReset(); list.innerHTML = ''; msgs.forEach((m) => list.appendChild(renderMsg(m))); updateEmpty(); scrollEnd(); }
   function append(m) { msgs.push(m); list.appendChild(renderMsg(m)); updateEmpty(); scrollEnd(); }
@@ -2840,6 +2840,60 @@
     }
     return { error: offline ? 'Offline — online voices need internet' : 'No recordable voice: add an xAI or OpenAI voice key in Settings → Voice, or record with the mic' };
   }
+  // 3.3.0: Brain voice — Gemini TTS (soft Urdu female voice) through the astra-brain proxy. Only the per-message speaker button uses it;
+  // any error / 429 / 503 / offline falls back to the device voice. Long replies (> 3 chunks) also use the device voice.
+  const brainTts = { offUntil: 0, told: false };
+  const brainVoiceName = () => (C.BRAIN_VOICES.includes(S.astraVoiceName) ? S.astraVoiceName : 'Zephyr');
+  async function brainTtsFetch(text, voice) {
+    const r = await http(C.BRAIN_URL + '/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, voice }) }, 45000);
+    if (!r.ok) { const e = new Error(r.error || 'HTTP ' + r.status); e.status = r.status; throw e; }
+    const blob = await r.res.blob();
+    if (!blob.size) throw new Error('empty audio');
+    return blob;
+  }
+  function brainTtsFailed(e) {
+    const st = e && e.status;
+    brainTts.offUntil = Date.now() + (st === 429 ? 60000 : (st === 503 || st === 403 || st === 404) ? 600000 : 30000);
+    if (!brainTts.told) { brainTts.told = true; try { status(st === 429 ? 'Astra voice is busy right now — using the device voice.' : "Astra's soft voice isn't available right now — using the device voice."); } catch (x) {} }
+  }
+  async function speakBrain(clean, lang, onend, fallback) {
+    const token = speakToken;
+    const text = C.cleanBrainSpeech(clean);
+    const chunks = text ? C.chunkSpeakText(text, 400) : [];
+    if (!chunks.length || chunks.length > 3) return fallback(clean);
+    const voice = brainVoiceName();
+    const btn = msgSpeakBtn; if (btn) btn.classList.add('loading');
+    const done = () => { if (btn) btn.classList.remove('loading'); };
+    let next = brainTtsFetch(chunks[0], voice); next.catch(() => {});
+    for (let i = 0; i < chunks.length; i++) {
+      let blob;
+      try { blob = await next; } catch (e) {
+        done(); if (token !== speakToken) return;
+        brainTtsFailed(e); return fallback(chunks.slice(i).join(' '));
+      }
+      if (token !== speakToken) { done(); return; }
+      done();
+      if (i + 1 < chunks.length) { next = brainTtsFetch(chunks[i + 1], voice); next.catch(() => {}); }
+      const last = i === chunks.length - 1;
+      const how = await new Promise((resolve) => {
+        let p; try { p = playTtsBlob(blob, token, () => resolve('end')); } catch (e) { return resolve('err'); }
+        if (p && p.catch) p.catch(() => resolve('err'));
+      });
+      if (how === 'err') { if (token === speakToken) { brainTtsFailed({}); fallback(chunks.slice(i).join(' ')); } return; }
+      if (last && token === speakToken && onend) onend();
+      if (token !== speakToken) return;
+    }
+  }
+  async function brainVoicePreview() {
+    unlockSpeech(); stopSpeaking(); speakToken++;
+    const token = speakToken; const voice = C.BRAIN_VOICES.includes($('sBrainVoice') && $('sBrainVoice').value) ? $('sBrainVoice').value : brainVoiceName();
+    const b = $('btnBrainVoicePreview'); if (b) { b.disabled = true; b.textContent = 'Loading…'; }
+    try {
+      const blob = await brainTtsFetch('Assalam o alaikum Captain! Main Astra hoon. Batao, main sun rahi hoon.', voice);
+      if (token === speakToken) await playTtsBlob(blob, token, null);
+    } catch (e) { toast(e.status === 429 ? 'Voice preview is busy, try again in a minute.' : "Astra's soft voice isn't available right now.", 4000); }
+    finally { if (b) { b.disabled = false; b.textContent = '▶ Preview'; } }
+  }
   function speak(text, lang, onend, opts) {
     const o = opts || {};
     const clean = C.cleanSpeakText(text);
@@ -2857,7 +2911,9 @@
     if (NATIVE_TTS) { try { window.NooraNative.ttsStop(); } catch (e) {} piperStop(); }
     speakToken++;
     const offline = S.netMode === 'offline' || !navigator.onLine;
-    if (provider === 'openai' && !offline) speakOpenAi(clean, onend);
+    const deviceVoice = (txt) => { if (provider === 'native' && NATIVE_TTS) speakNative(txt, lang, onend); else speakBrowser(txt, lang, onend); };
+    if (o.msgBtn && S.astraVoice !== false && !offline && (provider === 'browser' || provider === 'native') && Date.now() > brainTts.offUntil) speakBrain(clean, lang, onend, deviceVoice);
+    else if (provider === 'openai' && !offline) speakOpenAi(clean, onend);
     else if (provider === 'xai') speakXai(clean, lang, onend);
     else if (provider === 'piper' && NATIVE_TTS) speakPiper(clean, lang, onend);
     else if (provider === 'native' && NATIVE_TTS) speakNative(clean, lang, onend);
@@ -3192,6 +3248,8 @@
     if ($('sOpenaiTestResult')) { $('sOpenaiTestResult').textContent = ''; delete $('sOpenaiTestResult').dataset.state; }
     if ($('sKeepAlive')) $('sKeepAlive').checked = !!S.keepAlive;
     if ($('sBrain')) $('sBrain').checked = S.astraBrain !== false;
+    if ($('sBrainVoiceOn')) $('sBrainVoiceOn').checked = S.astraVoice !== false;
+    if ($('sBrainVoice')) $('sBrainVoice').value = brainVoiceName();
     renderRouteLine();
     $('sWeb').checked = S.webSearchOn !== false;
     if ($('sServerUrl')) $('sServerUrl').value = S.serverUrl || '';
@@ -3458,6 +3516,9 @@
     el.addEventListener('input', () => { if (id === 'sVolume') applyTtsVolume(); });
   });
   $('sTtsProvider').addEventListener('change', () => { syncTtsProviderFields(); saveSettings(); });
+  if ($('sBrainVoiceOn')) $('sBrainVoiceOn').addEventListener('change', () => { S.astraVoice = $('sBrainVoiceOn').checked; if (S.astraVoice) { brainTts.offUntil = 0; brainTts.told = false; } saveS(); });
+  if ($('sBrainVoice')) $('sBrainVoice').addEventListener('change', () => { S.astraVoiceName = $('sBrainVoice').value; saveS(); });
+  if ($('btnBrainVoicePreview')) $('btnBrainVoicePreview').onclick = brainVoicePreview;
   if ($('btnTtsSettings')) $('btnTtsSettings').onclick = () => { if (!openTtsSettings()) toast('Could not open text-to-speech settings on this phone.'); };
   if ($('sNetMode')) $('sNetMode').addEventListener('change', () => { S.netMode = $('sNetMode').value; saveS(); refreshStatus(); toast('Mode: ' + S.netMode); });
   ['sTtsProvider', 'sXaiKey', 'sGender', 'sNativeVoice'].forEach((id) => { const el = $(id); if (el) el.addEventListener('change', () => {

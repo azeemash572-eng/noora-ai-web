@@ -1,4 +1,4 @@
-/* Astra AI 3.3.0 (formerly NOORA AI) command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
+/* Astra AI 3.3.1 (formerly NOORA AI) command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
 (function () {
   'use strict';
   const C = window.NooraCore, L = C.Lang;
@@ -358,11 +358,11 @@
   const brainState = { offUntil: 0, told: false };
   const AI = {
     // 3.2.4: Astra Brain — Gemini with the Astra persona, behind a Render proxy (the key lives only on the server). Plain chat only; any failure falls through to the usual providers.
-    async brain(messages) {
+    async brain(messages, toolPrompt) {
       const turns = messages.filter((m) => m && m.role !== 'system' && typeof m.content === 'string' && m.content.trim()).slice(-10)
         .map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', text: m.content.slice(0, 1500) }));
       if (!turns.length || turns[turns.length - 1].role !== 'user') return { failure: 'no user turn' };
-      const r = await http(C.BRAIN_URL + '/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: turns }) }, 30000);
+      const r = await http(C.BRAIN_URL + '/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(toolPrompt ? { messages: turns, toolPrompt } : { messages: turns }) }, 30000);
       if (!r.ok) return { failure: r.error || 'HTTP ' + r.status, status: r.status };
       try { const j = await r.res.json(); const t = String(j.reply || '').trim(); return t ? { text: t, model: j.model || '' } : { failure: 'empty reply' }; } catch (e) { return { failure: 'bad JSON' }; }
     },
@@ -469,9 +469,10 @@
         return { text: null, failure: 'no internet', network: true, skippedCloud: true };
       }
       // 3.2.4: Astra Brain first for plain chat (no tools / vision / Luna). 503 not_configured → friendly note once, old behaviour for 10 minutes.
-      if (opts.brain && !vision && !withTools && !opts.only && S.astraBrain !== false && Date.now() > brainState.offUntil) {
-        const b = await this.brain(messages);
-        if (b.text) return done(b, 'Astra Brain · ' + (b.model || 'Gemini'));
+      // 3.3.1: also for actionable text ("open settings", "call Ali"): the phone-action JSON-block instructions go along, and the reply is parsed like any JSON-tool answer.
+      if (opts.brain && !vision && !opts.only && S.astraBrain !== false && Date.now() > brainState.offUntil) {
+        const b = await this.brain(messages, withTools ? T.toolPromptFallback(PLATFORM) : '');
+        if (b.text) return done(Object.assign(b, withTools ? { jsonTools: true } : {}), 'Astra Brain · ' + (b.model || 'Gemini'));
         if (b.status === 503 || b.status === 403 || b.status === 404) {
           brainState.offUntil = Date.now() + 600000;
           if (!brainState.told) { brainState.told = true; try { status("Astra Brain isn't switched on yet — using the standard AI for now."); } catch (e) {} }

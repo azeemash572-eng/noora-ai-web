@@ -1,4 +1,4 @@
-// 3.3.0: Astra Brain — Gemini persona proxy; no key in client code, graceful fallback.
+// 3.3.1: Astra Brain — Gemini persona proxy; no key in client code, graceful fallback.
 const test = require('node:test'); const assert = require('node:assert'); const fs = require('fs'); const path = require('path');
 const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
 const C = require('../core.js');
@@ -9,7 +9,7 @@ test('brain: points at the Render proxy, key never in client', () => {
 });
 test('brain: plain chat only, falls back on 503 and keeps the old providers', () => {
   const a = read('app.js');
-  assert.match(a, /opts\.brain && !vision && !withTools && !opts\.only && S\.astraBrain !== false/);
+  assert.match(a, /opts\.brain && !vision && !opts\.only && S\.astraBrain !== false/);
   assert.match(a, /brain: !medical/);
   assert.match(a, /b\.status === 503/);
   assert.match(a, /Astra Brain isn't switched on yet/);
@@ -34,4 +34,21 @@ test('voice: speaker button uses the Brain first and falls back to the device vo
   ['Zephyr', 'Kore', 'Aoede', 'Leda'].forEach((v) => assert.match(h, new RegExp('value="' + v + '"')));
   assert.match(read('astra.css'), /mSpeak\.loading/);
   assert.ok(!/AIza[0-9A-Za-z_-]{20,}/.test(a + read('core.js')));
+});
+
+// 3.3.1: Brain also answers actionable text (tools via JSON block); the app knows its own voice settings
+test('3.3.1: brain no longer skipped for actionable text; tool prompt travels with the request', () => {
+  const a = read('app.js');
+  assert.ok(!/opts\.brain && !vision && !withTools/.test(a), 'withTools must not skip the brain');
+  assert.match(a, /opts\.brain && !vision && !opts\.only && S\.astraBrain !== false/);
+  assert.match(a, /this\.brain\(messages, withTools \? T\.toolPromptFallback\(PLATFORM\) : ''\)/);
+  assert.match(a, /toolPrompt \? \{ messages: turns, toolPrompt \}/);
+  assert.match(a, /jsonTools: true/);
+});
+test('3.3.1: "voice settings kahan hain" is actionable but the prompt knows Settings → Voice', () => {
+  const T = require('../tools.js');
+  assert.equal(T.looksActionable('apki voice settings kahan hain'), true);   // why the brain must handle tool turns too
+  const p = C.systemPrompt({ aiName: 'Astra' });
+  assert.match(p, /APP HELP/); assert.match(p, /Settings → Voice/);
+  ['Zephyr', 'Kore', 'Aoede', 'Leda'].forEach((v) => assert.ok(p.includes(v)));
 });

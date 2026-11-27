@@ -5,9 +5,9 @@ const R = require('../reel/reel-core.js'); const C = require('../core.js');
 const root = path.join(__dirname, '..'); const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
 
 test('3.1.0 version + build everywhere', () => {
-  assert.equal(C.VERSION, '3.3.0'); assert.equal(C.BUILD, 88); assert.equal(read('VERSION').trim(), '3.3.0');
-  const v = JSON.parse(read('version.json')); assert.equal(v.version, '3.2.3'); assert.equal(v.build, 86); assert.match(v.apk, /releases\/download\/v3\.2\.3\/Astra-3\.2\.3\.apk$/);   // 3.3.0 is a web-only (Pages) update: the APK channel stays on the last published APK
-  assert.match(read('sw.js'), /astra-shell-3\.3\.0/);
+  assert.equal(C.VERSION, '3.3.1'); assert.equal(C.BUILD, 89); assert.equal(read('VERSION').trim(), '3.3.1');
+  const v = JSON.parse(read('version.json')); assert.equal(v.version, '3.2.3'); assert.equal(v.build, 86); assert.match(v.apk, /releases\/download\/v3\.2\.3\/Astra-3\.2\.3\.apk$/);   // 3.3.1 is a web-only (Pages) update: the APK channel stays on the last published APK
+  assert.match(read('sw.js'), /astra-shell-3\.3\.1/);
 });
 test('default project: 9:16, three preset scenes, end screen with handle, music at 20 % with ducking', () => {
   const p = R.defaultProject(); assert.equal(R.W, 1080); assert.equal(R.H, 1920);

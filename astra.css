@@ -523,7 +523,7 @@ input[type=checkbox].switch:disabled{opacity:.4}
   #splash img,.astraOrb .orbGlow,.liveDot{animation:none!important}
 }
 
-/* 3.3.0: Brain voice loading state on the per-message speaker button */
+/* 3.3.1: Brain voice loading state on the per-message speaker button */
 .mAct.mSpeak.loading{opacity:.7;animation:astraVoicePulse 1s ease-in-out infinite}
 @keyframes astraVoicePulse{0%,100%{opacity:.35}50%{opacity:1}}
 @media (prefers-reduced-motion: reduce){.mAct.mSpeak.loading{animation:none}}

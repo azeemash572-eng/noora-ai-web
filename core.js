@@ -682,6 +682,8 @@
     }
   };
   const MEMORY_PROMPT_MAX = 25;
+  /** 3.3.1: the app's own map, so "voice settings kahan hain?" gets the real path (also mirrored in the astra-brain persona). */
+  const APP_HELP = 'APP HELP (answer "where is X / how do I" questions about this app with these exact paths, briefly; never invent a setting): Settings = the gear tab in the bottom bar. Settings → Voice: Astra\'s soft voice switch, the Astra voice picker (Zephyr default, Kore, Aoede, Leda) with a ▶ Preview button, TTS provider, speed, pitch, volume and the read-every-reply-aloud switch; each reply also has a small speaker button to listen to that reply. Settings → Models & API keys: the Astra Brain switch (Gemini with her personality) and optional Groq, OpenAI, xAI and Gemini keys. Other sections: Account & profile, Personalization, Memory, Phone & permissions, Data & privacy, About (version and updates). A "where is" question is not a phone action: just answer it. ';
   function systemPrompt(opts) {
     // opts: { userName, aiName, tone, mode, formality, gender, languagePrompt, memories, medical, earlierTopics, summary, assistant, now, platform }
     const o = opts || {};
@@ -711,6 +713,7 @@
     if (platform === 'ios-web' || platform === 'web') s += 'Phone actions (call, SMS, WhatsApp, email, maps, iOS Shortcuts, calendar .ics) are handled by the app with user confirmation. Wake-word / lock-screen listening is not possible in an iPhone web app — say so briefly only if asked. Alarms, timers, torch, media control and opening arbitrary apps are not available on iPhone web; suggest Siri or an iOS Shortcut when relevant. ';
     if (platform === 'android') s += 'On Android the app can open the dialer, call, SMS, WhatsApp messages, email, maps/navigation, camera, gallery, files, downloads, share, calendar, alarms, timers, reminders, media controls, volume, torch, settings screens, installed apps, the phone contacts and photo editing (edit_image) — contact actions always after user confirmation. Contact names are resolved on the phone; you never see or need phone numbers. Use the provided tools instead of saying you cannot do something. Toggling Wi-Fi/Bluetooth directly is not allowed by Android 10+, so open the settings panel instead. ';
     if (o.medical) s += "MEDICAL: a brief 'not a real doctor' note is shown by the app. Give only general safe information; no diagnosis or prescription doses; encourage a doctor / ER for serious symptoms. Do not repeat medical disclaimers every turn. ";
+    s += APP_HELP;
     if (o.memories && o.memories.length) {
       const mem = o.memories.map((m) => String(m || '').replace(/\s+/g, ' ').trim()).filter(Boolean).slice(-MEMORY_PROMPT_MAX).map((m, i) => (i + 1) + '. ' + m.slice(0, 220));
       if (mem.length) s += 'Saved by the user (numbered; when an item is phrased as a rule or preference, follow it like a standing instruction): ' + mem.join(' ') + ' ';
@@ -1136,7 +1139,7 @@
 
   // ---------------- Voice / TTS helpers (shared, unit-testable) ----------------
   const BRAIN_URL = 'https://astra-brain.onrender.com';   // 3.2.4: Astra Brain proxy (Gemini key lives only on that server)
-  const BRAIN_VOICES = ['Zephyr', 'Kore', 'Aoede', 'Leda'];   // 3.3.0: Gemini voices offered by the astra-brain /tts endpoint (Zephyr = default)
+  const BRAIN_VOICES = ['Zephyr', 'Kore', 'Aoede', 'Leda'];   // 3.3.1: Gemini voices offered by the astra-brain /tts endpoint (Zephyr = default)
   /** Text for the Brain voice: no links, Devanagari/Gurmukhi, emoji or markdown (a Roman Urdu voice would mangle them). */
   function cleanBrainSpeech(text) {
     return String(text || '')
@@ -1149,8 +1152,8 @@
       .replace(/\s+/g, ' ')
       .trim();
   }
-  const VERSION = '3.3.0';
-  const BUILD = 88;   // Android versionCode for this release (shown subtly in About)
+  const VERSION = '3.3.1';
+  const BUILD = 89;   // Android versionCode for this release (shown subtly in About)
   // 2.3.0: ElevenLabs removed (paid; silent fallback in the Android WebView). Saved ElevenLabs keys are left untouched but unused.
   // 'native' = Android TextToSpeech through the NooraNative bridge (free, offline-capable, Google voices incl. ur-PK / hi-IN / pa-IN).
   const TTS_PROVIDERS = [
@@ -1474,7 +1477,7 @@
       if (out.voiceLang == null || out.voiceLang === '') out.voiceLang = 'ENGLISH';
       out.v321Migrated = true;
     }
-    // 3.3.0 (runs once): stored AUTO was never an intentional pick for most users
+    // 3.3.1 (runs once): stored AUTO was never an intentional pick for most users
     // (the Settings default looked like Auto). Move AUTO / blank to ENGLISH once;
     // an Auto choice made after this migration is kept.
     if (!out.v323Migrated) {

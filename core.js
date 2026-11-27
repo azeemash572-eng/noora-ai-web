@@ -373,22 +373,23 @@
   }
 
   const noAi = (l, reason) => pick(l,
-    `I couldn't reach an AI model right now (${reason}). The free keyless AI server is limited/busy. For reliable answers, add your own API key in Settings → AI provider. Greetings, search, prices, weather, images and phone links still work.`,
+    `Abhi mera AI se rabta nahi ho saka (${reason}). Thori der baad dobara try karein. Pakke jawab ke liye Settings → Models & API keys mein Astra Brain ka switch ya apni key dekh lein. Salam, search, qeematein, mausam aur tasveerein phir bhi chalti hain.`,
     `ابھی AI ماڈل سے رابطہ نہیں ہو سکا (${reason})۔ مفت (بغیر key) AI سرور محدود/مصروف ہے۔ پکے جواب کے لیے Settings → AI provider میں اپنی API key ڈالیں۔ سلام، سرچ، قیمتیں، موسم اور تصویریں پھر بھی چلتی ہیں۔`,
-    `Janu, abhi AI model se rabta nahi ho saka (${reason}). Free (bina key) AI server limited/busy hai. Pakke jawab ke liye Settings → AI provider mein apni API key dalein. Salam, search, prices, mausam aur tasveerein phir bhi chalti hain.`,
-    `अभी AI मॉडल से संपर्क नहीं हो सका (${reason})। मुफ़्त (बिना key) AI सर्वर सीमित/व्यस्त है। भरोसेमंद जवाब के लिए Settings → AI provider में अपनी API key डालें।`,
+    `Abhi mera AI se rabta nahi ho saka (${reason}). Thori der baad dobara try karein. Pakke jawab ke liye Settings → Models & API keys mein Astra Brain ka switch ya apni key dekh lein. Salam, search, qeematein, mausam aur tasveerein phir bhi chalti hain.`,
+    `Abhi mera AI se rabta nahi ho saka (${reason}). Thori der baad dobara try karein. Pakke jawab ke liye Settings → Models & API keys mein Astra Brain ka switch ya apni key dekh lein. Salam, search, qeematein, mausam aur tasveerein phir bhi chalti hain.`,
     `ਹੁਣੇ AI ਮਾਡਲ ਨਾਲ ਸੰਪਰਕ ਨਹੀਂ ਹੋ ਸਕਿਆ (${reason})। ਮੁਫ਼ਤ (ਬਿਨਾਂ key) AI ਸਰਵਰ ਸੀਮਤ/ਰੁੱਝਿਆ ਹੈ। ਪੱਕੇ ਜਵਾਬ ਲਈ Settings → AI provider ਵਿੱਚ ਆਪਣੀ API key ਪਾਓ।`,
     `ہنے AI ماڈل نال رابطہ نئیں ہو سکیا (${reason})۔ مفت (بغیر key) AI سرور محدود/مصروف اے۔ پکے جواب لئی Settings → AI provider وچ اپنی API key پاؤ۔`,
     `Hune AI model naal rabta nahi ho sakeya (${reason}). Free (bina key) AI server limited/busy ae. Pakke jawab layi Settings → AI provider vich apni API key pao.`);
 
+  /** 3.3.4: shown only when Astra Brain AND every other provider failed on a photo. Plain Roman Urdu, no jargon. */
   const visionNeedsKey = (l) => pick(l,
-    'To understand photos I need a vision-capable AI model, and the free keyless servers refuse image input (tested: HTTP 400/401/402). Please add your own API key in Settings → AI provider (e.g. OpenAI gpt-4o-mini, Gemini, Groq Qwen 3.8 27B, OpenRouter), then send the photo again.',
-    'تصویر سمجھنے کے لیے vision والا AI ماڈل چاہیے، اور مفت سرور تصویر قبول نہیں کرتے (ٹیسٹ: HTTP 400/401/402)۔ Settings → AI provider میں اپنی API key ڈالیں اور تصویر دوبارہ بھیجیں۔',
-    'Tasveer samajhne ke liye vision wala AI model chahiye, aur free server tasveer accept nahi karte (test: HTTP 400/401/402). Settings → AI provider mein apni API key dalein aur tasveer dobara bhejein.',
-    'तस्वीर समझने के लिए vision वाला AI मॉडल चाहिए, और मुफ़्त सर्वर तस्वीर स्वीकार नहीं करते (टेस्ट: HTTP 400/401/402)। Settings → AI provider में अपनी API key डालें और तस्वीर दोबारा भेजें।',
-    'ਤਸਵੀਰ ਸਮਝਣ ਲਈ vision ਵਾਲਾ AI ਮਾਡਲ ਚਾਹੀਦਾ ਹੈ, ਮੁਫ਼ਤ ਸਰਵਰ ਤਸਵੀਰ ਨਹੀਂ ਲੈਂਦੇ (HTTP 400/401/402)। Settings → AI provider ਵਿੱਚ ਆਪਣੀ API key ਪਾਓ।',
-    'تصویر سمجھن لئی vision والا AI ماڈل چاہیدا اے، مفت سرور تصویر نئیں لیندے (HTTP 400/401/402)۔ Settings → AI provider وچ اپنی API key پاؤ۔',
-    'Tasveer samajhan layi vision wala AI model chahida ae, free server tasveer nahi lainde (HTTP 400/401/402). Settings → AI provider vich apni API key pao.');
+    'Abhi main aap ki tasveer nahi dekh pa rahi, kyunke meri Astra Brain se rabta nahi ho saka. Thori der baad wohi tasveer dobara bhej dein. Phir bhi na chale to Settings → Models & API keys mein Astra Brain ka switch check kar lein, ya apni Gemini key daal dein.',
+    'ابھی میں آپ کی تصویر نہیں دیکھ پا رہی، کیونکہ میرا Astra Brain سے رابطہ نہیں ہو سکا۔ تھوڑی دیر بعد وہی تصویر دوبارہ بھیج دیں۔ پھر بھی نہ چلے تو Settings → Models & API keys میں Astra Brain کا سوئچ دیکھ لیں، یا اپنی Gemini key ڈال دیں۔',
+    'Abhi main aap ki tasveer nahi dekh pa rahi, kyunke meri Astra Brain se rabta nahi ho saka. Thori der baad wohi tasveer dobara bhej dein. Phir bhi na chale to Settings → Models & API keys mein Astra Brain ka switch check kar lein, ya apni Gemini key daal dein.',
+    'Abhi main aap ki tasveer nahi dekh pa rahi, kyunke meri Astra Brain se rabta nahi ho saka. Thori der baad wohi tasveer dobara bhej dein. Phir bhi na chale to Settings → Models & API keys mein Astra Brain ka switch check kar lein, ya apni Gemini key daal dein.',
+    'Abhi main aap ki tasveer nahi dekh pa rahi, kyunke meri Astra Brain se rabta nahi ho saka. Thori der baad wohi tasveer dobara bhej dein. Phir bhi na chale to Settings → Models & API keys mein Astra Brain ka switch check kar lein, ya apni Gemini key daal dein.',
+    'ابھی میں آپ کی تصویر نہیں دیکھ پا رہی، کیونکہ میرا Astra Brain سے رابطہ نہیں ہو سکا۔ تھوڑی دیر بعد وہی تصویر دوبارہ بھیج دیں۔ پھر بھی نہ چلے تو Settings → Models & API keys میں Astra Brain کا سوئچ دیکھ لیں، یا اپنی Gemini key ڈال دیں۔',
+    'Abhi main aap ki tasveer nahi dekh pa rahi, kyunke meri Astra Brain se rabta nahi ho saka. Thori der baad wohi tasveer dobara bhej dein. Phir bhi na chale to Settings → Models & API keys mein Astra Brain ka switch check kar lein, ya apni Gemini key daal dein.');
 
   const remembered = (l, f) => pick(l, `Got it, I'll remember: "${f}"`, `یاد رکھ لیا جانو: "${f}" 🤍`, `Yaad rakh liya janu: "${f}" 🤍`, `ठीक है, मैं याद रखूँगी: "${f}"`,
     `ਠੀਕ ਹੈ, ਮੈਂ ਯਾਦ ਰੱਖਾਂਗੀ: "${f}"`, `ٹھیک اے، میں یاد رکھاں گی: "${f}"`, `Theek ae, main yaad rakhangi: "${f}"`);
@@ -1178,8 +1179,8 @@
       .replace(/\s+/g, ' ')
       .trim();
   }
-  const VERSION = '3.3.3';
-  const BUILD = 91;   // Android versionCode for this release (shown subtly in About)
+  const VERSION = '3.3.4';
+  const BUILD = 92;   // Android versionCode for this release (shown subtly in About)
   // 2.3.0: ElevenLabs removed (paid; silent fallback in the Android WebView). Saved ElevenLabs keys are left untouched but unused.
   // 'native' = Android TextToSpeech through the NooraNative bridge (free, offline-capable, Google voices incl. ur-PK / hi-IN / pa-IN).
   const TTS_PROVIDERS = [

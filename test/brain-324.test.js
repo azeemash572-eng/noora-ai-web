@@ -7,9 +7,9 @@ test('brain: points at the Render proxy, key never in client', () => {
   const app = read('app.js') + read('core.js') + read('index.html');
   assert.ok(!/AIza[0-9A-Za-z_-]{20,}/.test(app), 'no Gemini key in shipped code');
 });
-test('brain: plain chat only, falls back on 503 and keeps the old providers', () => {
+test('brain: chat (and photos, 3.3.4) go to the Brain; falls back on 503 and keeps the old providers', () => {
   const a = read('app.js');
-  assert.match(a, /opts\.brain && !vision && !opts\.only && S\.astraBrain !== false/);
+  assert.match(a, /opts\.brain && !opts\.only && S\.astraBrain !== false/);
   assert.match(a, /brain: !medical/);
   assert.match(a, /b\.status === 503/);
   assert.match(a, /Astra Brain isn't switched on yet/);
@@ -29,7 +29,7 @@ test('voice: speaker button uses the Brain first and falls back to the device vo
   const a = read('app.js'); const h = read('index.html');
   assert.match(a, /brainVoiceApplies = \(provider, o\) => S\.astraVoice !== false/);
   assert.match(a, /brainTtsFailed/); assert.match(a, /C\.BRAIN_URL \+ '\/tts'/);
-  assert.match(a, /chunks\.length > 4\) return fallback/);
+  assert.match(a, /chunks\.length > 3\) return fallback/); assert.match(a, /text\.length <= 260\) return \[text\]/);
   ['sBrainVoiceOn', 'sBrainVoice', 'btnBrainVoicePreview'].forEach((id) => assert.match(h, new RegExp('id="' + id + '"')));
   ['Zephyr', 'Kore', 'Aoede', 'Leda'].forEach((v) => assert.match(h, new RegExp('value="' + v + '"')));
   assert.match(read('astra.css'), /mSpeak\.loading/);
@@ -40,8 +40,8 @@ test('voice: speaker button uses the Brain first and falls back to the device vo
 test('3.3.1: brain no longer skipped for actionable text; tool prompt travels with the request', () => {
   const a = read('app.js');
   assert.ok(!/opts\.brain && !vision && !withTools/.test(a), 'withTools must not skip the brain');
-  assert.match(a, /opts\.brain && !vision && !opts\.only && S\.astraBrain !== false/);
-  assert.match(a, /this\.brain\(messages, withTools \? T\.toolPromptFallback\(PLATFORM\) : ''\)/);
+  assert.match(a, /opts\.brain && !opts\.only && S\.astraBrain !== false/);
+  assert.match(a, /this\.brain\(messages, withTools \? T\.toolPromptFallback\(PLATFORM\) : '', vision\)/);
   assert.match(a, /if \(toolPrompt\) payload\.toolPrompt = toolPrompt;/);
   assert.match(a, /jsonTools: true/);
 });
@@ -73,7 +73,7 @@ test('3.3.3: all spoken replies use the Brain voice (not only the button); strea
 });
 test('3.3.3: first sentence first, parallel requests, and a plain note when the Astra voice fails', () => {
   const a = read('app.js');
-  assert.match(a, /function brainChunks\(text\)/); assert.match(a, /chunks\.length > 4\) return fallback/);
+  assert.match(a, /function brainChunks\(text\)/); assert.match(a, /chunks\.length > 3\) return fallback/); assert.match(a, /text\.length <= 260\) return \[text\]/);
   assert.match(a, /const reqs = chunks\.map/);
   assert.match(a, /brainTtsFailed\(e\); return fallback/);
   assert.match(a, /so the phone voice is speaking/); assert.match(a, /phone ki awaz chal rahi hai/);
@@ -84,7 +84,7 @@ test('3.3.3: server style prompt is conversational and /tts limits are roomy eno
   const fs2 = require('fs'); const p = '/workspace/astra-brain/server.mjs';
   if (!fs2.existsSync(p)) return;   // server lives in its own repo
   const s = fs2.readFileSync(p, 'utf8');
-  assert.match(s, /Not a newsreader/); assert.match(s, /only the line after TRANSCRIPT/); assert.match(s, /TTS_PER_MIN \|\| 20/);
+  assert.match(s, /Not a newsreader/); assert.match(s, /only the line after TRANSCRIPT/); assert.match(s, /TTS_PER_MIN \|\| 20/); assert.match(s, /gemini_busy/); assert.match(s, /edge-tts/); assert.match(s, /modelCool/);
 });
 test('3.3.3: lastVoiceVia is declared before anything can call renderVoiceInfo during init (TDZ regression)', () => {
   const a = read('app.js');

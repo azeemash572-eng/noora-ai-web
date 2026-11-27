@@ -1,4 +1,4 @@
-/* Astra AI 3.3.3 (formerly NOORA AI) command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
+/* Astra AI 3.3.4 (formerly NOORA AI) command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
 (function () {
   'use strict';
   const C = window.NooraCore, L = C.Lang;
@@ -373,12 +373,24 @@
   }
   const AI = {
     // 3.2.4: Astra Brain — Gemini with the Astra persona, behind a Render proxy (the key lives only on the server). Plain chat only; any failure falls through to the usual providers.
-    async brain(messages, toolPrompt) {
-      const turns = messages.filter((m) => m && m.role !== 'system' && typeof m.content === 'string' && m.content.trim()).slice(-10)
-        .map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', text: m.content.slice(0, 1500) }));
+    async brain(messages, toolPrompt, vision) {
+      // 3.3.4: photos too — the newest user turn may be an OpenAI-style [{type:'text'},{type:'image_url'}] array; images go as data URLs (server caps ~4 MB)
+      const partsOf = (m) => Array.isArray(m.content) ? m.content : null;
+      if (messages.some((m) => partsOf(m) && partsOf(m).some((p) => p && p.type === 'input_audio'))) return { failure: 'audio is not supported by the Brain' };
+      const turns = messages.filter((m) => m && m.role !== 'system' && ((typeof m.content === 'string' && m.content.trim()) || partsOf(m))).slice(-10)
+        .map((m, i, arr) => {
+          const role = m.role === 'assistant' ? 'model' : 'user';
+          const ps = partsOf(m);
+          if (!ps) return { role, text: m.content.slice(0, 1500) };
+          const text = ps.filter((p) => p && p.type === 'text').map((p) => p.text || '').join('\n').slice(0, 1500);
+          const images = i === arr.length - 1 ? ps.filter((p) => p && p.type === 'image_url' && p.image_url && typeof p.image_url.url === 'string').map((p) => p.image_url.url).slice(0, 3) : [];
+          return images.length ? { role, text, images } : { role, text };
+        }).filter((t) => t.text.trim() || (t.images && t.images.length));
       if (!turns.length || turns[turns.length - 1].role !== 'user') return { failure: 'no user turn' };
       // 3.3.3: also send his saved memories / rules / date (brainCtx), so "Remember things I ask" works with the Brain too; 40s covers a Render cold start
       const payload = { messages: turns };
+      const imgChars = turns.reduce((n, t) => n + (t.images || []).reduce((k, u) => k + u.length, 0), 0);
+      if (imgChars > 3900000) return { failure: 'photo too large for the Brain' };
       if (toolPrompt) payload.toolPrompt = toolPrompt;
       if (brainCtx) payload.context = brainCtx;
       const r = await http(C.BRAIN_URL + '/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }, 40000);
@@ -490,8 +502,9 @@
       }
       // 3.2.4: Astra Brain first for plain chat (no tools / vision / Luna). 503 not_configured → friendly note once, old behaviour for 10 minutes.
       // 3.3.1: also for actionable text ("open settings", "call Ali"): the phone-action JSON-block instructions go along, and the reply is parsed like any JSON-tool answer.
-      if (opts.brain && !vision && !opts.only && S.astraBrain !== false && Date.now() > brainState.offUntil) {
-        const b = await this.brain(messages, withTools ? T.toolPromptFallback(PLATFORM) : '');
+      // 3.3.4: photos go to the Brain first too (Gemini sees images); the old providers stay as backup
+      if (opts.brain && !opts.only && S.astraBrain !== false && Date.now() > brainState.offUntil) {
+        const b = await this.brain(messages, withTools ? T.toolPromptFallback(PLATFORM) : '', vision);
         if (b.text) return done(Object.assign(b, withTools ? { jsonTools: true } : {}), 'Astra Brain · ' + (b.model || 'Gemini'));
         if (b.status === 503 || b.status === 403 || b.status === 404) {
           brainState.offUntil = Date.now() + 600000;
@@ -1526,7 +1539,8 @@
     if (cmd) { busy = false; return runPlan(cmd.steps, lang); }
 
     const hasImg = processed.some((p) => p.dataUrl), hasAudio = processed.some((p) => p.audio);
-    const vr = T.visionReady(S);
+    const brainSees = hasImg && !hasAudio && S.astraBrain !== false && Date.now() > brainState.offUntil;   // 3.3.4: Astra Brain (Gemini) reads photos, no own key needed
+    const vr = brainSees ? { ok: true, via: 'Astra Brain' } : T.visionReady(S);
     let usable = processed;
     let skipped = '';
     if ((hasImg || hasAudio) && !vr.ok) {
@@ -1538,7 +1552,7 @@
     showPending(C.word(lang, 'thinking')); status('Reading your file…'); setVoiceState('THINKING', 'reading file');
     const messages = await buildMessages(lang, false, null);
     messages[messages.length - 1] = { role: 'user', content };
-    const r = await AI.chat(messages, Array.isArray(content), { stream: !Array.isArray(content) });
+    const r = await AI.chat(messages, Array.isArray(content), { stream: !Array.isArray(content), brain: hasImg && !hasAudio });
     if (r.text) return reply((skipped ? '⚠️ ' + skipped + '\n\n' : '') + (r.warning ? r.warning + '\n\n' : '') + r.text, lang, { meta: { notice: r.notice || null, via: r.via + ' · ' + processed.length + ' file(s)' } });
     const why = short(r.failure);
     return reply((Array.isArray(content) ? (hasAudio ? 'I couldn\'t get the audio understood: ' : C.visionNeedsKey(lang) + '\n') : C.noAi(lang, why) + '\n') + '(' + why + ')', lang, { meta: { via: 'offline' } });
@@ -2471,8 +2485,8 @@
     const name = f.name || 'file';
     try {
       if (mime.startsWith('image/') || /\.(png|jpe?g|gif|webp)$/i.test(name)) {
-        const dataUrl = await scaleImage(f, 1024);
-        const q = question || 'What is in this image? Describe it. If there is text, extract it (OCR).';
+        const dataUrl = await scaleImage(f, 1280);
+        const q = question || 'Is tasveer mein kya hai? Batao, aur agar is mein kuch likha ho to wo bhi nikal do.';
         await addUser(q, dataUrl);
         await Store.addFile({ name, mime: mime || 'image/jpeg', kind: 'image', ts: Date.now(), dataUrl });
         const lang = detectLang(q, prefLang());
@@ -2480,7 +2494,7 @@
         const mems = await Store.memories();
         const messages = [{ role: 'system', content: C.systemPrompt({ userName: S.userName, aiName: aiName(), tone: S.tone, mode: S.mode, formality: S.formality, gender: S.gender, languagePrompt: lang.prompt, memories: mems, platform: PLATFORM, customInstructions: S.customInstructions }) },
           { role: 'user', content: [{ type: 'text', text: q }, { type: 'image_url', image_url: { url: dataUrl } }] }];
-        const r = await AI.chat(messages, true);
+        const r = await AI.chat(messages, true, { brain: true });
         if (r.text) return reply(r.text, lang, { meta: { notice: r.notice || null, via: r.via } });
         const enhanced = await enhanceImageCanvas(dataUrl);
         await Store.addFile({ name: 'enhanced-' + name, mime: 'image/jpeg', kind: 'image', ts: Date.now(), dataUrl: enhanced });
@@ -2919,6 +2933,7 @@
     if (!r.ok) { const e = new Error(r.error || 'HTTP ' + r.status); e.status = r.status; throw e; }
     const blob = await r.res.blob();
     if (!blob.size) throw new Error('empty audio');
+    try { blob.astraModel = r.res.headers.get('x-tts-model') || ''; } catch (e) {}
     return blob;
   }
   function brainTtsFailed(e) {
@@ -2934,6 +2949,8 @@
   }
   // first sentence goes out alone (short = fast), the rest in <=400-char pieces; all pieces are requested at once and played in order
   function brainChunks(text) {
+    // Gemini's free tier allows only ~3 requests a minute, so short replies stay ONE request; longer ones send the first sentence alone to start sooner
+    if (text.length <= 260) return [text];
     const m = /^(.{8,220}?[.!?۔؟])\s+(.+)$/s.exec(text);
     return m ? [m[1]].concat(C.chunkSpeakText(m[2], 400)) : C.chunkSpeakText(text, 400);
   }
@@ -2942,7 +2959,7 @@
     const token = speakToken;
     const text = C.cleanBrainSpeech(clean);
     const chunks = text ? brainChunks(text) : [];
-    if (!chunks.length || chunks.length > 4) return fallback(clean);
+    if (!chunks.length || chunks.length > 3) return fallback(clean);
     const voice = brainVoiceName();
     primeAudio();
     const btn = msgSpeakBtn; if (btn) btn.classList.add('loading');
@@ -2962,7 +2979,7 @@
         if (p && p.catch) p.catch((err) => resolve({ err }));
       });
       if (how.err) { if (token === speakToken) { brainTtsFailed(how.err); fallback(chunks.slice(i).join(' ')); } return; }
-      lastVoiceVia = 'Astra voice (Gemini ' + voice + ')';
+      lastVoiceVia = /^edge-/.test(blob.astraModel || '') ? "Astra backup Urdu voice (Gemini's free limit is used up for now)" : 'Astra voice (Gemini ' + voice + ')';
       if (last && token === speakToken && onend) onend();
       if (token !== speakToken) return;
     }

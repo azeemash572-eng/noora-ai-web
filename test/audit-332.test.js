@@ -3,8 +3,8 @@ const test = require('node:test'); const assert = require('node:assert'); const 
 const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
 const C = require('../core.js');
 test('3.3.3: version and build', () => {
-  assert.equal(C.VERSION, '3.3.3'); assert.equal(C.BUILD, 91);
-  assert.equal(read('VERSION').trim(), '3.3.3'); assert.match(read('sw.js'), /astra-shell-3\.3\.3/);
+  assert.equal(C.VERSION, '3.3.4'); assert.equal(C.BUILD, 92);
+  assert.equal(read('VERSION').trim(), '3.3.4'); assert.match(read('sw.js'), /astra-shell-3\.3\.4/);
 });
 test('3.3.3: brain context carries memories, rules, date, language; capped', () => {
   const ctx = C.brainContext({ memories: ['Chai bina cheeni'], customInstructions: 'Short replies', languageId: 'ROMAN_URDU', now: new Date('2026-11-27T05:00:00'), summary: 'voice' });

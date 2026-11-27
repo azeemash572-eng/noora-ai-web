@@ -1,4 +1,4 @@
-/* Astra AI 3.3.2 (formerly NOORA AI) command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
+/* Astra AI 3.3.3 (formerly NOORA AI) command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
 (function () {
   'use strict';
   const C = window.NooraCore, L = C.Lang;
@@ -61,7 +61,7 @@
   const openaiOn = () => !!(C.openaiKeyOf(S) && S.openaiChatMode !== 'off');
   const hasAnyKey = () => !!(hasOwnKey() || C.groqKeyOf(S) || openaiOn());
   const prefLang = () => (S.voiceLang && L[S.voiceLang] ? L[S.voiceLang] : null);   // 'AUTO' (explicit) → follow each message
-  // 3.3.2: his phone's voice typing writes spoken Urdu in Devanagari (Hindi) letters — treat that as Roman Urdu so replies are never in Devanagari
+  // 3.3.3: his phone's voice typing writes spoken Urdu in Devanagari (Hindi) letters — treat that as Roman Urdu so replies are never in Devanagari
   // (only when Hindi is not chosen on purpose in Settings, and the switch is not turned off)
   const detectLang = (text, pref) => { const l = C.detect(text, pref); return l === L.HINDI && S.voiceLang !== 'HINDI' && S.devanagariAsUrdu !== false ? L.ROMAN_URDU : l; };
   // 3.0.1: small UI strings follow the Settings language: English by default, Roman Urdu wording for Urdu / Punjabi users.
@@ -359,9 +359,9 @@
   }
 
   const brainState = { offUntil: 0, told: false };
-  let brainCtx = '';   // 3.3.2: compact context for Astra Brain, set by buildMessages()
+  let brainCtx = '';   // 3.3.3: compact context for Astra Brain, set by buildMessages()
   const brainWarm = { at: 0 };
-  // 3.3.2: the free Render server sleeps after ~15 min; wake it while he is still typing so the first reply is not lost to the fallback
+  // 3.3.3: the free Render server sleeps after ~15 min; wake it while he is still typing so the first reply is not lost to the fallback
   function warmBrain(force) {
     try {
       if (S.astraBrain === false || !navigator.onLine || S.netMode === 'offline') return;
@@ -376,7 +376,7 @@
       const turns = messages.filter((m) => m && m.role !== 'system' && typeof m.content === 'string' && m.content.trim()).slice(-10)
         .map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', text: m.content.slice(0, 1500) }));
       if (!turns.length || turns[turns.length - 1].role !== 'user') return { failure: 'no user turn' };
-      // 3.3.2: also send his saved memories / rules / date (brainCtx), so "Remember things I ask" works with the Brain too; 40s covers a Render cold start
+      // 3.3.3: also send his saved memories / rules / date (brainCtx), so "Remember things I ask" works with the Brain too; 40s covers a Render cold start
       const payload = { messages: turns };
       if (toolPrompt) payload.toolPrompt = toolPrompt;
       if (brainCtx) payload.context = brainCtx;
@@ -2047,7 +2047,7 @@
   }
   async function reply(text, lang, opts = {}) {
     removePending();
-    text = C.varyPetNames(text);   // 3.3.2: a different loving name each time, not "janu" again and again
+    text = C.varyPetNames(text);   // 3.3.3: a different loving name each time, not "janu" again and again
     const files = extractProjectFiles(text);
     const meta = Object.assign({}, opts.meta || {});
     if (files.length >= 2) meta.downloadZip = files;
@@ -2291,7 +2291,7 @@
     const [mems, convs, summary, assist] = await Promise.all([
       Store.memories(), Store.conversations(), Store.getSummary(convId), activeAssistant()
     ]);
-    const useMem = (!assist || assist.useMemory !== false) && S.memoryOn !== false;   // 3.3.2: memory switch off → saved notes are not sent either
+    const useMem = (!assist || assist.useMemory !== false) && S.memoryOn !== false;   // 3.3.3: memory switch off → saved notes are not sent either
     const topics = convs.filter((c) => c.id !== convId && c.title).slice(0, 5).map((c) => c.title);
     const out = [{ role: 'system', content: C.systemPrompt({
       userName: S.userName, aiName: aiName(), tone: S.tone, mode: S.mode, formality: S.formality, gender: S.gender,
@@ -2575,7 +2575,7 @@
   if ('speechSynthesis' in window) { loadVoices(); speechSynthesis.onvoiceschanged = loadVoices; }
   const warnedVoice = {};
   let unlocked = false;
-  function unlockSpeech() { if (unlocked || !('speechSynthesis' in window)) return; try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); unlocked = true; } catch (e) {} }
+  function unlockSpeech() { primeAudio(); if (unlocked || !('speechSynthesis' in window)) return; try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); unlocked = true; } catch (e) {} }
   function maybeAutoPickDefaultVoice() {
     if (S.voiceURI || !voices.length) return;
     const d = C.describeDefaultVoice(voices, { gender: S.gender || 'female', langPrefs: ['en-US', 'en-GB', 'en'] });
@@ -2601,7 +2601,7 @@
   function ssBegin(lang, allowed) {
     ssAbort();
     let ok = allowed !== false && autoSpeakOn();
-    try { const p = activeTtsProvider(); ok = ok && (p === 'native' || p === 'piper' || p === 'browser'); } catch (e) { ok = false; }
+    try { const p = activeTtsProvider(); ok = ok && (p === 'native' || p === 'piper' || p === 'browser') && !brainVoiceApplies(p, null); } catch (e) { ok = false; }
     if (ok) { SS.on = true; SS.lang = lang; }
   }
   function ssPump() {
@@ -2638,7 +2638,7 @@
     if (SS.on || SS.q.length) { SS.q = []; SS.playing = false; SS.finishing = false; SS.after = null; }
     speakToken++;
     if ('speechSynthesis' in window) speechSynthesis.cancel();
-    if (ttsAudio) { try { ttsAudio.pause(); ttsAudio.src = ''; } catch (e) {} ttsAudio = null; }
+    stopTtsAudio();
     piperStop();
     if (NATIVE_TTS) { try { window.NooraNative.ttsStop(); } catch (e) {} Object.keys(ttsWaiters).forEach((k) => { clearTimeout(ttsWaiters[k].tm); delete ttsWaiters[k]; }); }
   }
@@ -2647,17 +2647,63 @@
       try { ttsAudio.volume = S.volume == null ? 1 : S.volume; } catch (e) {}
     }
   }
-  function playTtsBlob(blob, token, onend) {
+  // 3.3.3: iOS Safari only lets audio start inside a tap, and the Brain voice arrives ~5 s later. So ONE reusable <audio> element and an
+  // AudioContext are unlocked synchronously during the first tap/click (silent clip); every later play() reuses them. If play() is still
+  // refused, the WAV is decoded and played through the unlocked AudioContext.
+  const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=';
+  let sharedAudio = null, audioCtx = null, audioPrimed = false, ctxSource = null, ttsUrl = null;
+  function getAudioEl() {
+    if (!sharedAudio) { sharedAudio = new Audio(); sharedAudio.preload = 'auto'; try { sharedAudio.setAttribute('playsinline', ''); sharedAudio.playsInline = true; } catch (e) {} }
+    return sharedAudio;
+  }
+  function primeAudio() {
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC && !audioCtx) audioCtx = new AC();
+      if (audioCtx && audioCtx.state === 'suspended') { const r = audioCtx.resume(); if (r && r.catch) r.catch(() => {}); }
+      if (audioPrimed) return;
+      const el = getAudioEl();
+      if (!el.paused || (el.src && el.src !== SILENT_WAV && !el.ended)) return;   // never disturb real playback
+      el.src = SILENT_WAV;
+      const p = el.play();
+      if (p && p.then) p.then(() => { audioPrimed = true; if (el.currentSrc === SILENT_WAV || el.src === SILENT_WAV) el.pause(); }).catch(() => {});
+      else audioPrimed = true;
+    } catch (e) {}
+  }
+  ['touchend', 'click'].forEach((ev) => document.addEventListener(ev, primeAudio, { capture: true, passive: true }));
+  function stopTtsAudio() {
+    if (sharedAudio) { try { sharedAudio.onended = null; sharedAudio.onerror = null; sharedAudio.pause(); } catch (e) {} }
+    if (ttsUrl) { try { URL.revokeObjectURL(ttsUrl); } catch (e) {} ttsUrl = null; }
+    if (ctxSource) { try { ctxSource.onended = null; ctxSource.stop(0); } catch (e) {} ctxSource = null; }
+    ttsAudio = null;
+  }
+  async function playViaContext(blob, token, onend) {
+    if (!audioCtx) throw new Error('no audio context');
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
+    const ab = await blob.arrayBuffer();
+    const buf = await new Promise((res, rej) => audioCtx.decodeAudioData(ab, res, rej));
     if (token !== speakToken) return;
-    if (lastTtsBlob && lastTtsBlob !== blob) { /* keep newest */ }
+    const src = audioCtx.createBufferSource(); src.buffer = buf;
+    const g = audioCtx.createGain(); g.gain.value = S.volume == null ? 1 : S.volume; src.connect(g); g.connect(audioCtx.destination);
+    ctxSource = src; src.onended = () => { if (ctxSource === src) ctxSource = null; if (token === speakToken && onend) onend(); };
+    src.start(0);
+  }
+  function playTtsBlob(blob, token, onend) {
+    if (token !== speakToken) return Promise.resolve();
     lastTtsBlob = blob;
-    const url = URL.createObjectURL(blob);
-    if (ttsAudio) { try { ttsAudio.pause(); } catch (e) {} }
-    ttsAudio = new Audio(url);
-    ttsAudio.volume = S.volume == null ? 1 : S.volume;
-    ttsAudio.onended = () => { URL.revokeObjectURL(url); if (token === speakToken && onend) onend(); };
-    ttsAudio.onerror = () => { URL.revokeObjectURL(url); toast(C.speechErrorMessage('tts-fail')); if (token === speakToken && onend) onend(); };
-    return ttsAudio.play();
+    primeAudio();
+    stopTtsAudio();
+    const url = URL.createObjectURL(blob); ttsUrl = url;
+    const el = getAudioEl(); ttsAudio = el;
+    el.src = url; el.volume = S.volume == null ? 1 : S.volume;
+    el.onended = () => { if (ttsUrl === url) { URL.revokeObjectURL(url); ttsUrl = null; } if (token === speakToken && onend) onend(); };
+    el.onerror = () => { if (ttsUrl === url) { URL.revokeObjectURL(url); ttsUrl = null; } toast(C.speechErrorMessage('tts-fail')); if (token === speakToken && onend) onend(); };
+    let p; try { p = el.play(); } catch (e) { p = Promise.reject(e); }
+    return Promise.resolve(p).catch((err) => {
+      if (token !== speakToken) return;
+      el.onended = null; el.onerror = null;
+      return playViaContext(blob, token, onend).catch((e2) => { const e = new Error('blocked'); e.blocked = true; e.detail = String((err && err.name) || err) + '/' + String((e2 && e2.message) || e2); throw e; });
+    });
   }
   function speakBrowser(clean, lang, onend) {
     if (!('speechSynthesis' in window)) { if (!warnedVoice.none) { warnedVoice.none = 1; toast('speechSynthesis not available.'); } if (onend) onend(); return; }
@@ -2866,6 +2912,7 @@
   // 3.3.0: Brain voice — Gemini TTS (soft Urdu female voice) through the astra-brain proxy. Only the per-message speaker button uses it;
   // any error / 429 / 503 / offline falls back to the device voice. Long replies (> 3 chunks) also use the device voice.
   const brainTts = { offUntil: 0, told: false };
+  let lastVoiceVia = '';
   const brainVoiceName = () => (C.BRAIN_VOICES.includes(S.astraVoiceName) ? S.astraVoiceName : 'Zephyr');
   async function brainTtsFetch(text, voice) {
     const r = await http(C.BRAIN_URL + '/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, voice }) }, 45000);
@@ -2876,33 +2923,46 @@
   }
   function brainTtsFailed(e) {
     const st = e && e.status;
-    brainTts.offUntil = Date.now() + (st === 429 ? 60000 : (st === 503 || st === 403 || st === 404) ? 600000 : 30000);
-    if (!brainTts.told) { brainTts.told = true; try { status(st === 429 ? 'Astra voice is busy right now — using the device voice.' : "Astra's soft voice isn't available right now — using the device voice."); } catch (x) {} }
+    if (!(e && e.blocked)) brainTts.offUntil = Date.now() + (st === 429 ? 60000 : (st === 503 || st === 403 || st === 404) ? 600000 : 30000);
+    lastVoiceVia = 'phone voice (Astra voice failed: ' + ((e && (e.detail || e.message)) || st || 'error') + ')';
+    // never silent: say plainly that the phone voice is being used instead
+    const msg = e && e.blocked ? ui("This browser blocked Astra's soft voice, so the phone voice is speaking. Tap the speaker again.", 'Browser ne Astra ki awaz rok di, phone ki awaz chal rahi hai. Speaker dobara dabayein.')
+      : st === 429 ? ui("Astra's soft voice is busy, so the phone voice is speaking.", 'Astra ki awaz abhi masroof hai, phone ki awaz chal rahi hai.')
+      : ui("Astra's soft voice isn't available right now, so the phone voice is speaking.", 'Astra ki soft awaz abhi nahi chal rahi, phone ki awaz chal rahi hai.');
+    try { toast(msg, 5000); status(msg); } catch (x) {}
+    try { renderVoiceInfo(); } catch (x) {}
   }
+  // first sentence goes out alone (short = fast), the rest in <=400-char pieces; all pieces are requested at once and played in order
+  function brainChunks(text) {
+    const m = /^(.{8,220}?[.!?۔؟])\s+(.+)$/s.exec(text);
+    return m ? [m[1]].concat(C.chunkSpeakText(m[2], 400)) : C.chunkSpeakText(text, 400);
+  }
+  const brainVoiceApplies = (provider, o) => S.astraVoice !== false && !(o && o.provider != null) && S.netMode !== 'offline' && navigator.onLine && (provider === 'browser' || provider === 'native') && Date.now() > brainTts.offUntil;
   async function speakBrain(clean, lang, onend, fallback) {
     const token = speakToken;
     const text = C.cleanBrainSpeech(clean);
-    const chunks = text ? C.chunkSpeakText(text, 400) : [];
-    if (!chunks.length || chunks.length > 3) return fallback(clean);
+    const chunks = text ? brainChunks(text) : [];
+    if (!chunks.length || chunks.length > 4) return fallback(clean);
     const voice = brainVoiceName();
+    primeAudio();
     const btn = msgSpeakBtn; if (btn) btn.classList.add('loading');
     const done = () => { if (btn) btn.classList.remove('loading'); };
-    let next = brainTtsFetch(chunks[0], voice); next.catch(() => {});
+    const reqs = chunks.map((c) => { const p = brainTtsFetch(c, voice); p.catch(() => {}); return p; });
     for (let i = 0; i < chunks.length; i++) {
       let blob;
-      try { blob = await next; } catch (e) {
+      try { blob = await reqs[i]; } catch (e) {
         done(); if (token !== speakToken) return;
         brainTtsFailed(e); return fallback(chunks.slice(i).join(' '));
       }
       if (token !== speakToken) { done(); return; }
       done();
-      if (i + 1 < chunks.length) { next = brainTtsFetch(chunks[i + 1], voice); next.catch(() => {}); }
       const last = i === chunks.length - 1;
       const how = await new Promise((resolve) => {
-        let p; try { p = playTtsBlob(blob, token, () => resolve('end')); } catch (e) { return resolve('err'); }
-        if (p && p.catch) p.catch(() => resolve('err'));
+        let p; try { p = playTtsBlob(blob, token, () => resolve({ ok: true })); } catch (e) { return resolve({ err: e }); }
+        if (p && p.catch) p.catch((err) => resolve({ err }));
       });
-      if (how === 'err') { if (token === speakToken) { brainTtsFailed({}); fallback(chunks.slice(i).join(' ')); } return; }
+      if (how.err) { if (token === speakToken) { brainTtsFailed(how.err); fallback(chunks.slice(i).join(' ')); } return; }
+      lastVoiceVia = 'Astra voice (Gemini ' + voice + ')';
       if (last && token === speakToken && onend) onend();
       if (token !== speakToken) return;
     }
@@ -2914,7 +2974,7 @@
     try {
       const blob = await brainTtsFetch('Assalam o alaikum Captain! Main Astra hoon. Batao, main sun rahi hoon.', voice);
       if (token === speakToken) await playTtsBlob(blob, token, null);
-    } catch (e) { toast(e.status === 429 ? 'Voice preview is busy, try again in a minute.' : "Astra's soft voice isn't available right now.", 4000); }
+    } catch (e) { toast(e.blocked ? ui('This browser blocked the voice. Tap Preview again.', 'Browser ne awaz rok di. Preview dobara dabayein.') : e.status === 429 ? ui('Voice preview is busy, try again in a minute.', 'Awaz masroof hai, ek minute baad dobara try karein.') : ui("Astra's soft voice isn't available right now.", 'Astra ki soft awaz abhi nahi chal rahi.'), 4000); }
     finally { if (b) { b.disabled = false; b.textContent = '▶ Preview'; } }
   }
   function speak(text, lang, onend, opts) {
@@ -2930,12 +2990,12 @@
     const provider = o.provider != null ? C.effectiveTtsProvider(Object.assign({}, S, { ttsProvider: o.provider }), ttsPlatform(), { online: ttsOnline() }) : activeTtsProvider();
     // cancel previous without bumping token twice awkwardly
     if ('speechSynthesis' in window) speechSynthesis.cancel();
-    if (ttsAudio) { try { ttsAudio.pause(); ttsAudio.src = ''; } catch (e) {} ttsAudio = null; }
+    stopTtsAudio();
     if (NATIVE_TTS) { try { window.NooraNative.ttsStop(); } catch (e) {} piperStop(); }
     speakToken++;
     const offline = S.netMode === 'offline' || !navigator.onLine;
     const deviceVoice = (txt) => { if (provider === 'native' && NATIVE_TTS) speakNative(txt, lang, onend); else speakBrowser(txt, lang, onend); };
-    if (o.msgBtn && S.astraVoice !== false && !offline && (provider === 'browser' || provider === 'native') && Date.now() > brainTts.offUntil) speakBrain(clean, lang, onend, deviceVoice);
+    if (brainVoiceApplies(provider, o)) speakBrain(clean, lang, onend, deviceVoice);
     else if (provider === 'openai' && !offline) speakOpenAi(clean, onend);
     else if (provider === 'xai') speakXai(clean, lang, onend);
     else if (provider === 'piper' && NATIVE_TTS) speakPiper(clean, lang, onend);
@@ -2947,7 +3007,7 @@
     if (lastTtsBlob && (activeTtsProvider() === 'xai' || activeTtsProvider() === 'openai') && !S.muted) {
       unlockSpeech();
       if ('speechSynthesis' in window) speechSynthesis.cancel();
-      if (ttsAudio) { try { ttsAudio.pause(); ttsAudio.src = ''; } catch (e) {} ttsAudio = null; }
+      stopTtsAudio();
       speakToken++;
       const token = speakToken;
       playTtsBlob(lastTtsBlob, token, null).catch(() => {
@@ -3013,6 +3073,7 @@
       const r = C.ttsProviderReady(S, ttsPlatform());
       parts.push(r.ok ? (PROV_LABEL[p] + ' ready (key stored on this device only).') : r.reason);
     }
+    if (lastVoiceVia) parts.push('Last spoken with: ' + lastVoiceVia);
     el.textContent = parts.join('\n');
   }
   function fillNativeVoiceSelect() {
@@ -4345,7 +4406,7 @@
       T, runPlan, pending: () => pending, plan: () => plan, voiceState: () => voiceState, addChatFiles, chatPending: () => chatPending, setVoiceState, platform: PLATFORM,
       lastAttachment: () => lastAttachment, attachAction, ttsProvider: () => activeTtsProvider(), offlineMode, localLlmStatus, tryLocalLlmChat,
       toast, modal, ttsBlob, nativeRun, reply, addUser, go, C, isAndroid: IS_ANDROID_WV, ready: true };
-    // 3.3.2: wake Astra Brain on open, when the app comes back to the front, and when he starts typing
+    // 3.3.3: wake Astra Brain on open, when the app comes back to the front, and when he starts typing
     warmBrain(true);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) warmBrain(false); });
     try { if (input) input.addEventListener('focus', () => warmBrain(false)); } catch (e) {}

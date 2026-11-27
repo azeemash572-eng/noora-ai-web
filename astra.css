@@ -527,5 +527,5 @@ input[type=checkbox].switch:disabled{opacity:.4}
 .mAct.mSpeak.loading{opacity:.7;animation:astraVoicePulse 1s ease-in-out infinite}
 @keyframes astraVoicePulse{0%,100%{opacity:.35}50%{opacity:1}}
 @media (prefers-reduced-motion: reduce){.mAct.mSpeak.loading{animation:none}}
-/* 3.3.2: very narrow iPhones (320px, e.g. iPhone SE 1st gen) — keep the ⋮ button on screen */
+/* 3.3.3: very narrow iPhones (320px, e.g. iPhone SE 1st gen) — keep the ⋮ button on screen */
 @media (max-width:359px){.modePill{max-width:48vw;gap:6px;padding:0 6px 0 4px}.modePill .modeTag{display:none}}

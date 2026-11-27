@@ -682,16 +682,16 @@
     }
   };
   const MEMORY_PROMPT_MAX = 25;
-  /** 3.3.2: plain everyday Urdu, never Sanskrit-style Hindi words, never Devanagari (his voice typing writes spoken Urdu in Devanagari letters). */
+  /** 3.3.3: plain everyday Urdu, never Sanskrit-style Hindi words, never Devanagari (his voice typing writes spoken Urdu in Devanagari letters). */
   const PLAIN_WORDS = 'WORDS: in Urdu / Roman Urdu use plain everyday Urdu words (mashwara, mehfooz, behtari, istemaal, maujood, madad, shukriya, masla, maloomat, zaroori, paighaam, sawal, jawab) or simple English — never Sanskrit-style Hindi words (sujhaav, surakshit, prayog, uplabdh, sahayata, dhanyavaad, kripya, samasya, jaankari, avashyak, sandesh, prashn, uttar). If his message is in Devanagari (Hindi) letters, it is his voice typing of spoken Urdu: understand it and reply in Roman Urdu, never in Devanagari, unless he chose Hindi on purpose. ';
-  /** 3.3.2: he does not want the same pet name every time — canned Roman Urdu replies say "janu"; swap each for the next loving name in turn. */
+  /** 3.3.3: he does not want the same pet name every time — canned Roman Urdu replies say "janu"; swap each for the next loving name in turn. */
   const PET_NAMES = ['darling', 'mere hero', 'Chanda', 'Captain', 'sweetheart', 'mere shehzade', 'soneyo'];
   let petIdx = Math.floor(Math.random() * PET_NAMES.length);
   function varyPetNames(t) {
     if (typeof t !== 'string' || !/\b[Jj]anu\b/.test(t)) return t;
     return t.replace(/\b([Jj])anu\b/g, (m, j) => { const n = PET_NAMES[petIdx++ % PET_NAMES.length]; return j === 'J' ? n[0].toUpperCase() + n.slice(1) : n; });
   }
-  /** 3.3.2: compact context for Astra Brain (the server holds the persona; this carries his saved notes, rules, date and language). Max ~3000 chars. */
+  /** 3.3.3: compact context for Astra Brain (the server holds the persona; this carries his saved notes, rules, date and language). Max ~3000 chars. */
   function brainContext(o) {
     o = o || {};
     const parts = [];
@@ -1178,8 +1178,8 @@
       .replace(/\s+/g, ' ')
       .trim();
   }
-  const VERSION = '3.3.2';
-  const BUILD = 90;   // Android versionCode for this release (shown subtly in About)
+  const VERSION = '3.3.3';
+  const BUILD = 91;   // Android versionCode for this release (shown subtly in About)
   // 2.3.0: ElevenLabs removed (paid; silent fallback in the Android WebView). Saved ElevenLabs keys are left untouched but unused.
   // 'native' = Android TextToSpeech through the NooraNative bridge (free, offline-capable, Google voices incl. ur-PK / hi-IN / pa-IN).
   const TTS_PROVIDERS = [

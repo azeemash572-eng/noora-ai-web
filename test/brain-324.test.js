@@ -15,7 +15,7 @@ test('brain: plain chat only, falls back on 503 and keeps the old providers', ()
   assert.match(a, /Astra Brain isn't switched on yet/);
   assert.match(read('index.html'), /id="sBrain"/);
 });
-test('brain: sends the last 10 non-system turns (the full system prompt stays on the phone; 3.3.2 adds a short context)', () => {
+test('brain: sends the last 10 non-system turns (the full system prompt stays on the phone; 3.3.3 adds a short context)', () => {
   const a = read('app.js');
   assert.match(a, /m\.role !== 'system'[\s\S]{0,120}\.slice\(-10\)/);
 });
@@ -27,9 +27,9 @@ test('voice: four Gemini voices, Zephyr first; Devanagari/emoji/links removed', 
 });
 test('voice: speaker button uses the Brain first and falls back to the device voice; settings exist', () => {
   const a = read('app.js'); const h = read('index.html');
-  assert.match(a, /o\.msgBtn && S\.astraVoice !== false && !offline && \(provider === 'browser' \|\| provider === 'native'\) && Date\.now\(\) > brainTts\.offUntil/);
+  assert.match(a, /brainVoiceApplies = \(provider, o\) => S\.astraVoice !== false/);
   assert.match(a, /brainTtsFailed/); assert.match(a, /C\.BRAIN_URL \+ '\/tts'/);
-  assert.match(a, /chunks\.length > 3\) return fallback/);
+  assert.match(a, /chunks\.length > 4\) return fallback/);
   ['sBrainVoiceOn', 'sBrainVoice', 'btnBrainVoicePreview'].forEach((id) => assert.match(h, new RegExp('id="' + id + '"')));
   ['Zephyr', 'Kore', 'Aoede', 'Leda'].forEach((v) => assert.match(h, new RegExp('value="' + v + '"')));
   assert.match(read('astra.css'), /mSpeak\.loading/);
@@ -51,4 +51,38 @@ test('3.3.1: "voice settings kahan hain" is actionable but the prompt knows Sett
   const p = C.systemPrompt({ aiName: 'Astra' });
   assert.match(p, /APP HELP/); assert.match(p, /Settings → Voice/);
   ['Zephyr', 'Kore', 'Aoede', 'Leda'].forEach((v) => assert.ok(p.includes(v)));
+});
+
+// 3.3.3: iOS Safari audio unlock, Brain voice for every spoken reply, honest fallback notice
+test('3.3.3: shared <audio> + AudioContext are primed inside the tap; play() refusal falls back to the AudioContext', () => {
+  const a = read('app.js');
+  assert.match(a, /const SILENT_WAV = 'data:audio\/wav;base64,/);
+  assert.match(a, /\['touchend', 'click'\]\.forEach\(\(ev\) => document\.addEventListener\(ev, primeAudio/);
+  assert.match(a, /function unlockSpeech\(\) \{ primeAudio\(\);/);
+  assert.match(a, /el\.src = url;/); assert.ok(!/ttsAudio = new Audio\(url\)/.test(a), 'must reuse the unlocked element');
+  assert.match(a, /playViaContext\(blob, token, onend\)\.catch/);
+  assert.match(a, /decodeAudioData/);
+  assert.match(a, /function speakBrain[\s\S]{0,400}primeAudio\(\);/);
+});
+test('3.3.3: all spoken replies use the Brain voice (not only the button); streaming sentences are off while it is active', () => {
+  const a = read('app.js');
+  assert.match(a, /if \(brainVoiceApplies\(provider, o\)\) speakBrain\(/);
+  assert.ok(!/o\.msgBtn && S\.astraVoice !== false/.test(a));
+  assert.match(a, /!brainVoiceApplies\(p, null\)/);
+  assert.match(a, /!\(o && o\.provider != null\)/);   // explicit provider tests (Voice Test) keep the device voice
+});
+test('3.3.3: first sentence first, parallel requests, and a plain note when the Astra voice fails', () => {
+  const a = read('app.js');
+  assert.match(a, /function brainChunks\(text\)/); assert.match(a, /chunks\.length > 4\) return fallback/);
+  assert.match(a, /const reqs = chunks\.map/);
+  assert.match(a, /brainTtsFailed\(e\); return fallback/);
+  assert.match(a, /so the phone voice is speaking/); assert.match(a, /phone ki awaz chal rahi hai/);
+  assert.match(a, /Last spoken with: /);
+  assert.ok(!/brainTts\.told/.test(a.slice(a.indexOf('function brainTtsFailed'), a.indexOf('function brainChunks'))), 'notice must not be shown only once');
+});
+test('3.3.3: server style prompt is conversational and /tts limits are roomy enough for voice mode', () => {
+  const fs2 = require('fs'); const p = '/workspace/astra-brain/server.mjs';
+  if (!fs2.existsSync(p)) return;   // server lives in its own repo
+  const s = fs2.readFileSync(p, 'utf8');
+  assert.match(s, /Not a newsreader/); assert.match(s, /only the line after TRANSCRIPT/); assert.match(s, /TTS_PER_MIN \|\| 20/);
 });

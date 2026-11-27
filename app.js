@@ -44,6 +44,7 @@
     ownerOnly: false, voiceIdSens: C.VOICEID.SENS_DEFAULT
   }, C.DEFAULT_VOICE_SETTINGS);
   let S = Object.assign({}, DEF);
+  let lastVoiceVia = '';   // 3.3.3: which voice spoke last (Settings → Voice); declared early because renderVoiceInfo runs during init
   let wakeMode = false, silentCount = 0, wakePausedUntil = 0, astraOpen = null; // 2.8.0 hands-free / wake word / proactive greeting
   try {
     const raw = JSON.parse(localStorage.getItem('noora.settings') || '{}');
@@ -2912,7 +2913,6 @@
   // 3.3.0: Brain voice — Gemini TTS (soft Urdu female voice) through the astra-brain proxy. Only the per-message speaker button uses it;
   // any error / 429 / 503 / offline falls back to the device voice. Long replies (> 3 chunks) also use the device voice.
   const brainTts = { offUntil: 0, told: false };
-  let lastVoiceVia = '';
   const brainVoiceName = () => (C.BRAIN_VOICES.includes(S.astraVoiceName) ? S.astraVoiceName : 'Zephyr');
   async function brainTtsFetch(text, voice) {
     const r = await http(C.BRAIN_URL + '/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, voice }) }, 45000);

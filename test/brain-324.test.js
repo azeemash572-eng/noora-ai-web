@@ -86,3 +86,9 @@ test('3.3.3: server style prompt is conversational and /tts limits are roomy eno
   const s = fs2.readFileSync(p, 'utf8');
   assert.match(s, /Not a newsreader/); assert.match(s, /only the line after TRANSCRIPT/); assert.match(s, /TTS_PER_MIN \|\| 20/);
 });
+test('3.3.3: lastVoiceVia is declared before anything can call renderVoiceInfo during init (TDZ regression)', () => {
+  const a = read('app.js');
+  assert.ok(a.indexOf("let lastVoiceVia = ''") > 0 && a.indexOf("let lastVoiceVia = ''") < a.indexOf('function renderVoiceInfo'));
+  assert.ok(a.indexOf("let lastVoiceVia = ''") < a.indexOf('const loadVoices'));
+  assert.equal((a.match(/let lastVoiceVia/g) || []).length, 1);
+});

@@ -1,4 +1,4 @@
-/* Astra AI 3.2.3 (formerly NOORA AI) command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
+/* Astra AI 3.2.4 (formerly NOORA AI) command-center web / PWA / Android WebView. Storage keys preserved: noora.settings, IndexedDB noora-ai. */
 (function () {
   'use strict';
   const C = window.NooraCore, L = C.Lang;
@@ -35,7 +35,7 @@
     provider: C.PROVIDER_FREE, baseUrl: '', apiKey: '', chatModel: '', visionModel: '',
     modelPreset: 'Fast', webSearchOn: true, memoryOn: true,
     pinOn: false, pinHash: '', continuousVoice: false, activeAssistantId: null,
-    serverUrl: '', imageProvider: '', imageBaseUrl: '', imageApiKey: '', imageModel: '', videoProvider: '', videoApiKey: '', videoBaseUrl: '',
+    astraBrain: true, serverUrl: '', imageProvider: '', imageBaseUrl: '', imageApiKey: '', imageModel: '', videoProvider: '', videoApiKey: '', videoBaseUrl: '',
     mapsProvider: '', defaultCountryCode: '', handsFree: false,
     netMode: 'auto', defaultMessenger: 'ask', imageEditModel: '',
     groqApiKey: '', groqModel: C.GROQ_MODEL, groqAltOn: true,
@@ -355,7 +355,17 @@
     return Object.assign({}, r, { failure: C.openaiErrorText(-1, '', msg, model) + (msg ? ' (' + msg + ')' : '') });
   }
 
+  const brainState = { offUntil: 0, told: false };
   const AI = {
+    // 3.2.4: Astra Brain — Gemini with the Astra persona, behind a Render proxy (the key lives only on the server). Plain chat only; any failure falls through to the usual providers.
+    async brain(messages) {
+      const turns = messages.filter((m) => m && m.role !== 'system' && typeof m.content === 'string' && m.content.trim()).slice(-10)
+        .map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', text: m.content.slice(0, 1500) }));
+      if (!turns.length || turns[turns.length - 1].role !== 'user') return { failure: 'no user turn' };
+      const r = await http(C.BRAIN_URL + '/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: turns }) }, 30000);
+      if (!r.ok) return { failure: r.error || 'HTTP ' + r.status, status: r.status };
+      try { const j = await r.res.json(); const t = String(j.reply || '').trim(); return t ? { text: t, model: j.model || '' } : { failure: 'empty reply' }; } catch (e) { return { failure: 'bad JSON' }; }
+    },
     async openAi(url, model, messages, key, opts = {}) {
       const stream = !!opts.stream;
       const onDelta = opts.onDelta;
@@ -457,6 +467,16 @@
       // 2.4.0: never burn ~20s on Groq / Gemini / Pollinations when offline or Offline mode is forced
       if (C.shouldSkipCloudAi(S, navigator.onLine)) {
         return { text: null, failure: 'no internet', network: true, skippedCloud: true };
+      }
+      // 3.2.4: Astra Brain first for plain chat (no tools / vision / Luna). 503 not_configured → friendly note once, old behaviour for 10 minutes.
+      if (opts.brain && !vision && !withTools && !opts.only && S.astraBrain !== false && Date.now() > brainState.offUntil) {
+        const b = await this.brain(messages);
+        if (b.text) return done(b, 'Astra Brain · ' + (b.model || 'Gemini'));
+        if (b.status === 503 || b.status === 403 || b.status === 404) {
+          brainState.offUntil = Date.now() + 600000;
+          if (!brainState.told) { brainState.told = true; try { status("Astra Brain isn't switched on yet — using the standard AI for now."); } catch (e) {} }
+        } else if (b.status === 429 || b.status === 502 || b.status === -1) { brainState.offUntil = Date.now() + 60000; }
+        reasons.push('brain: ' + b.failure);
       }
       const server = opts.only ? '' : (S.serverUrl || '').trim().replace(/\/+$/, '');   // 2.7.0: `only` = ask just that provider (Luna web search)
       if (server) {
@@ -2279,7 +2299,7 @@
     };
     setVoiceState('THINKING');
     ssBegin(lang, !medical);
-    const r = await AI.chat(await buildMessages(lang, medical, null), false, Object.assign({ stream: true, onDelta, tools: !medical && T.looksActionable(text) }, xo.luna ? { only: 'openai' } : {}));
+    const r = await AI.chat(await buildMessages(lang, medical, null), false, Object.assign({ stream: true, onDelta, brain: !medical, tools: !medical && T.looksActionable(text) }, xo.luna ? { only: 'openai' } : {}));
     if (xo.luna && !(r.toolCalls && r.toolCalls.length) && (!r.text || /chat fallback/.test(r.via || ''))) { ssAbort(); removePending(); return liveSearch(xo.luna.query, text, xo.luna.numeric, lang); }   // no live answer from Luna → Google News search
     if (r.warning || r.text == null) ssAbort();
     const warn = medical ? C.medicalWarning(lang, emergency) + '\n\n' : '';
@@ -3171,6 +3191,7 @@
     if ($('sOpenaiReasoning')) $('sOpenaiReasoning').value = C.openaiReasoningOf(S);
     if ($('sOpenaiTestResult')) { $('sOpenaiTestResult').textContent = ''; delete $('sOpenaiTestResult').dataset.state; }
     if ($('sKeepAlive')) $('sKeepAlive').checked = !!S.keepAlive;
+    if ($('sBrain')) $('sBrain').checked = S.astraBrain !== false;
     renderRouteLine();
     $('sWeb').checked = S.webSearchOn !== false;
     if ($('sServerUrl')) $('sServerUrl').value = S.serverUrl || '';
@@ -3283,9 +3304,10 @@
     S.tone = $('sTone').value; S.mode = $('sMode').value; S.formality = $('sFormality').value;
     S.gender = $('sGender').value; S.voiceLang = $('sPrefLang').value || 'ENGLISH';
     if ($('sServerUrl')) S.serverUrl = ($('sServerUrl').value || '').trim().replace(/\/+$/, '');
+    if ($('sBrain')) S.astraBrain = $('sBrain').checked;
     saveS(); updateEmpty(); renderSuggestions(); refreshStatus(); renderRouteLine();
   }
-  ['sGroqKey', 'sGroqModel', 'sGroqAlt', 'sCustomInstr', 'sOpenaiMode', 'sOpenaiKey', 'sOpenaiModel', 'sOpenaiWeb', 'sOpenaiReasoning', 'sXaiChatMode', 'sXaiChatKey', 'sXaiChatModel', 'sBase', 'sKey', 'sModel', 'sVision', 'sWeb', 'sAiName', 'sTone', 'sMode', 'sFormality', 'sGender', 'sPrefLang', 'sServerUrl'].forEach((id) => {
+  ['sBrain', 'sGroqKey', 'sGroqModel', 'sGroqAlt', 'sCustomInstr', 'sOpenaiMode', 'sOpenaiKey', 'sOpenaiModel', 'sOpenaiWeb', 'sOpenaiReasoning', 'sXaiChatMode', 'sXaiChatKey', 'sXaiChatModel', 'sBase', 'sKey', 'sModel', 'sVision', 'sWeb', 'sAiName', 'sTone', 'sMode', 'sFormality', 'sGender', 'sPrefLang', 'sServerUrl'].forEach((id) => {
     const el = $(id); if (el) el.addEventListener('change', saveAiFields);
   });
   $('sProvider').addEventListener('change', () => {

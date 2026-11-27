@@ -20,3 +20,6 @@ See `server/README.md`. Set **Server URL** in Settings to route AI/TTS/image thr
 1. Open the https URL in Safari → Share → Add to Home Screen.
 
 Published from `main` via GitHub Pages (static). Optional `server/` is for Replit only — not executed on Pages.
+
+## Astra Brain (3.2.4)
+Plain chat first goes to `https://astra-brain.onrender.com/chat` (Gemini + the Astra persona; repo `azeemash572-eng/astra-brain`, key only in the Render env). Only the last 10 user/assistant turns are sent, never the system prompt or memories. If the proxy answers 503/not configured (or is down) Astra says so once and uses the usual providers. Toggle: Settings → AI → Astra Brain.
